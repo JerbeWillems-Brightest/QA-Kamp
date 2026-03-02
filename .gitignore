@@ -137,3 +137,103 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# =========================
+# Node.js algemeen
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# =========================
+# Build outputs
+# =========================
+dist/
+build/
+out/
+.next/
+coverage/
+*.tsbuildinfo
+
+# =========================
+# Environment variables (BELANGRIJK)
+# =========================
+.env
+.env.*
+!.env.example
+
+# =========================
+# Logs
+# =========================
+logs/
+*.log
+
+# =========================
+# Runtime data
+# =========================
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# =========================
+# MongoDB
+# =========================
+data/
+db/
+mongodb-data/
+*.wt
+*.ns
+*.0
+*.1
+*.2
+*.3
+*.4
+
+# MongoDB local database folder (vaak gebruikt)
+dump/
+
+# =========================
+# OS files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# =========================
+# React specifiek
+# =========================
+build/
+.cache/
+.eslintcache
+
+# =========================
+# Express / backend specifiek
+# =========================
+dist/
+tmp/
+temp/
+
+# =========================
+# Test
+# =========================
+coverage/
+.nyc_output/
+
+# =========================
+# Misc
+# =========================
+*.local
+*.cache
