@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 function App() {
+  const API_URL = import.meta.env.VITE_API_URL || '' // if empty, use relative paths for dev/proxy
+
   const [status, setStatus] = useState<{ message: string; time: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -12,10 +14,10 @@ function App() {
   const [healthError, setHealthError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Use relative /api path — vite proxy will forward to backend in dev
+    // Use API_URL if provided, otherwise relative /api for proxy in dev
     async function fetchStatus() {
       try {
-        const res = await fetch('/api/status')
+        const res = await fetch(`${API_URL || ''}/api/status`)
         if (!res.ok) {
           setError(`HTTP ${res.status}`)
           return
@@ -31,7 +33,7 @@ function App() {
     }
 
     fetchStatus()
-  }, [])
+  }, [API_URL])
 
   // Handler for the health button
   async function checkHealth() {
@@ -39,8 +41,7 @@ function App() {
     setHealthError(null)
     setHealthMessage(null)
     try {
-      // Call the dedicated health endpoint on the backend
-      const res = await fetch('/api/status')
+      const res = await fetch(`${API_URL || ''}/api/status`)
       if (!res.ok) {
         setHealthError(`HTTP ${res.status}`)
         return
