@@ -1,20 +1,19 @@
 import express = require('express')
+import cors = require('cors')
 import type { Request, Response, NextFunction } from 'express'
 
 const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
 
-// Simple, small CORS middleware to avoid requiring the 'cors' package
-app.use((req: Request, res: Response, next: NextFunction) => {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  if (req.method === 'OPTIONS') {
-    res.sendStatus(204)
-    return
-  }
-  next()
-})
+// Allow the frontend origin via env var, default to local dev
+const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || 'http://localhost:5173'
+
+app.use(
+  cors({
+    origin: FRONTEND_ORIGIN,
+    methods: ['GET', 'POST', 'OPTIONS'],
+  })
+)
 
 app.use(express.json())
 
@@ -23,5 +22,5 @@ app.get('/api/status', (_req: Request, res: Response) => {
 })
 
 app.listen(PORT, () => {
-  console.log(`Backend listening on http://localhost:${PORT}`)
+  console.log(`Backend listening on http://localhost:${PORT} — CORS origin: ${FRONTEND_ORIGIN}`)
 })
