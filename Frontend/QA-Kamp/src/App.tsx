@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 function App() {
-  const API_URL = import.meta.env.VITE_API_URL || '' // if empty, use relative paths for dev/proxy
+  // Get backend base URL from env, remove trailing /api if present, then append /api/status
+  let API_URL = import.meta.env.VITE_API_URL || ''
+  if (API_URL.endsWith('/api')) {
+    API_URL = API_URL.slice(0, -4) // Remove trailing /api
+  }
 
   const [status, setStatus] = useState<{ message: string; time: string } | null>(null)
   const [loading, setLoading] = useState(true)
