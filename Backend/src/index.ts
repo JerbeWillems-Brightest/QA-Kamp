@@ -1,10 +1,11 @@
-const express = require('express')
+import express = require('express')
+import type { Request, Response, NextFunction } from 'express'
 
 const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
 
 // Simple, small CORS middleware to avoid requiring the 'cors' package
-app.use((req, res, next) => {
+app.use((req: Request, res: Response, next: NextFunction) => {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET,HEAD,PUT,PATCH,POST,DELETE')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
@@ -17,7 +18,7 @@ app.use((req, res, next) => {
 
 app.use(express.json())
 
-app.get('/api/status', (_req, res) => {
+app.get('/api/status', (_req: Request, res: Response) => {
   res.json({ message: 'Hello from backend', time: new Date().toISOString() })
 })
 
