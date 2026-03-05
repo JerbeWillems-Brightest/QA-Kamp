@@ -1,6 +1,6 @@
 import mongoose from 'mongoose'
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/qa-kamp'
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://QA-KampAdmin:BrightestQaKamp@qa-kamp.4vsjlqg.mongodb.net/qa-kamp?retryWrites=true&w=majority'
 
 export async function connectDB(): Promise<void> {
   try {
