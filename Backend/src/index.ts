@@ -1,4 +1,6 @@
-const express = require('express')
+import express from 'express'
+import { connectDB } from './db'
+import itemsRouter from './routes/items'
 
 const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
@@ -21,6 +23,12 @@ app.get('/api/status', (_req, res) => {
   res.json({ message: 'Hello from backend', time: new Date().toISOString() })
 })
 
-app.listen(PORT, () => {
-  console.log(`Backend listening on http://localhost:${PORT}`)
+// Items CRUD routes
+app.use('/api/items', itemsRouter)
+
+// Connect to MongoDB, then start the server
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Backend listening on http://localhost:${PORT}`)
+  })
 })
