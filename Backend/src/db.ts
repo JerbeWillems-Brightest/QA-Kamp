@@ -9,8 +9,12 @@ export async function connectDB(): Promise<void> {
   if (mongoose.connection.readyState >= 1) return
 
   if (!cached) {
-    console.log('Connecting to MongoDB...')
-    cached = mongoose.connect(MONGO_URI).then((m) => {
+    console.log('Connecting to MongoDB...', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'))
+    cached = mongoose.connect(MONGO_URI, {
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      bufferCommands: false,
+    }).then((m) => {
       console.log('MongoDB connected')
       return m
     }).catch((err) => {
