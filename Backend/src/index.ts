@@ -19,6 +19,12 @@ app.use(
 
 app.use(express.json())
 
+// Ensure MongoDB is connected before handling any request
+app.use(async (_req: Request, _res: Response, next: NextFunction) => {
+  await connectDB()
+  next()
+})
+
 app.get('/api/status', (_req: Request, res: Response) => {
   res.json({ message: 'Hello from backend', time: new Date().toISOString() })
 })
@@ -26,9 +32,12 @@ app.get('/api/status', (_req: Request, res: Response) => {
 // Items CRUD routes (MongoDB)
 app.use('/api/items', itemsRouter)
 
-// Connect to MongoDB, then start the server
-connectDB().then(() => {
+// Only listen when running locally (not on Vercel)
+if (!process.env.VERCEL) {
   app.listen(PORT, () => {
     console.log(`Backend listening on http://localhost:${PORT} — CORS origin: ${FRONTEND_ORIGIN}`)
   })
-})
+}
+
+// Export for Vercel serverless
+export default app
