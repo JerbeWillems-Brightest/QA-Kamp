@@ -1,18 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose'
+// Item model removed — replaced by Organizer model
+// Keeping this file as a placeholder to avoid accidental imports in older code.
 
-export interface IItem extends Document {
-  name: string
-  description: string
-  createdAt: Date
-}
-
-const ItemSchema = new Schema<IItem>(
-  {
-    name: { type: String, required: true },
-    description: { type: String, default: '' },
-  },
-  { timestamps: true }
-)
-
-export const Item = mongoose.model<IItem>('Item', ItemSchema)
-
+export {};

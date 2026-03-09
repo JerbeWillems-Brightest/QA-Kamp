@@ -1,10 +1,13 @@
 import './App.css'
-import HomePage from './component/LoginPagina\'s/HomePage.tsx'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import HomePage from './component/LoginPaginas/HomePage'
+import OrganiserLogin from './component/LoginPaginas/OrganiserLogin'
 import QAKampLogo from './assets/QAKamp.png'
 import BrightestLogo from './assets/BrightestLogo.png'
 
 function App() {
     return (
+        <BrowserRouter>
         <div className="page">
 
             {/* Navbar */}
@@ -15,35 +18,31 @@ function App() {
             </nav>
 
             {/* Main content */}
-            <HomePage />
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/organiser-login" element={<OrganiserLogin />} />
+            </Routes>
 
             {/* Footer */}
             <footer className="footer">
                 <div className="footer-inner">
                  <div>
                      <h3>Over QA Kamp</h3>
-                     <br/>
-                     <br/>
                      <p>Leerrijke IT minigames voor jongeren</p>
                      <p>tussen de 8 en 16 jaar</p>
                  </div>
 
                  <div>
                      <h3>Contact</h3>
-                     <br/>
-                     <br/>
                      <p>Brightest NV - HQ</p>
                      <p>Satenrozen 10, 2550 Kontich</p>
                      <p>Tel: +32 3 450 88 42</p>
                      <p>Email: thebrightacademy@brightest.be</p>
-                     <p>BTW: 0538.477.187</p>
                  </div>
 
                  <div>
                      <h3>Pagina's</h3>
-                     <br/>
-                     <br/>
-                     <p>Organisator login</p>
+                     <p><Link to="/organiser-login">Organisator login</Link></p>
                  </div>
                 </div>
             </footer>
@@ -55,6 +54,7 @@ function App() {
             </div>
 
         </div>
+        </BrowserRouter>
     );
 }
 
