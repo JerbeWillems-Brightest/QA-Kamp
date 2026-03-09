@@ -1,9 +1,166 @@
-#root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+/* Reset default margins/padding and use border-box */
+html, body, #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    /* Prevent any horizontal scrollbar — decorations will be sized so they don't overflow */
+    overflow-x: hidden;
+    width: 100%;
+    min-width: 0;
+    font-size: 13px; /* slightly smaller base font */
 }
+
+/* Global box-sizing inheritance for predictable sizing */
+*, *::before, *::after { box-sizing: inherit; }
+
+/* Ensure all images are responsive to their container to avoid overflow */
+img { max-width: 100%; height: auto; display: block; }
+
+@font-face {
+  font-family: 'TT Norms Pro';
+  src: local('TT Norms Pro'),
+       url('./assets/fonts/TTNormsProNormal.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TT Norms Pro';
+  src: local('TT Norms Pro DemiBold'),
+       url('./assets/fonts/TTNormsProDemiBold.ttf') format('truetype');
+  font-weight: 600; /* demi-bold */
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'TT Norms Pro';
+  src: local('TT Norms Pro Bold'),
+       url('./assets/fonts/TTNormsProBold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+    --nav-height: 125px;
+    --footer-height: 239px; /* increased footer height */
+    --bottombar-height: 48px; /* increased black bar height */
+  --font-body: 'TT Norms Pro', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-strong: 'TT Norms Pro', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+/* Reset margins for common elements that cause overflow */
+h1,h2,h3,h4,h5,h6,p,ul,ol {
+    margin: 0;
+    padding: 0;
+    line-height: 1.1;
+    font-weight: 400;
+}
+
+ul { list-style: none; }
+
+#root {
+  /* allow full-bleed layouts while keeping content centered via inner wrappers */
+  max-width: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  text-align: center;
+  font-size: 12px; /* smaller base */
+}
+
+/* Ensure page and grid occupy full available width */
+.page {
+    width: 100%; /* avoid 100vw to prevent horizontal scroll on some browsers */
+    margin: 0;
+    overflow-x: hidden; /* extra safeguard to prevent horizontal scrolling */
+}
+.body-grid {
+    display: grid;
+    /* fixed max width so three columns cannot exceed viewport and cause horizontal scroll */
+    max-width: 1100px;
+    margin: 0 auto; /* center the grid */
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 18px; /* small gutter between columns */
+    width: 100%;
+    align-items: stretch; /* let cells stretch vertically */
+    justify-items: center;
+    position: relative;
+    box-sizing: border-box;
+    min-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height) - 48px);
+}
+
+/* Apply fonts */
+body, #root {
+  font-family: var(--font-body), sans-serif;
+  font-weight: 400;
+}
+
+h1,h2,h3,h4,h5,h6, .logo-text {
+  font-family: var(--font-strong), sans-serif;
+  font-weight: 600; /* use the DemiBold face */
+}
+
+button, .logo-link, .cta {
+  font-family: var(--font-strong), sans-serif;
+  font-weight: 600;
+}
+
+.small-secondary, .footer p, .read-the-docs {
+  font-family: var(--font-body), sans-serif;
+  font-weight: 400;
+}
+
+/* compact helper for the content area */
+.content-wrapper{
+    width: 100%; /* use full available width inside .main */
+    margin: 0 auto;
+    padding: 8px 24px; /* horizontal padding for breathing room */
+    box-sizing: border-box;
+    display: block;
+}
+
+/* compact form controls inside the content wrapper */
+.content-wrapper input[type="text"],
+.content-wrapper input[type="email"],
+.content-wrapper input[type="number"],
+.content-wrapper textarea {
+    padding: 6px !important;
+    width: 180px !important;
+    font-size: 13px;
+}
+
+.content-wrapper button {
+    padding: 6px 12px !important;
+    font-size: 13px;
+}
+
+/* compact list items */
+.content-wrapper ul li {
+    padding: 6px !important;
+    margin-bottom: 6px !important;
+    border-radius: 4px;
+}
+
+/* reduce hr height */
+hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
+
+/* keep navbar small */
+.navbar { height: var(--nav-height); }
+
+/* Main content: make main fill available viewport height (minus navbar/footer) so grid can occupy it */
+.main {
+    padding: 8px;
+    min-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height));
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Footer: keep fixed smaller height and avoid auto growing on mobile */
+.footer { height: var(--footer-height); }
 
 .logo {
   height: 6em;
@@ -40,3 +197,307 @@
 .read-the-docs {
   color: #888;
 }
+
+/* App.css */
+
+/* Algemene pagina-instellingen */
+.page {
+    /* Force full viewport height so footer and bottom bar are always visible */
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-family: var(--font-body), sans-serif;
+    /* Reserve space for fixed navbar */
+    padding-top: var(--nav-height);
+    /* Reserve space at the bottom so main content isn't hidden by fixed footer + bottom bar */
+    padding-bottom: calc(var(--footer-height) + var(--bottombar-height));
+}
+
+/* Navbar - fixed top */
+.navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--nav-height);
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 6px 12px;
+    background: white;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    z-index: 1000;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.logo-container img {
+    width: 256px;
+    height: 256px;
+    object-fit: contain;
+    display: block;
+}
+
+/* Ensure nav-links don't overlap the logo */
+.nav-links {
+    display: flex;
+    gap: 20px;
+}
+
+/* Main content: limit height so footer + bottom bar remain visible; allow internal scrolling if content overflows */
+.main {
+    flex: 1 1 auto;
+    padding: 8px; /* smaller */
+    text-align: center;
+    box-sizing: border-box;
+    max-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height));
+    overflow: auto; /* internal scroll only */
+}
+
+/* Footer: compact (full-bleed across viewport) */
+.footer {
+    /* make footer span the full viewport width */
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: var(--bottombar-height); /* sit directly above the bottom bar */
+    width: 100%;
+
+     /* layout */
+     box-sizing: border-box;
+     background-color: #D7D7D7;
+     border-top: 1px solid rgba(0,0,0,0.05);
+     height: var(--footer-height);
+     overflow: hidden;
+     z-index: 1000;
+}
+
+/* Footer grid: headings aligned in a single top row, paragraphs directly below */
+.footer-inner {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding: 28px 24px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: auto auto;
+    column-gap: 24px;
+    row-gap: 12px;
+    box-sizing: border-box;
+    align-items: start; /* align content at top of each grid cell */
+    justify-items: stretch;
+}
+
+/* Each footer column wrapper stretches and aligns content to the top; keeps semantic structure (h3 then p) */
+.footer-inner > div {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start; /* align elements to the top inside each column */
+    align-items: center; /* center horizontally */
+    text-align: center;
+    padding: 8px 12px;
+    align-self: stretch; /* ensure wrappers fill the grid row height */
+}
+
+.footer h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    line-height: 1.05;
+    font-weight: 700;
+}
+.footer p {
+    margin: 0;
+    color: #333;
+    font-size: 14px;
+    line-height: 1.4;
+}
+.footer a { color: inherit; text-decoration: none; }
+
+/* responsive fallbacks */
+@media (max-width: 900px) {
+    .footer-inner { grid-template-columns: 1fr 1fr; grid-auto-rows: auto; }
+}
+@media (max-width: 520px) {
+    .footer-inner { grid-template-columns: 1fr; }
+    .footer-inner > div { align-items: flex-start; text-align: left; }
+}
+
+/* Small black bar under the footer (full-bleed) */
+.site-bottom {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+     box-sizing: border-box;
+
+     background: #000;
+     color: #fff;
+     text-align: left; /* left-align contents */
+     padding: 0 16px; /* add left padding */
+     font-size: 12px;
+     height: var(--bottombar-height);
+     line-height: var(--bottombar-height);
+    display: flex;
+    align-items: center;
+    justify-content: flex-start; /* align items to the left */
+    gap: 8px;
+ }
+
+.site-bottom-logo {
+    height: calc(var(--bottombar-height) - 10px);
+    display: inline-block;
+    object-fit: contain;
+}
+
+.site-bottom-text {
+    color: #fff;
+    font-size: 14px;
+    margin-left: 8px;
+}
+
+/* Footer credit text placed under About */
+.footer-credit {
+    margin-top: 8px;
+    font-size: 13px;
+    color: #333; /* visible in the light footer */
+}
+
+/* Hero decorative images positioning */
+.hero {
+    position: relative;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 20px 0;
+}
+.hero-inner {
+    position: relative;
+    z-index: 5; /* sit above decorative shapes */
+}
+
+/* left side decorations */
+.hero-line {
+    position: absolute;
+    left: -40px;
+    top: 20%;
+    width: 120px;
+    opacity: 0.9;
+    pointer-events: none;
+}
+.hero-curve {
+    position: absolute;
+    left: -10px;
+    bottom: 10%;
+    width: 80px;
+    opacity: 0.85;
+    pointer-events: none;
+}
+
+/* right side decorations */
+.hero-shape {
+    position: absolute;
+    right: -40px;
+    top: 25%;
+    width: 120px;
+    opacity: 0.9;
+    pointer-events: none;
+}
+.hero-star {
+    position: absolute;
+    right: -10px;
+    bottom: 10%;
+    width: 70px;
+    opacity: 0.95;
+    pointer-events: none;
+}
+
+/* rocket above content */
+.hero-rocket {
+    position: absolute;
+    top: -80px;
+    width: 80px;
+    z-index: 6;
+    pointer-events: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 800px) {
+    .hero-line, .hero-shape { display: none; }
+    .hero-rocket { top: -60px; width: 60px; }
+    .hero-curve, .hero-star { width: 50px; }
+}
+
+/* Small screens adjustments */
+@media (max-width: 600px) {
+    .footer { height: var(--footer-height); }
+      :root { /* don't increase footer on mobile */ }
+}
+
+/* Body grid: 2 rows x 3 columns (top row: 3 cells, bottom row: 3 cells) */
+.body-grid {
+    display: grid;
+    /* fixed max width so three columns cannot exceed viewport and cause horizontal scroll */
+    max-width: 1100px;
+    margin: 0 auto; /* center the grid */
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: 1fr 1fr;
+    gap: 18px; /* small gutter between columns */
+    width: 100%;
+    align-items: stretch; /* let cells stretch vertically */
+    justify-items: center;
+    position: relative;
+    box-sizing: border-box;
+    min-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height) - 48px);
+}
+
+.grid-top-left { grid-column: 1 / 2; grid-row: 1 / 2; display:flex; align-items:center; justify-content:center; padding: 6px; }
+.grid-top-center { grid-column: 2 / 3; grid-row: 1 / 2; display:flex; align-items:center; justify-content:center; padding: 6px; }
+.grid-top-right { grid-column: 3 / 4; grid-row: 1 / 2; display:flex; align-items:center; justify-content:center; padding: 6px; }
+.grid-bottom-left { grid-column: 1 / 2; grid-row: 2 / 3; display:flex; align-items:center; justify-content:center; padding: 6px; }
+.grid-bottom-center { grid-column: 2 / 3; grid-row: 2 / 3; display:flex; align-items:flex-start; justify-content:center; padding: 6px; }
+.grid-bottom-right { grid-column: 3 / 4; grid-row: 2 / 3; display:flex; align-items:center; justify-content:center; padding: 6px; }
+
+/* slightly larger decorative images */
+.grid-img {
+    /* limit images so they don't force column expansion */
+    width: 100%;
+    max-width: 320px;
+    max-height: 220px;
+    height: auto;
+    display: block;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+.grid-rocket {
+    width: 100%;
+    max-width: 360px;
+    max-height: 360px;
+    height: auto;
+    display: block;
+    pointer-events: none;
+    box-sizing: border-box;
+    margin-bottom: 12px;
+}
+
+/* ensure grid cells don't overflow and images scale to cell width */
+.grid-top-left, .grid-top-center, .grid-top-right,
+.grid-bottom-left, .grid-bottom-center, .grid-bottom-right {
+    min-width: 0; /* prevent long children from forcing column width */
+}
+
+/* Prevent decorative images from causing vertical overflow */
+.grid-top-left .grid-img, .grid-top-right .grid-img { margin-top: 4px; }
+.grid-bottom-left .grid-img, .grid-bottom-right .grid-img { margin-bottom: 4px; }
+
+/* Limit hero-inner height so content can't force the grid taller than viewport */
+.hero-inner { max-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height) - 40px); overflow: auto; max-width: min(720px, calc((100vw - 48px) / 3)); width: 100%; }
+
+/* (removed duplicate footer-inner override to keep the 3x2 footer grid defined above) */
+
+/* Avoid long unbroken strings forcing horizontal overflow */
+body, #root { word-break: break-word; overflow-wrap: break-word; }
