@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import LineImg from '../../assets/Line.png';
 import CurveImg from '../../assets/curve.png';
 import ShapeImg from '../../assets/shape.png';
@@ -54,12 +55,12 @@ function HomePage() {
                 Speel mee
               </button>
 
-              <a href="#" style={{ padding: 10, fontSize: '12px', color: '#3a78d0'}}>
+              <Link to="/organiser-login" style={{ padding: 10, fontSize: '12px', color: '#3a78d0'}}>
                 Log hier in als organisator
-              </a>
-            </form>
-          </div>
-        </div>
+              </Link>
+             </form>
+           </div>
+         </div>
 
         <div className="grid-bottom-right">
           <img src={StarImg} alt="Star decoration" className="grid-img" />

@@ -1,8 +1,9 @@
 import express = require('express')
 import cors = require('cors')
 import type { Request, Response, NextFunction } from 'express'
-import { connectDB } from './db'
-import itemsRouter from './routes/items'
+import { connectDB, seedOrganizers } from './db'
+import usersRouter from './routes/users'
+import authRouter from './routes/auth'
 
 const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
@@ -30,12 +31,16 @@ app.use(async (_req: Request, res: Response, next: NextFunction) => {
   }
 })
 
-app.get('/api/status', (_req: Request, res: Response) => {
-  res.json({ message: 'Hello from backend', time: new Date().toISOString() })
-})
+// Users (organizers) routes
+app.use('/api/users', usersRouter)
 
-// Items CRUD routes (MongoDB)
-app.use('/api/items', itemsRouter)
+// Auth routes
+app.use('/api/auth', authRouter)
+
+// seed default organizers after DB connect (only when running server locally)
+if (!process.env.VERCEL) {
+  connectDB().then(() => seedOrganizers()).catch((err) => console.error('Seed error:', err))
+}
 
 // Only listen when running locally (not on Vercel)
 if (!process.env.VERCEL) {

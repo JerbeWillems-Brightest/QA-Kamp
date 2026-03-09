@@ -43,9 +43,9 @@ img { max-width: 100%; height: auto; display: block; }
 }
 
 :root {
-    --nav-height: 125px;
-    --footer-height: 239px; /* increased footer height */
-    --bottombar-height: 48px; /* increased black bar height */
+    --nav-height: 55px;
+    --footer-height: 130px; /* increased footer height */
+    --bottombar-height: 30px; /* increased black bar height */
   --font-body: 'TT Norms Pro', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   --font-strong: 'TT Norms Pro', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
@@ -236,16 +236,10 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
 }
 
 .logo-container img {
-    width: 256px;
-    height: 256px;
+    width: 114px;
+    height: 114px;
     object-fit: contain;
     display: block;
-}
-
-/* Ensure nav-links don't overlap the logo */
-.nav-links {
-    display: flex;
-    gap: 20px;
 }
 
 /* Main content: limit height so footer + bottom bar remain visible; allow internal scrolling if content overflows */
@@ -280,7 +274,6 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
 .footer-inner {
     max-width: 1280px;
     margin: 0 auto;
-    padding: 28px 24px;
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: auto auto;
@@ -289,6 +282,7 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
     box-sizing: border-box;
     align-items: start; /* align content at top of each grid cell */
     justify-items: stretch;
+    padding: 10px 24px 28px;
 }
 
 /* Each footer column wrapper stretches and aligns content to the top; keeps semantic structure (h3 then p) */
@@ -501,3 +495,127 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
 
 /* Avoid long unbroken strings forcing horizontal overflow */
 body, #root { word-break: break-word; overflow-wrap: break-word; }
+
+/* Body grid single-row variant (used by OrganiserLogin) */
+.body-grid.single-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 12px;
+  align-items: center;
+  justify-items: center;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px;
+  box-sizing: border-box;
+}
+
+.body-grid.single-row .col-left,
+.body-grid.single-row .col-right {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.body-grid.single-row .col-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 12px;
+}
+
+/* Center card visual treatment */
+.center-card {
+  width: 100%;
+  max-width: 520px;
+  background: #fff;
+  border-radius: 10px;
+  /* shadow intentionally removed per request */
+  box-shadow: none;
+  padding: 18px;
+  box-sizing: border-box;
+}
+
+/* Ensure decorative images inside cols don't overflow */
+.body-grid.single-row .grid-img {
+  max-width: 220px;
+  max-height: 220px;
+  width: 100%;
+  height: auto;
+}
+
+/* Responsive breakpoints */
+@media (max-width: 1200px) {
+  /* Slightly narrower container on large laptops */
+  .body-grid { max-width: 980px; gap: 14px; }
+  .grid-img { max-width: 260px; max-height: 180px; }
+  .grid-rocket { max-height: 300px; }
+  .center-card { max-width: 480px; }
+}
+
+@media (max-width: 900px) {
+  /* Tablet: switch to two columns and two rows for both layouts */
+  .body-grid { grid-template-columns: 1fr 1fr; grid-template-rows: auto auto; max-width: 840px; }
+
+  /* Make grid cells flow naturally and center content */
+  .grid-top-left, .grid-top-center, .grid-top-right,
+  .grid-bottom-left, .grid-bottom-center, .grid-bottom-right {
+    justify-content: center; align-items: center; padding: 8px;
+  }
+
+  .body-grid.single-row .col-center { grid-column: 1 / -1; }
+
+  .grid-img { max-width: 180px; max-height: 160px; }
+  .grid-rocket { max-width: 200px; max-height: 220px; }
+
+  .center-card, .hero-inner { padding: 14px; }
+}
+
+@media (max-width: 640px) {
+  /* Mobile: stack everything in one column */
+  .body-grid { grid-template-columns: 1fr; grid-template-rows: auto; gap: 12px; padding: 8px; }
+
+  /* Make decorative images smaller */
+  .grid-img { max-width: 140px; max-height: 140px; }
+  .grid-rocket { max-width: 120px; max-height: 120px; }
+
+  /* Make center card full width and remove heavy shadows */
+  .center-card { box-shadow: none; border-radius: 8px; padding: 12px; }
+  .hero-inner { padding: 8px; }
+
+  /* Ensure footer and bottom bar remain visible */
+  .page { padding-bottom: calc(var(--footer-height) + var(--bottombar-height) + 8px); }
+}
+
+/* Accessibility: ensure inputs are full width on narrow screens */
+@media (max-width: 520px) {
+  .center-card input, .hero-inner input { width: 100%; }
+}
+
+.back-link {
+  position: fixed;
+  top: calc(var(--nav-height) + 20px); /* just under the navbar */
+  left: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #333;
+  text-decoration: none;
+  font-weight: 800;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 6px;
+  z-index: 1200; /* above other content */
+    font-size: 14px;
+}
+.back-link svg { color: #333; }
+.back-link:hover { background: rgba(0,0,0,0.04); }
+
+@media (max-width: 640px) {
+  .back-link { left: 8px; top: calc(var(--nav-height) + 6px); font-size: 14px; }
+}
