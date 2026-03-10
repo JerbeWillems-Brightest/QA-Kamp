@@ -19,9 +19,26 @@ export default function DayOverview() {
   const [error, setError] = useState('')
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [focusIdx, setFocusIdx] = useState<number | null>(null)
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+
   // responsive scale so tablet/laptop show the same visual layout as a large monitor
   const [scale, setScale] = useState<number>(1)
   const DESIGN_WIDTH = 1200 // the width we design for (monitor)
+
+  // compute allowed days based on current date (Mon..Fri).
+  // JS getDay(): 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const allowedMaxIndex = useMemo(() => {
+    const today = new Date()
+    const d = today.getDay()
+    // if weekday Mon-Fri: allow up to that day; else (Sat/Sun) allow full week (Fri)
+    const allowedCount = d >= 1 && d <= 5 ? d : 5
+    return Math.max(0, Math.min(allowedCount - 1, 4)) // index between 0..4
+  }, [])
+
+  // auto-select the latest allowed day on mount
+  useEffect(() => {
+    setSelectedIdx(allowedMaxIndex)
+  }, [allowedMaxIndex])
 
   useEffect(() => {
     function updateScale() {
@@ -44,7 +61,7 @@ export default function DayOverview() {
 
   useEffect(() => {
     if (!auth.user) {
-      navigate('/organiser-login')
+      navigate('/organizer-login')
     }
   }, [auth.user, navigate])
 
@@ -60,7 +77,9 @@ export default function DayOverview() {
     }
   }
 
-  function handleDayClick(dayName: string) {
+  function handleDayClick(dayName: string, idx: number, enabled: boolean) {
+    if (!enabled) return
+    setSelectedIdx(idx)
     // placeholder action for day click; replace with real navigation later
     alert(`${dayName} geselecteerd`)
   }
@@ -131,6 +150,11 @@ export default function DayOverview() {
       position: 'relative',
       transition: 'transform .18s ease, box-shadow .18s ease',
     },
+    dayDisabled: {
+      opacity: 0.38,
+      cursor: 'not-allowed',
+      boxShadow: 'none',
+    },
     // increase image height so the card looks taller and shows more of the image
     dayImage: { width: '100%', height: 'clamp(220px, 32vh, 560px)', objectFit: 'cover', display: 'block', transition: 'transform .18s ease' },
     dayLabel: {
@@ -190,7 +214,8 @@ export default function DayOverview() {
           <div style={{ ...scaleWrapperStyle, filter: showManage ? 'blur(6px)' : undefined, pointerEvents: showManage ? 'none' : undefined }}>
             <div style={styles.days}>
               {days.map((day, idx) => {
-                const active = hoverIdx === idx || focusIdx === idx
+                const enabled = idx <= allowedMaxIndex
+                const active = (hoverIdx === idx || focusIdx === idx) || selectedIdx === idx
                 const buttonStyle: React.CSSProperties = {
                   ...styles.dayCardButton,
                   transform: active ? 'translateY(-6px)' : undefined,
@@ -203,16 +228,21 @@ export default function DayOverview() {
                   transform: active ? 'scale(1.04)' : undefined,
                 }
 
+                // If day is disabled, apply muted style
+                const finalButtonStyle: React.CSSProperties = !enabled ? { ...buttonStyle, ...styles.dayDisabled } : buttonStyle
+
                 return (
                   <button
                     key={day.name}
-                    onClick={() => handleDayClick(day.name)}
-                    style={buttonStyle}
+                    onClick={() => handleDayClick(day.name, idx, enabled)}
+                    style={finalButtonStyle}
                     aria-label={day.name}
+                    aria-pressed={selectedIdx === idx}
                     onMouseEnter={() => setHoverIdx(idx)}
                     onMouseLeave={() => setHoverIdx(null)}
                     onFocus={() => setFocusIdx(idx)}
                     onBlur={() => setFocusIdx(null)}
+                    disabled={!enabled}
                   >
                     {/* image container - keep full image visible */}
                     <div style={{ width: '100%', overflow: 'hidden' }}>

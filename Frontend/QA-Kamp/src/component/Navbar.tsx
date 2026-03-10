@@ -10,7 +10,7 @@ export default function Navbar() {
   function handleLogout(e: React.MouseEvent) {
     e.preventDefault()
     auth.logout()
-    navigate('/organiser-login')
+    navigate('/organizer-login')
   }
 
   return (

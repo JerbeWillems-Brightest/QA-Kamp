@@ -73,11 +73,11 @@ router.post('/:id/players', async (req, res) => {
     const overwrite = (req.query && String(req.query.overwrite) === 'true')
 
     if (!overwrite) {
-      const numbers = players.map((p: any) => p.nummer)
+      const numbers = players.map((p: any) => p.playerNumber)
       // check duplicates already in DB for this session
-      const existing = await Player.find({ sessionId: id, nummer: { $in: numbers } }).select('nummer')
+      const existing = await Player.find({ sessionId: id, playerNumber: { $in: numbers } }).select('playerNumber')
       if (existing.length > 0) {
-        const nums = existing.map((e: any) => e.nummer)
+        const nums = existing.map((e: any) => e.playerNumber)
         return res.status(400).json({ error: `Some players already exist in session: ${nums.join(', ')}` })
       }
     } else {
@@ -87,9 +87,9 @@ router.post('/:id/players', async (req, res) => {
 
     const docs = players.map((p: any) => ({
       sessionId: id,
-      nummer: p.nummer,
-      naam: p.naam,
-      leeftijd: p.leeftijd,
+      playerNumber: p.playerNumber,
+      name: p.name,
+      age: p.age,
       category: p.category || 'unknown'
     }))
     const created = await Player.insertMany(docs)
@@ -104,7 +104,7 @@ router.post('/:id/players', async (req, res) => {
 router.get('/:id/players', async (req, res) => {
   try {
     const { id } = req.params
-    const players = await Player.find({ sessionId: id }).sort({ nummer: 1 })
+    const players = await Player.find({ sessionId: id }).sort({ playerNumber: 1 })
     return res.json({ players })
   } catch (err) {
     console.error('List players error:', err)
@@ -112,20 +112,20 @@ router.get('/:id/players', async (req, res) => {
   }
 })
 
-// Update a single player by nummer for a session
-router.put('/:id/players/:nummer', async (req, res) => {
+// Update a single player by playerNumber for a session
+router.put('/:id/players/:playerNumber', async (req, res) => {
   try {
-    const { id, nummer } = req.params
+    const { id, playerNumber } = req.params
     const { player } = req.body
     if (!player) return res.status(400).json({ error: 'player object required in body' })
 
-    // find and update by sessionId + nummer
+    // find and update by sessionId + playerNumber
     const updated = await Player.findOneAndUpdate(
-      { sessionId: id, nummer },
+      { sessionId: id, playerNumber },
       {
-        nummer: (player.nummer ?? nummer),
-        naam: player.naam,
-        leeftijd: player.leeftijd,
+        playerNumber: (player.playerNumber ?? playerNumber),
+        name: player.name,
+        age: player.age,
         category: player.category ?? 'unknown',
       },
       { new: true, runValidators: true }
@@ -139,11 +139,11 @@ router.put('/:id/players/:nummer', async (req, res) => {
   }
 })
 
-// Delete a single player by nummer for a session
-router.delete('/:id/players/:nummer', async (req, res) => {
+// Delete a single player by playerNumber for a session
+router.delete('/:id/players/:playerNumber', async (req, res) => {
   try {
-    const { id, nummer } = req.params
-    const deleted = await Player.findOneAndDelete({ sessionId: id, nummer })
+    const { id, playerNumber } = req.params
+    const deleted = await Player.findOneAndDelete({ sessionId: id, playerNumber })
     if (!deleted) return res.status(404).json({ error: 'Player not found in session' })
     return res.json({ success: true })
   } catch (err) {

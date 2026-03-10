@@ -5,16 +5,16 @@ import { useAuth } from '../../context/AuthContext'
 import { fetchPlayersForSession, addPlayersToSession, updatePlayerInSession, deletePlayerFromSession } from '../../api'
 
 type Player = {
-  nummer: string
-  naam: string
-  leeftijd: number
+  playerNumber: string
+  name: string
+  age: number
   category?: string
 }
 
-function categorize(leeftijd: number) {
-  if (leeftijd >= 8 && leeftijd <= 10) return '8-10'
-  if (leeftijd >= 11 && leeftijd <= 13) return '11-13'
-  if (leeftijd >= 14 && leeftijd <= 16) return '14-16'
+function categorize(age: number) {
+  if (age >= 8 && age <= 10) return '8-10'
+  if (age >= 11 && age <= 13) return '11-13'
+  if (age >= 14 && age <= 16) return '14-16'
   return 'out-of-range'
 }
 
@@ -23,19 +23,11 @@ function normalizeHeader(h: string) {
 }
 
 function findValue(row: Record<string, unknown>, candidates: string[], keys: string[]) {
-  // try exact header matches (case-insensitive & normalized), then fallback to index positions
   const normalizedMap: Record<string, string> = {}
   for (const k of keys) normalizedMap[normalizeHeader(k)] = k
   for (const c of candidates) {
     const found = normalizedMap[normalizeHeader(c)]
     if (found !== undefined && row[found] !== undefined) return row[found]
-  }
-  // fallback by index: if candidate position exists in keys array
-  // e.g., nummer -> first column, naam -> second, leeftijd -> third
-  if (candidates.length && keys.length) {
-    // often nummer is column 0, naam 1, leeftijd 2
-    // caller can pass a single candidate; we'll return undefined fallback to caller
-    return undefined
   }
   return undefined
 }
@@ -53,17 +45,17 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   const [loading, setLoading] = useState(false)
 
   // new states for manual add/edit
-  const [nummerInput, setNummerInput] = useState('')
-  const [naamInput, setNaamInput] = useState('')
-  const [leeftijdInput, setLeeftijdInput] = useState('')
-  const [editing, setEditing] = useState<string | null>(null) // nummer of editing player
+  const [playerNumberInput, setPlayerNumberInput] = useState('')
+  const [nameInput, setNameInput] = useState('')
+  const [ageInput, setAgeInput] = useState('')
+  const [editing, setEditing] = useState<string | null>(null) // playerNumber of editing player
   const [showAdd, setShowAdd] = useState(false)
 
-   const API_URL = (import.meta.env && import.meta.env.VITE_API_URL) ? String(import.meta.env.VITE_API_URL) : ''
+  const API_URL = (import.meta.env && import.meta.env.VITE_API_URL) ? String(import.meta.env.VITE_API_URL) : ''
 
-   useEffect(() => {
-     if (!auth.user) navigate('/organiser-login')
-   }, [auth.user, navigate])
+  useEffect(() => {
+    if (!auth.user) navigate('/organizer-login')
+  }, [auth.user, navigate])
 
   // helper: generate unique 3-digit number between 100-999 not in existing or parsed sets
   function generateUniqueNumber(existing: Set<string>, parsed: Set<string>) {
@@ -78,37 +70,37 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
 
   // load existing players for current session when component mounts
   useEffect(() => {
-     const sessionId = localStorage.getItem('currentSessionId')
-     if (!sessionId) return
-     let cancelled = false
-     ;(async () => {
-       setLoading(true)
-       try {
-         const body = await fetchPlayersForSession(sessionId).catch((e) => { throw e })
-         if (cancelled) return
-         const playersField = (body as Record<string, unknown>)['players']
-         if (Array.isArray(playersField)) {
-           const rawPlayers = playersField as unknown
-           if (Array.isArray(rawPlayers)) {
-             const mapped: Player[] = rawPlayers.map((item) => {
-               const p = item as Record<string, unknown>
-               const nummerVal = p['nummer'] ?? ''
-               const naamVal = p['naam'] ?? p['name'] ?? ''
-               const leeftijdVal = p['leeftijd'] ?? p['age'] ?? 0
-               const nummer = String(nummerVal ?? '').trim()
-               const naam = String(naamVal ?? '').toLowerCase()
-               const leeftijd = Number(leeftijdVal ?? 0)
-               return { nummer, naam, leeftijd, category: (p['category'] as string) ?? categorize(leeftijd) }
-             })
-             setPlayers(mapped)
-           }
-         }
-       } catch (err) {
-         console.error('Failed to load players', err)
-       } finally {
-         if (!cancelled) setLoading(false)
-       }
-     })()
+    const sessionId = localStorage.getItem('currentSessionId')
+    if (!sessionId) return
+    let cancelled = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const body = await fetchPlayersForSession(sessionId).catch((e) => { throw e })
+        if (cancelled) return
+        const playersField = (body as Record<string, unknown>)['players']
+        if (Array.isArray(playersField)) {
+          const rawPlayers = playersField as unknown
+          if (Array.isArray(rawPlayers)) {
+            const mapped: Player[] = rawPlayers.map((item) => {
+              const p = item as Record<string, unknown>
+              const playerNumberVal = p['playerNumber'] ?? p['nummer'] ?? ''
+              const nameVal = p['name'] ?? p['naam'] ?? ''
+              const ageVal = p['age'] ?? p['leeftijd'] ?? 0
+              const playerNumber = String(playerNumberVal ?? '').trim()
+              const name = String(nameVal ?? '').toLowerCase()
+              const age = Number(ageVal ?? 0)
+              return { playerNumber, name, age, category: (p['category'] as string) ?? categorize(age) }
+            })
+            setPlayers(mapped)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load players', err)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
     return () => { cancelled = true }
   }, [API_URL])
 
@@ -124,128 +116,127 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     }
   }
 
-   const onFile = async (file: File | null, mode: 'append' | 'replace' = 'append') => {
-     setErrors([])
-     setSuccessMsg(null)
-     setPlayers([])
-     if (!file) return
-     try {
-       const data = await file.arrayBuffer()
-       const workbook = read(data)
-       const sheet = workbook.Sheets[workbook.SheetNames[0]]
-       const json = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
+  const onFile = async (file: File | null, mode: 'append' | 'replace' = 'append') => {
+    setErrors([])
+    setSuccessMsg(null)
+    setPlayers([])
+    if (!file) return
+    try {
+      const data = await file.arrayBuffer()
+      const workbook = read(data)
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
+      const json = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' })
 
-       if (!json || json.length === 0) {
-         setErrors(['Leeg sheet of ongeldig bestand'])
-         return
-       }
-       // if we have a session, load existing speler nummers to avoid collisions
-       const sessionId = localStorage.getItem('currentSessionId')
-       const existingNumbers = new Set<string>()
-       if (sessionId) {
-         try {
-           const existingResp = await fetchPlayersForSession(sessionId)
-           const exPlayers = (existingResp && (existingResp as { players?: unknown[] }).players) || []
-           for (const p of exPlayers) {
-             const pr = p as Record<string, unknown>
-             if (pr && typeof pr.nummer === 'string') existingNumbers.add(String(pr.nummer).padStart(3, '0'))
-           }
-         } catch (err) {
-           // if fetching existing fails, log but continue — we'll still generate numbers and hope for no collision
-           console.warn('Kon bestaande spelers niet ophalen voor unieke nummer-generatie', err)
-         }
-       }
+      if (!json || json.length === 0) {
+        setErrors(['Leeg sheet of ongeldig bestand'])
+        return
+      }
+      // if we have a session, load existing player numbers to avoid collisions
+      const sessionId = localStorage.getItem('currentSessionId')
+      const existingNumbers = new Set<string>()
+      if (sessionId) {
+        try {
+          const existingResp = await fetchPlayersForSession(sessionId)
+          const exPlayers = (existingResp && (existingResp as { players?: unknown[] }).players) || []
+          for (const p of exPlayers) {
+            const pr = p as Record<string, unknown>
+            if (pr && typeof pr.playerNumber === 'string') existingNumbers.add(String(pr.playerNumber).padStart(3, '0'))
+            if (pr && typeof pr.nummer === 'string') existingNumbers.add(String(pr.nummer).padStart(3, '0'))
+          }
+        } catch (err) {
+          console.warn('Kon bestaande spelers niet ophalen voor unieke nummer-generatie', err)
+        }
+      }
 
-       const parsed: Player[] = []
-       const errs: string[] = []
-       const parsedNumbers = new Set<string>()
+      const parsed: Player[] = []
+      const errs: string[] = []
+      const parsedNumbers = new Set<string>()
 
-       for (let i = 0; i < json.length; i++) {
-         const row = json[i]
-         const keys = Object.keys(row)
+      for (let i = 0; i < json.length; i++) {
+        const row = json[i]
+        const keys = Object.keys(row)
 
-         // prefer headers for name and leeftijd; ignore any nummer column — we auto-generate
-         const values = Object.values(row)
-         const naamRaw = findValue(row, ['naam', 'name', 'voornaam', 'naamkind'], keys) ?? (keys[0] ? row[keys[0]] : values[0]) ?? ''
-         const leeftijdRaw = findValue(row, ['leeftijd', 'age', 'leeftijdkind'], keys) ?? (keys[1] ? row[keys[1]] : values[1]) ?? values[1] ?? values[0] ?? ''
+        // prefer headers for name and age; ignore any playerNumber column — we auto-generate
+        const values = Object.values(row)
+        const nameRaw = findValue(row, ['naam', 'name', 'voornaam', 'naamkind'], keys) ?? (keys[0] ? row[keys[0]] : values[0]) ?? ''
+        const ageRaw = findValue(row, ['leeftijd', 'age', 'leeftijdkind'], keys) ?? (keys[1] ? row[keys[1]] : values[1]) ?? values[1] ?? values[0] ?? ''
 
-         // generate a unique 3-digit nummer for this imported row
-         let nummer: string
-         try {
-           nummer = generateUniqueNumber(existingNumbers, parsedNumbers)
-         } catch {
-           errs.push(`Rij ${i + 2}: Kon geen uniek spelersnummer genereren`)
-           continue
-         }
-         parsedNumbers.add(nummer)
+        // generate a unique 3-digit playerNumber for this imported row
+        let playerNumber: string
+        try {
+          playerNumber = generateUniqueNumber(existingNumbers, parsedNumbers)
+        } catch {
+          errs.push(`Rij ${i + 2}: Kon geen uniek spelersnummer genereren`)
+          continue
+        }
+        parsedNumbers.add(playerNumber)
 
-         // naam
-         const naamVal = String(naamRaw ?? '').trim()
-         if (!naamVal) {
-           errs.push(`Rij ${i + 2}: Naam ontbreekt`)
-           continue
-         }
-         const naam = naamVal.toLowerCase()
+        // name
+        const nameVal = String(nameRaw ?? '').trim()
+        if (!nameVal) {
+          errs.push(`Rij ${i + 2}: Naam ontbreekt`)
+          continue
+        }
+        const name = nameVal.toLowerCase()
 
-         // leeftijd
-         const leeftijdNum = Number(String(leeftijdRaw ?? '').trim())
-         if (!Number.isFinite(leeftijdNum) || leeftijdNum < 8 || leeftijdNum > 16) {
-           errs.push(`Rij ${i + 2}: Leeftijd "${leeftijdRaw}" is ongeldig — verwacht 8–16`)
-           continue
-         }
-         const leeftijd = Math.floor(leeftijdNum)
+        // age
+        const ageNum = Number(String(ageRaw ?? '').trim())
+        if (!Number.isFinite(ageNum) || ageNum < 8 || ageNum > 16) {
+          errs.push(`Rij ${i + 2}: Leeftijd "${ageRaw}" is ongeldig — verwacht 8–16`)
+          continue
+        }
+        const age = Math.floor(ageNum)
 
-         parsed.push({ nummer, naam, leeftijd, category: categorize(leeftijd) })
-       }
+        parsed.push({ playerNumber, name, age, category: categorize(age) })
+      }
 
-       // check duplicates in parsed
-       const dupMap: Record<string, number[]> = {}
-       parsed.forEach((p, idx) => {
-         dupMap[p.nummer] = dupMap[p.nummer] || []
-         dupMap[p.nummer].push(idx)
-       })
-       const duplicates = Object.entries(dupMap).filter(([, arr]) => arr.length > 1)
-       if (duplicates.length) {
-         const msgs = duplicates.map(([num, idxs]) => `Spelersnummer ${num} komt ${idxs.length} keer voor`)
-         setErrors(msgs)
-         return
-       }
+      // check duplicates in parsed
+      const dupMap: Record<string, number[]> = {}
+      parsed.forEach((p, idx) => {
+        dupMap[p.playerNumber] = dupMap[p.playerNumber] || []
+        dupMap[p.playerNumber].push(idx)
+      })
+      const duplicates = Object.entries(dupMap).filter(([, arr]) => arr.length > 1)
+      if (duplicates.length) {
+        const msgs = duplicates.map(([num, idxs]) => `Spelersnummer ${num} komt ${idxs.length} keer voor`)
+        setErrors(msgs)
+        return
+      }
 
-       if (errs.length) {
-         setErrors(errs)
-         return
-       }
+      if (errs.length) {
+        setErrors(errs)
+        return
+      }
 
-       // sort and set
-       parsed.sort((a, b) => a.nummer.localeCompare(b.nummer))
-       setPlayers(parsed)
+      // sort and set
+      parsed.sort((a, b) => a.playerNumber.localeCompare(b.playerNumber))
+      setPlayers(parsed)
 
-       // try send to backend (link to current session)
-       const sessionId2 = sessionId || localStorage.getItem('currentSessionId')
-       if (!sessionId2) {
-         setSuccessMsg('Import gelukt (lokaal), maar geen actieve sessie gevonden — players opgeslagen in localStorage')
-         localStorage.setItem('importedPlayers', JSON.stringify(parsed))
-         return
-       }
+      // try send to backend (link to current session)
+      const sessionId2 = sessionId || localStorage.getItem('currentSessionId')
+      if (!sessionId2) {
+        setSuccessMsg('Import gelukt (lokaal), maar geen actieve sessie gevonden — players opgeslagen in localStorage')
+        localStorage.setItem('importedPlayers', JSON.stringify(parsed))
+        return
+      }
 
-       try {
-         const resp = await addPlayersToSession(sessionId2, parsed, mode === 'replace')
-         // normalize created count if returned
-         type RespCreated = { created?: unknown }
-         const rc = (resp && typeof resp === 'object') ? (resp as RespCreated).created : undefined
-         const createdCount = Array.isArray(rc) ? rc.length : parsed.length
-         setSuccessMsg(`Spelers succesvol toegevoegd (${createdCount})`)
-         localStorage.setItem('importedPlayers', JSON.stringify(parsed))
-         setPlayers(parsed)
-       } catch (err: unknown) {
-         console.error('Network error posting players', err)
-         setErrors([toErrorMessage(err)])
-       }
-     } catch (err) {
-       console.error(err)
-       setErrors(['Kon bestand niet inlezen of ongeldig formaat'])
-     }
-   }
+      try {
+        const resp = await addPlayersToSession(sessionId2, parsed, mode === 'replace')
+        type RespCreated = { created?: unknown }
+        const rc = (resp && typeof resp === 'object') ? (resp as RespCreated).created : undefined
+        const createdCount = Array.isArray(rc) ? rc.length : parsed.length
+        setSuccessMsg(`Spelers succesvol toegevoegd (${createdCount})`)
+        localStorage.setItem('importedPlayers', JSON.stringify(parsed))
+        setPlayers(parsed)
+      } catch (err: unknown) {
+        console.error('Network error posting players', err)
+        setErrors([toErrorMessage(err)])
+      }
+    } catch (err) {
+      console.error(err)
+      setErrors(['Kon bestand niet inlezen of ongeldig formaat'])
+    }
+  }
 
   // file picker handler
   const handlePick = (mode: 'append' | 'replace') => {
@@ -261,13 +252,11 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
 
   // Auto-generate a unique spelersnummer and open the add form
   const handleAddClick = async () => {
-    // if currently editing, just toggle the add form
     if (editing) {
       setShowAdd(s => !s)
       return
     }
 
-    // if already open and no editing, close it
     if (showAdd) {
       setShowAdd(false)
       return
@@ -276,10 +265,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     setErrors([])
     setSuccessMsg(null)
 
-    // Build existing numbers from local players
-    const existingNumbers = new Set<string>(players.map(p => String(p.nummer).padStart(3, '0')))
+    const existingNumbers = new Set<string>(players.map(p => String(p.playerNumber).padStart(3, '0')))
 
-    // Also try to fetch existing numbers from backend for the active session if present
     const sessionId = localStorage.getItem('currentSessionId')
     if (sessionId) {
       try {
@@ -287,29 +274,27 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const exPlayers = (existingResp && (existingResp as { players?: unknown[] }).players) || []
         for (const p of exPlayers) {
           const pr = p as Record<string, unknown>
+          if (pr && pr['playerNumber']) existingNumbers.add(String(pr['playerNumber']).padStart(3, '0'))
           if (pr && pr['nummer']) existingNumbers.add(String(pr['nummer']).padStart(3, '0'))
         }
       } catch (err) {
-        // If fetching fails, we still proceed with local numbers; don't block the user
         console.warn('Kon bestaande spelers niet ophalen voor uniek nummer (handmatig toevoegen)', err)
       }
     }
 
-    // Try to generate a unique number
     try {
       const generated = generateUniqueNumber(existingNumbers, new Set<string>())
-      setNummerInput(generated)
-      setNaamInput('')
-      setLeeftijdInput('')
+      setPlayerNumberInput(generated)
+      setNameInput('')
+      setAgeInput('')
       setEditing(null)
       setShowAdd(true)
     } catch (err) {
       console.error('Kon geen uniek nummers genereren', err)
       setErrors(['Kon geen uniek spelersnummer genereren, voeg er handmatig één toe'])
-      // still show the form so user can input manually
-      setNummerInput('')
-      setNaamInput('')
-      setLeeftijdInput('')
+      setPlayerNumberInput('')
+      setNameInput('')
+      setAgeInput('')
       setShowAdd(true)
     }
   }
@@ -325,42 +310,39 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     }
 
     // validation
-    const numOnly = String(nummerInput || '').trim().replace(/\D/g, '')
+    const numOnly = String(playerNumberInput || '').trim().replace(/\D/g, '')
     if (!numOnly) return setErrors(['Ongeldig spelersnummer'])
-    const nummer = numOnly.padStart(3, '0')
-    const naam = String(naamInput || '').trim().toLowerCase()
-    if (!naam) return setErrors(['Naam is verplicht'])
-    const leeftijdNum = Number(String(leeftijdInput || '').trim())
-    if (!Number.isFinite(leeftijdNum) || leeftijdNum < 8 || leeftijdNum > 16) return setErrors(['Leeftijd moet een getal tussen 8 en 16 zijn'])
-    const leeftijd = Math.floor(leeftijdNum)
-    const player: Player = { nummer, naam, leeftijd, category: categorize(leeftijd) }
+    const playerNumber = numOnly.padStart(3, '0')
+    const name = String(nameInput || '').trim().toLowerCase()
+    if (!name) return setErrors(['Naam is verplicht'])
+    const ageNum = Number(String(ageInput || '').trim())
+    if (!Number.isFinite(ageNum) || ageNum < 8 || ageNum > 16) return setErrors(['Leeftijd moet een getal tussen 8 en 16 zijn'])
+    const age = Math.floor(ageNum)
+    const player: Player = { playerNumber, name, age, category: categorize(age) }
 
-    // ensure the nummer is unique (check local state + backend session)
+    // ensure the playerNumber is unique (check local state + backend session)
     try {
-      const existingNumbers = new Set<string>(players.map(p => String(p.nummer).padStart(3, '0')))
-      // fetch backend players to be extra safe
+      const existingNumbers = new Set<string>(players.map(p => String(p.playerNumber).padStart(3, '0')))
       try {
         const existingResp = await fetchPlayersForSession(sess)
         const exPlayers = (existingResp && (existingResp as { players?: unknown[] }).players) || []
         for (const p of exPlayers) {
           const pr = p as Record<string, unknown>
+          if (pr && pr['playerNumber']) existingNumbers.add(String(pr['playerNumber']).padStart(3, '0'))
           if (pr && pr['nummer']) existingNumbers.add(String(pr['nummer']).padStart(3, '0'))
         }
       } catch (err) {
-        // fetching failed — still proceed with local checks, but warn
         console.warn('Kon bestaande spelers niet ophalen voor validatie', err)
       }
 
-      // If editing, allow keeping the same nummer; when changing, ensure not colliding with other players
       if (editing) {
-        if (nummer !== editing && existingNumbers.has(nummer)) {
-          setErrors([`Spelersnummer ${nummer} bestaat al`])
+        if (playerNumber !== editing && existingNumbers.has(playerNumber)) {
+          setErrors([`Spelersnummer ${playerNumber} bestaat al`])
           return
         }
       } else {
-        // adding new player
-        if (existingNumbers.has(nummer)) {
-          setErrors([`Spelersnummer ${nummer} bestaat al`])
+        if (existingNumbers.has(playerNumber)) {
+          setErrors([`Spelersnummer ${playerNumber} bestaat al`])
           return
         }
       }
@@ -372,57 +354,54 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
 
     try {
       if (editing) {
-        // update via helper
         await updatePlayerInSession(sess, editing, player)
-        setPlayers((prev) => prev.map((p) => p.nummer === editing ? player : p).sort((a, b) => a.nummer.localeCompare(b.nummer)))
+        setPlayers((prev) => prev.map((p) => p.playerNumber === editing ? player : p).sort((a, b) => a.playerNumber.localeCompare(b.playerNumber)))
         setSuccessMsg('Speler bijgewerkt')
         setEditing(null)
         setShowAdd(false)
       } else {
-        // add using addPlayersToSession with single element
         await addPlayersToSession(sess, [player], false)
         setPlayers((prev) => {
-          const next = [...prev.filter(p => p.nummer !== nummer), player]
-          next.sort((a, b) => a.nummer.localeCompare(b.nummer))
+          const next = [...prev.filter(p => p.playerNumber !== playerNumber), player]
+          next.sort((a, b) => a.playerNumber.localeCompare(b.playerNumber))
           return next
         })
         setSuccessMsg('Speler toegevoegd')
         setShowAdd(false)
       }
-     // clear inputs
-      setNummerInput('')
-      setNaamInput('')
-      setLeeftijdInput('')
-   } catch (err: unknown) {
-     console.error('Network error in submitPlayer', err)
-     setErrors([toErrorMessage(err) || 'Netwerkfout bij toevoegen/bijwerken speler'])
-   }
+      setPlayerNumberInput('')
+      setNameInput('')
+      setAgeInput('')
+    } catch (err: unknown) {
+      console.error('Network error in submitPlayer', err)
+      setErrors([toErrorMessage(err) || 'Netwerkfout bij toevoegen/bijwerken speler'])
+    }
   }
 
   const startEdit = (p: Player) => {
-    setEditing(p.nummer)
-    setNummerInput(p.nummer)
-    setNaamInput(p.naam)
-    setLeeftijdInput(String(p.leeftijd))
+    setEditing(p.playerNumber)
+    setPlayerNumberInput(p.playerNumber)
+    setNameInput(p.name)
+    setAgeInput(String(p.age))
     setShowAdd(true)
   }
 
   function cancelEdit() {
     setEditing(null)
-    setNummerInput('')
-    setNaamInput('')
-    setLeeftijdInput('')
+    setPlayerNumberInput('')
+    setNameInput('')
+    setAgeInput('')
     setShowAdd(false)
   }
 
-  const deletePlayer = async (nummerToDelete: string) => {
+  const deletePlayer = async (playerNumberToDelete: string) => {
     setErrors([])
     setSuccessMsg(null)
     const sess = localStorage.getItem('currentSessionId')
     if (!sess) return setErrors(['Geen actieve sessie gevonden'])
     try {
-      await deletePlayerFromSession(sess, nummerToDelete)
-      setPlayers((prev) => prev.filter((p) => p.nummer !== nummerToDelete))
+      await deletePlayerFromSession(sess, playerNumberToDelete)
+      setPlayers((prev) => prev.filter((p) => p.playerNumber !== playerNumberToDelete))
       setSuccessMsg('Speler verwijderd')
     } catch (err: unknown) {
       console.error('Network error deleting player', err)
@@ -432,7 +411,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
 
   return (
     <main onClick={(e) => e.stopPropagation()} style={{ padding: 20, fontFamily: 'Arial, Helvetica, sans-serif', display: 'flex', justifyContent: 'center' }}>
-     <div style={{ width: '100%', maxWidth: 900, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.08)', position: 'relative' }}>
+      <div style={{ width: '100%', maxWidth: 900, background: '#fff', borderRadius: 12, padding: 20, boxShadow: '0 8px 30px rgba(0,0,0,0.08)', position: 'relative' }}>
         {/* close button inside the ManagePlayers panel */}
         {onClose && (
           <button
@@ -515,9 +494,9 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                   </thead>
                   <tbody>
                     {players.map((p, idx) => (
-                      <tr key={p.nummer} style={{ background: idx % 2 === 0 ? '#fff' : '#fbfbfb' }}>
-                        <td style={{ padding: 10 }}>{p.nummer}</td>
-                        <td style={{ padding: 10 }}>{p.naam}</td>
+                      <tr key={p.playerNumber} style={{ background: idx % 2 === 0 ? '#fff' : '#fbfbfb' }}>
+                        <td style={{ padding: 10 }}>{p.playerNumber}</td>
+                        <td style={{ padding: 10 }}>{p.name}</td>
                         <td style={{ padding: 10 }}>{p.category}</td>
                         <td style={{ padding: 10 }}>
                           <button onClick={() => startEdit(p)} title="Bewerk" style={{ border: 'none', background: 'transparent', cursor: 'pointer', marginRight: 8 }}>
@@ -527,7 +506,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                               <path d="M20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" stroke="#111" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
                             </svg>
                           </button>
-                          <button onClick={() => deletePlayer(p.nummer)} title="Verwijder" style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>
+                          <button onClick={() => deletePlayer(p.playerNumber)} title="Verwijder" style={{ border: 'none', background: 'transparent', cursor: 'pointer' }}>
                             {/* improved trash icon */}
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
                               <path d="M3 6h18" stroke="#b00020" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
@@ -550,15 +529,15 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
-                    <input value={nummerInput} onChange={(e) => setNummerInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    <input value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>
-                    <input value={naamInput} onChange={(e) => setNaamInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijd</label>
-                    <input value={leeftijdInput} onChange={(e) => setLeeftijdInput(e.target.value)} placeholder="10" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    <input value={ageInput} onChange={(e) => setAgeInput(e.target.value)} placeholder="10" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => submitPlayer()} style={{ background: '#f2c200', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 8, cursor: 'pointer' }}>{editing ? 'Bijwerken' : 'Opslaan'}</button>
@@ -580,15 +559,15 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
                   <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
-                  <input value={nummerInput} onChange={(e) => setNummerInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                  <input value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
                   <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>
-                  <input value={naamInput} onChange={(e) => setNaamInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                  <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
                   <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijd</label>
-                  <input value={leeftijdInput} onChange={(e) => setLeeftijdInput(e.target.value)} placeholder="10" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                  <input value={ageInput} onChange={(e) => setAgeInput(e.target.value)} placeholder="10" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button onClick={() => submitPlayer()} style={{ background: '#f2c200', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 8, cursor: 'pointer' }}>{editing ? 'Bijwerken' : 'Opslaan'}</button>

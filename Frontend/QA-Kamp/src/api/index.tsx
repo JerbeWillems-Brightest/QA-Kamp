@@ -96,22 +96,49 @@ export async function getSessions(organizerId?: string) : Promise<{ sessions: Ar
 
 // --- Players helpers ---
 export interface ApiPlayer {
-  nummer: string
-  naam: string
-  leeftijd: number
+  playerNumber: string
+  name: string
+  age: number
   category?: string
+}
+
+// Represent possible shapes returned by the backend (old Dutch names included for robustness)
+type BackendPlayer = Partial<Record<'playerNumber'|'nummer'|'name'|'naam'|'age'|'leeftijd'|'category', unknown>>
+
+function parseErrorMessage(err: unknown, fallback: string) {
+  if (!err) return fallback
+  if (typeof err === 'string') return err
+  if (err instanceof Error) return err.message
+  try {
+    const o = err as Record<string, unknown>
+    if (typeof o.error === 'string') return o.error
+    if (typeof o.message === 'string') return o.message
+    return fallback
+  } catch {
+    return fallback
+  }
 }
 
 export async function fetchPlayersForSession(sessionId: string): Promise<{ players: ApiPlayer[] }> {
   const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players`)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
   }
-  return res.json() // { players: [...] }
+  const json = await res.json()
+  // The backend now returns players with English fields; normalize if needed
+  const players = (json.players || []).map((p: unknown) => {
+    const bp = p as BackendPlayer
+    const playerNumber = String(bp.playerNumber ?? bp.nummer ?? '')
+    const name = String(bp.name ?? bp.naam ?? '')
+    const age = Number(bp.age ?? bp.leeftijd ?? 0)
+    const category = typeof bp.category === 'string' ? bp.category : undefined
+    return { playerNumber, name, age, category } as ApiPlayer
+  })
+  return { players }
 }
 
-export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] } | any> {
+export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] }> {
   const q = overwrite ? '?overwrite=true' : ''
   const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players${q}`, {
     method: 'POST',
@@ -120,29 +147,29 @@ export async function addPlayersToSession(sessionId: string, players: ApiPlayer[
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
   }
   return res.json()
 }
 
-export async function updatePlayerInSession(sessionId: string, nummer: string, player: ApiPlayer): Promise<{ player?: ApiPlayer } | any> {
-  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(nummer)}`, {
+export async function updatePlayerInSession(sessionId: string, playerNumber: string, player: ApiPlayer): Promise<{ player?: ApiPlayer }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ player }),
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
   }
   return res.json()
 }
 
-export async function deletePlayerFromSession(sessionId: string, nummer: string): Promise<{ success?: boolean } | any> {
-  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(nummer)}`, { method: 'DELETE' })
+export async function deletePlayerFromSession(sessionId: string, playerNumber: string): Promise<{ success?: boolean }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}`, { method: 'DELETE' })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
   }
   return res.json()
 }
