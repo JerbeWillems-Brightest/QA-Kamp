@@ -1,40 +1,83 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import LineImg from '../../assets/Line.png';
 import CurveImg from '../../assets/curve.png';
 import ShapeImg from '../../assets/shape.png';
 import BallImg from '../../assets/ball.png';
-// Use Vite env or fallback to localhost backend for development
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:4000'
+import { loginOrganizer } from '../../api'
+import { useAuth } from '../../context/AuthContext'
 
 export default function OrganiserLogin() {
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false)
+    const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
+    const [generalError, setGeneralError] = useState('');
+    const navigate = useNavigate()
+    const auth = useAuth()
 
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (loading) return
         setLoading(true)
-        try {
-            const res = await fetch(`${API_URL}/api/auth/login`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email, password }),
-            })
+        setFieldErrors({})
+        setGeneralError('')
 
-            const data = await res.json().catch(() => ({}))
-            if (res.ok) {
-                // Backend returns message 'Succesvol ingelogd'
-                alert(data.message ?? 'Succesvol ingelogd')
-            } else {
-                // Show backend error message or generic
-                alert(data.error ?? data.message ?? 'Fout bij inloggen')
+        // simple client validation
+        const nextFieldErrors: { email?: string; password?: string } = {}
+        if (!email) nextFieldErrors.email = 'Vul je emailadres in'
+        // basic email format
+        else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) nextFieldErrors.email = 'Ongeldig emailadres'
+        if (!password) nextFieldErrors.password = 'Vul je wachtwoord in'
+
+        if (Object.keys(nextFieldErrors).length) {
+            setFieldErrors(nextFieldErrors)
+            setLoading(false)
+            return
+        }
+
+        try {
+            const data = await loginOrganizer(email, password)
+            // on success, persist login and navigate
+            if (data.user) {
+                auth.login(data.user)
+                navigate('/start-session')
+                return
             }
-        } catch (err) {
-            console.error('Login network error', err)
-            alert('Netwerkfout: kon niet verbinden met de server')
+            // fallback: if backend returns message but no user
+            setGeneralError(data.message || 'Onbekende fout bij inloggen')
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err)
+            console.error('Login error', err)
+
+            const isInvalidCredentials = (s?: string) => {
+                if (!s) return false
+                const v = s.toLowerCase().trim()
+                return v === 'invalid credentials' || v === 'invalid credential' || v === 'invalid_credentials' || v === 'invalid'
+            }
+
+            // direct message mapping
+            if (isInvalidCredentials(msg)) {
+                setGeneralError('Foute Inloggegevens')
+            } else {
+                // try to parse structured backend response
+                try {
+                    const parsed = JSON.parse(msg)
+                    const parsedMsg = parsed?.error || parsed?.message || undefined
+                    if (parsed?.field && parsed?.error) {
+                        setFieldErrors({ [parsed.field]: parsed.error })
+                    } else if (isInvalidCredentials(parsedMsg)) {
+                        setGeneralError('Foute Inloggegevens')
+                    } else {
+                        setGeneralError(parsedMsg || msg || 'Fout bij inloggen')
+                    }
+                } catch (parseErr) {
+                    // couldn't parse, fallback to raw msg
+                    console.warn('Could not parse backend error message', parseErr)
+                    setGeneralError(msg || 'Fout bij inloggen')
+                }
+            }
         } finally {
             setLoading(false)
         }
@@ -65,6 +108,10 @@ export default function OrganiserLogin() {
                         <h1 style={{ padding: 8, marginTop: 8 }}>Organisator login</h1>
                         <h2 style={{ margin: '6px 0 18px 0', color: '#444' }}>Beheer het QA-Kamp vanuit je dashboard</h2>
 
+                        {generalError && (
+                            <div style={{ color: '#e74c3c', marginBottom: 8 }}>{generalError}</div>
+                        )}
+
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '12px', padding: '8px 12px', width: '100%' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                 <label htmlFor="email" style={{ fontSize: 13, fontWeight: 600, alignSelf: 'flex-start', textAlign: 'left' }}>Emailadres:</label>
@@ -74,8 +121,9 @@ export default function OrganiserLogin() {
                                     required
                                     value={email}
                                     onChange={(e) => setEmail(e.target.value)}
-                                    style={{ padding: '10px', width: '100%', borderRadius: '6px', border: '1px solid #ccc' }}
+                                    style={{ padding: '10px', width: '100%', borderRadius: '6px', border: fieldErrors.email ? '1px solid #e74c3c' : '1px solid #ccc' }}
                                 />
+                                {fieldErrors.email && <div style={{ color: '#e74c3c', fontSize: 13 }}>{fieldErrors.email}</div>}
                             </div>
 
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -86,8 +134,9 @@ export default function OrganiserLogin() {
                                     required
                                     value={password}
                                     onChange={(e) => setPassword(e.target.value)}
-                                    style={{ padding: '10px', width: '100%', borderRadius: '6px', border: '1px solid #ccc' }}
+                                    style={{ padding: '10px', width: '100%', borderRadius: '6px', border: fieldErrors.password ? '1px solid #e74c3c' : '1px solid #ccc' }}
                                 />
+                                {fieldErrors.password && <div style={{ color: '#e74c3c', fontSize: 13 }}>{fieldErrors.password}</div>}
                             </div>
 
                             <button

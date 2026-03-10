@@ -4,6 +4,7 @@ import type { Request, Response, NextFunction } from 'express'
 import { connectDB, seedOrganizers } from './db'
 import usersRouter from './routes/users'
 import authRouter from './routes/auth'
+import sessionsRouter from './routes/sessions'
 
 const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
@@ -36,6 +37,9 @@ app.use('/api/users', usersRouter)
 
 // Auth routes
 app.use('/api/auth', authRouter)
+
+// Sessions
+app.use('/api/sessions', sessionsRouter)
 
 // seed default organizers after DB connect (only when running server locally)
 if (!process.env.VERCEL) {
