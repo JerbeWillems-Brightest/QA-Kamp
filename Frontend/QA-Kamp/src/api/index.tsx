@@ -1,7 +1,7 @@
 // Base URL from environment, strip trailing /api if present
-let API_URL = import.meta.env.VITE_API_URL || '';
+let API_URL = import.meta.env.VITE_API_URL || ''
 if (API_URL.endsWith('/api')) {
-  API_URL = API_URL.slice(0, -4);
+  API_URL = API_URL.slice(0, -4)
 }
 
 export interface LoginResponse {
@@ -31,7 +31,7 @@ export interface SessionResponse {
 function extractId(v: unknown): string | undefined {
   if (!v) return undefined
   if (typeof v === 'string') return v
-  if (typeof v === 'object' && v !== null) {
+  if (typeof v === 'object') {
     const r = v as Record<string, unknown>
     if (typeof r.id === 'string') return r.id
     if (typeof r._id === 'string') return r._id
@@ -92,4 +92,84 @@ export async function getSessions(organizerId?: string) : Promise<{ sessions: Ar
     }
   }) as { id: string; organizerId?: string; startedAt: string; name?: string }[]
   return { sessions: list }
+}
+
+// --- Players helpers ---
+export interface ApiPlayer {
+  playerNumber: string
+  name: string
+  age: number
+  category?: string
+}
+
+// Represent possible shapes returned by the backend (old Dutch names included for robustness)
+type BackendPlayer = Partial<Record<'playerNumber'|'nummer'|'name'|'naam'|'age'|'leeftijd'|'category', unknown>>
+
+function parseErrorMessage(err: unknown, fallback: string) {
+  if (!err) return fallback
+  if (typeof err === 'string') return err
+  if (err instanceof Error) return err.message
+  try {
+    const o = err as Record<string, unknown>
+    if (typeof o.error === 'string') return o.error
+    if (typeof o.message === 'string') return o.message
+    return fallback
+  } catch {
+    return fallback
+  }
+}
+
+export async function fetchPlayersForSession(sessionId: string): Promise<{ players: ApiPlayer[] }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  // The backend now returns players with English fields; normalize if needed
+  const players = (json.players || []).map((p: unknown) => {
+    const bp = p as BackendPlayer
+    const playerNumber = String(bp.playerNumber ?? bp.nummer ?? '')
+    const name = String(bp.name ?? bp.naam ?? '')
+    const age = Number(bp.age ?? bp.leeftijd ?? 0)
+    const category = typeof bp.category === 'string' ? bp.category : undefined
+    return { playerNumber, name, age, category } as ApiPlayer
+  })
+  return { players }
+}
+
+export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] }> {
+  const q = overwrite ? '?overwrite=true' : ''
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players${q}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ players }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function updatePlayerInSession(sessionId: string, playerNumber: string, player: ApiPlayer): Promise<{ player?: ApiPlayer }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function deletePlayerFromSession(sessionId: string, playerNumber: string): Promise<{ success?: boolean }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
 }

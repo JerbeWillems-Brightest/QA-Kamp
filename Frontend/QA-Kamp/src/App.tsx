@@ -1,7 +1,7 @@
 import './App.css'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import HomePage from './component/LoginPages/HomePage'
-import OrganiserLogin from './component/LoginPages/OrganiserLogin'
+import OrganizerLogin from './component/LoginPages/OrganizerLogin'
 import StartSession from './component/OrganizerPages/StartSession'
 import DayOverview from './component/OrganizerPages/DayOverview'
 import ManagePlayers from './component/OrganizerPages/ManagePlayers'
@@ -21,7 +21,7 @@ function App() {
             {/* Main content */}
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/organiser-login" element={<OrganiserLogin />} />
+              <Route path="/organizer-login" element={<OrganizerLogin />} />
               <Route path="/start-session" element={<StartSession />} />
               <Route path="/day-overview" element={<DayOverview />} />
               <Route path="/manage-players" element={<ManagePlayers />} />
@@ -46,7 +46,7 @@ function App() {
 
                  <div>
                      <h3>Pagina's</h3>
-                     <p>Organisator login</p>
+                     <p><Link to="/organizer-login" style={{ color: 'inherit', textDecoration: 'none' }}>Organisator login</Link></p>
                      <p>Overzicht Spellen</p>
                      <p>Minigames</p>
                  </div>

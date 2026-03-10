@@ -21,8 +21,20 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const deleted = await Session.findByIdAndDelete(id)
-    if (!deleted) return res.status(404).json({ error: 'Session not found' })
+    // ensure session exists
+    const session = await Session.findById(id)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+
+    // delete all players linked to this session (but keep the organizer intact)
+    try {
+      await Player.deleteMany({ sessionId: id })
+    } catch (delErr) {
+      console.error('Error deleting players for session', id, delErr)
+      return res.status(500).json({ error: 'Failed to delete players for session' })
+    }
+
+    // now delete the session itself
+    await Session.findByIdAndDelete(id)
     return res.json({ success: true })
   } catch (err) {
     console.error('Delete session error:', err)
@@ -61,11 +73,11 @@ router.post('/:id/players', async (req, res) => {
     const overwrite = (req.query && String(req.query.overwrite) === 'true')
 
     if (!overwrite) {
-      const numbers = players.map((p: any) => p.nummer)
+      const numbers = players.map((p: any) => p.playerNumber)
       // check duplicates already in DB for this session
-      const existing = await Player.find({ sessionId: id, nummer: { $in: numbers } }).select('nummer')
+      const existing = await Player.find({ sessionId: id, playerNumber: { $in: numbers } }).select('playerNumber')
       if (existing.length > 0) {
-        const nums = existing.map((e: any) => e.nummer)
+        const nums = existing.map((e: any) => e.playerNumber)
         return res.status(400).json({ error: `Some players already exist in session: ${nums.join(', ')}` })
       }
     } else {
@@ -75,9 +87,9 @@ router.post('/:id/players', async (req, res) => {
 
     const docs = players.map((p: any) => ({
       sessionId: id,
-      nummer: p.nummer,
-      naam: p.naam,
-      leeftijd: p.leeftijd,
+      playerNumber: p.playerNumber,
+      name: p.name,
+      age: p.age,
       category: p.category || 'unknown'
     }))
     const created = await Player.insertMany(docs)
@@ -92,11 +104,51 @@ router.post('/:id/players', async (req, res) => {
 router.get('/:id/players', async (req, res) => {
   try {
     const { id } = req.params
-    const players = await Player.find({ sessionId: id }).sort({ nummer: 1 })
+    const players = await Player.find({ sessionId: id }).sort({ playerNumber: 1 })
     return res.json({ players })
   } catch (err) {
     console.error('List players error:', err)
     return res.status(500).json({ error: 'Failed to list players' })
+  }
+})
+
+// Update a single player by playerNumber for a session
+router.put('/:id/players/:playerNumber', async (req, res) => {
+  try {
+    const { id, playerNumber } = req.params
+    const { player } = req.body
+    if (!player) return res.status(400).json({ error: 'player object required in body' })
+
+    // find and update by sessionId + playerNumber
+    const updated = await Player.findOneAndUpdate(
+      { sessionId: id, playerNumber },
+      {
+        playerNumber: (player.playerNumber ?? playerNumber),
+        name: player.name,
+        age: player.age,
+        category: player.category ?? 'unknown',
+      },
+      { new: true, runValidators: true }
+    )
+
+    if (!updated) return res.status(404).json({ error: 'Player not found in session' })
+    return res.json({ player: updated })
+  } catch (err) {
+    console.error('Update player error:', err)
+    return res.status(500).json({ error: 'Failed to update player' })
+  }
+})
+
+// Delete a single player by playerNumber for a session
+router.delete('/:id/players/:playerNumber', async (req, res) => {
+  try {
+    const { id, playerNumber } = req.params
+    const deleted = await Player.findOneAndDelete({ sessionId: id, playerNumber })
+    if (!deleted) return res.status(404).json({ error: 'Player not found in session' })
+    return res.json({ success: true })
+  } catch (err) {
+    console.error('Delete player error:', err)
+    return res.status(500).json({ error: 'Failed to delete player' })
   }
 })
 

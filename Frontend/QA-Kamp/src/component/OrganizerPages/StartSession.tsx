@@ -14,7 +14,7 @@ export default function StartSession(){
 
     useEffect(() => {
         if (!auth.user) {
-            navigate('/organiser-login')
+            navigate('/organizer-login')
             return
         }
 

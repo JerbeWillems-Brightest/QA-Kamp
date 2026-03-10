@@ -84,7 +84,7 @@ function HomePage() {
                 Speel mee
               </button>
 
-              <Link to="/organiser-login" style={{ padding: 10, fontSize: '12px', color: '#3a78d0'}}>
+              <Link to="/organizer-login" style={{ padding: 10, fontSize: '12px', color: '#3a78d0'}}>
                 Log hier in als organisator
               </Link>
              </form>

@@ -1,24 +1,24 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 
-export interface OrganizerUser {
+export interface User {
   id: string
   email: string
   name?: string
 }
 
 interface AuthContextValue {
-  user: OrganizerUser | null
-  login: (user: OrganizerUser) => void
+  user: User | null
+  login: (user: User) => void
   logout: () => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<OrganizerUser | null>(() => {
+  const [user, setUser] = useState<User | null>(() => {
     try {
-      const raw = localStorage.getItem('organizer')
-      return raw ? (JSON.parse(raw) as OrganizerUser) : null
+      const raw = localStorage.getItem('user')
+      return raw ? (JSON.parse(raw) as User) : null
     } catch {
       return null
     }
@@ -26,13 +26,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem('organizer', JSON.stringify(user))
+      localStorage.setItem('user', JSON.stringify(user))
     } else {
-      localStorage.removeItem('organizer')
+      localStorage.removeItem('user')
     }
   }, [user])
 
-  const login = (u: OrganizerUser) => setUser(u)
+  const login = (u: User) => setUser(u)
   const logout = () => setUser(null)
 
   return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
