@@ -1,7 +1,7 @@
 // Base URL from environment, strip trailing /api if present
-let API_URL = import.meta.env.VITE_API_URL || '';
+let API_URL = import.meta.env.VITE_API_URL || ''
 if (API_URL.endsWith('/api')) {
-  API_URL = API_URL.slice(0, -4);
+  API_URL = API_URL.slice(0, -4)
 }
 
 export interface LoginResponse {
@@ -31,7 +31,7 @@ export interface SessionResponse {
 function extractId(v: unknown): string | undefined {
   if (!v) return undefined
   if (typeof v === 'string') return v
-  if (typeof v === 'object' && v !== null) {
+  if (typeof v === 'object') {
     const r = v as Record<string, unknown>
     if (typeof r.id === 'string') return r.id
     if (typeof r._id === 'string') return r._id
@@ -92,4 +92,57 @@ export async function getSessions(organizerId?: string) : Promise<{ sessions: Ar
     }
   }) as { id: string; organizerId?: string; startedAt: string; name?: string }[]
   return { sessions: list }
+}
+
+// --- Players helpers ---
+export interface ApiPlayer {
+  nummer: string
+  naam: string
+  leeftijd: number
+  category?: string
+}
+
+export async function fetchPlayersForSession(sessionId: string): Promise<{ players: ApiPlayer[] }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+  }
+  return res.json() // { players: [...] }
+}
+
+export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] } | any> {
+  const q = overwrite ? '?overwrite=true' : ''
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players${q}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ players }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function updatePlayerInSession(sessionId: string, nummer: string, player: ApiPlayer): Promise<{ player?: ApiPlayer } | any> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(nummer)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ player }),
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function deletePlayerFromSession(sessionId: string, nummer: string): Promise<{ success?: boolean } | any> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(nummer)}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+  }
+  return res.json()
 }

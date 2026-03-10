@@ -19,5 +19,7 @@ const PlayerSchema = new Schema<IPlayer>(
   { timestamps: true }
 )
 
-export const Player = mongoose.model<IPlayer>('Player', PlayerSchema)
+// ensure unique nummer per session at DB level
+PlayerSchema.index({ sessionId: 1, nummer: 1 }, { unique: true })
 
+export const Player = mongoose.model<IPlayer>('Player', PlayerSchema)

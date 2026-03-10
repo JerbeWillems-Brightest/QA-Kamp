@@ -21,8 +21,20 @@ router.post('/', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const deleted = await Session.findByIdAndDelete(id)
-    if (!deleted) return res.status(404).json({ error: 'Session not found' })
+    // ensure session exists
+    const session = await Session.findById(id)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+
+    // delete all players linked to this session (but keep the organizer intact)
+    try {
+      await Player.deleteMany({ sessionId: id })
+    } catch (delErr) {
+      console.error('Error deleting players for session', id, delErr)
+      return res.status(500).json({ error: 'Failed to delete players for session' })
+    }
+
+    // now delete the session itself
+    await Session.findByIdAndDelete(id)
     return res.json({ success: true })
   } catch (err) {
     console.error('Delete session error:', err)
@@ -97,6 +109,46 @@ router.get('/:id/players', async (req, res) => {
   } catch (err) {
     console.error('List players error:', err)
     return res.status(500).json({ error: 'Failed to list players' })
+  }
+})
+
+// Update a single player by nummer for a session
+router.put('/:id/players/:nummer', async (req, res) => {
+  try {
+    const { id, nummer } = req.params
+    const { player } = req.body
+    if (!player) return res.status(400).json({ error: 'player object required in body' })
+
+    // find and update by sessionId + nummer
+    const updated = await Player.findOneAndUpdate(
+      { sessionId: id, nummer },
+      {
+        nummer: (player.nummer ?? nummer),
+        naam: player.naam,
+        leeftijd: player.leeftijd,
+        category: player.category ?? 'unknown',
+      },
+      { new: true, runValidators: true }
+    )
+
+    if (!updated) return res.status(404).json({ error: 'Player not found in session' })
+    return res.json({ player: updated })
+  } catch (err) {
+    console.error('Update player error:', err)
+    return res.status(500).json({ error: 'Failed to update player' })
+  }
+})
+
+// Delete a single player by nummer for a session
+router.delete('/:id/players/:nummer', async (req, res) => {
+  try {
+    const { id, nummer } = req.params
+    const deleted = await Player.findOneAndDelete({ sessionId: id, nummer })
+    if (!deleted) return res.status(404).json({ error: 'Player not found in session' })
+    return res.json({ success: true })
+  } catch (err) {
+    console.error('Delete player error:', err)
+    return res.status(500).json({ error: 'Failed to delete player' })
   }
 })
 
