@@ -8,10 +8,33 @@ import RocketImg from '../../assets/Rocketship.png';
 
 function HomePage() {
   const [playerNumber, setPlayerNumber] = useState('');
+  const [numberError, setNumberError] = useState('');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // validate: must be non-empty and numeric
+    if (!playerNumber) {
+      setNumberError('Vul je spelersnummer in');
+      return;
+    }
+    if (!/^\d+$/.test(playerNumber)) {
+      setNumberError('Alleen cijfers zijn toegestaan');
+      return;
+    }
+    setNumberError('');
     alert(`Spelersnummer: ${playerNumber}`);
+  }
+
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const raw = e.target.value;
+    // remove any non-digit characters so letters are not allowed
+    const cleaned = raw.replace(/\D/g, '');
+    if (cleaned !== raw) {
+      setNumberError('Alleen cijfers zijn toegestaan');
+    } else {
+      setNumberError('');
+    }
+    setPlayerNumber(cleaned);
   }
 
   return (
@@ -40,12 +63,18 @@ function HomePage() {
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: 15}}>
               <input
                 type="text"
+                inputMode="numeric"
+                pattern="\d*"
                 placeholder="Voer spelersnummer in"
                 required
                 value={playerNumber}
-                onChange={(e) => setPlayerNumber(e.target.value)}
-                style={{ padding: '10px', width: '220px', borderRadius: '6px', border: '1px solid #ccc' }}
+                onChange={handleChange}
+                style={{ padding: '10px', width: '220px', borderRadius: '6px', border: numberError ? '1px solid #e74c3c' : '1px solid #ccc' }}
               />
+
+              {numberError && (
+                <div style={{ color: '#e74c3c', fontSize: 13 }}>{numberError}</div>
+              )}
 
               <button
                 type="submit"

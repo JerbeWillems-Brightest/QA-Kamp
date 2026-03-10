@@ -1,26 +1,30 @@
 import './App.css'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
-import HomePage from './component/LoginPaginas/HomePage'
-import OrganiserLogin from './component/LoginPaginas/OrganiserLogin'
-import QAKampLogo from './assets/QAKamp.png'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import HomePage from './component/LoginPages/HomePage'
+import OrganiserLogin from './component/LoginPages/OrganiserLogin'
+import StartSession from './component/OrganizerPages/StartSession'
+import DayOverview from './component/OrganizerPages/DayOverview'
+import ManagePlayers from './component/OrganizerPages/ManagePlayers'
 import BrightestLogo from './assets/BrightestLogo.png'
+import { AuthProvider } from './context/AuthContext'
+import Navbar from './component/Navbar'
 
 function App() {
     return (
+        <AuthProvider>
         <BrowserRouter>
         <div className="page">
 
             {/* Navbar */}
-            <nav className="navbar">
-                <div className="logo-container">
-                    <img src={QAKampLogo} alt="QA Kamp logo"/>
-                </div>
-            </nav>
+            <Navbar />
 
             {/* Main content */}
             <Routes>
               <Route path="/" element={<HomePage />} />
               <Route path="/organiser-login" element={<OrganiserLogin />} />
+              <Route path="/start-session" element={<StartSession />} />
+              <Route path="/day-overview" element={<DayOverview />} />
+              <Route path="/manage-players" element={<ManagePlayers />} />
             </Routes>
 
             {/* Footer */}
@@ -42,7 +46,9 @@ function App() {
 
                  <div>
                      <h3>Pagina's</h3>
-                     <p><Link to="/organiser-login">Organisator login</Link></p>
+                     <p>Organisator login</p>
+                     <p>Overzicht Spellen</p>
+                     <p>Minigames</p>
                  </div>
                 </div>
             </footer>
@@ -55,7 +61,8 @@ function App() {
 
         </div>
         </BrowserRouter>
-    );
+        </AuthProvider>
+     );
 }
 
 export default App
