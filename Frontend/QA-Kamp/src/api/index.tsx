@@ -9,17 +9,36 @@ export interface LoginResponse {
   user?: { id: string; email: string; name?: string };
 }
 
+// Helper: centralize fetch handling so network/CORS errors are surfaced clearly
+async function safeFetch<T = never>(url: string, opts?: RequestInit): Promise<T> {
+  try {
+    const res = await fetch(url, opts)
+    // network-level success (request completed)
+    if (!res.ok) {
+      // try to parse JSON body for better message
+      const body = await res.json().catch(() => null)
+      const errMsg = (body && (body.error || body.message)) || `HTTP ${res.status}`
+      throw new Error(errMsg)
+    }
+    // parse JSON (or throw if invalid)
+    return await res.json()
+  } catch (err: unknown) {
+    // fetch throws TypeError for network-level failures (DNS, CORS, mixed-content, offline)
+    const original = err instanceof Error ? err.message : String(err)
+    // Add the target URL to help with diagnostics in the browser console/logs
+    const message = `Network or CORS error fetching ${url}: ${original}`
+    console.error(message, { url, opts, err })
+    throw new Error(message)
+  }
+}
+
 export async function loginOrganizer(email: string, password: string): Promise<LoginResponse> {
-  const res = await fetch(`${API_URL}/api/auth/login`, {
+  const url = `${API_URL}/api/auth/login`
+  return safeFetch<LoginResponse>(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(err.error || err.message || `HTTP ${res.status}`);
-  }
-  return res.json();
+  })
 }
 
 export interface SessionResponse {
@@ -66,12 +85,12 @@ export async function createSession(organizerId: string, name?: string): Promise
 }
 
 export async function deleteSession(sessionId: string): Promise<SessionResponse> {
-  const res = await fetch(`${API_URL}/api/sessions/${sessionId}`, { method: 'DELETE' });
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}`, { method: 'DELETE' })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(err.error || err.message || `HTTP ${res.status}`);
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(err.error || err.message || `HTTP ${res.status}`)
   }
-  return res.json();
+  return res.json()
 }
 
 export async function getSessions(organizerId?: string) : Promise<{ sessions: Array<{ id: string; organizerId?: string; startedAt: string; name?: string }> }> {
