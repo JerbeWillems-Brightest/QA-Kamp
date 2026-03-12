@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { deleteSession } from '../../api'
+import { useSession } from '../../context/SessionContext'
 
 import MaandagImg from '../../assets/maandag.png'
 import DinsdagImg from '../../assets/dinsdag.png'
@@ -15,7 +16,7 @@ export default function DayOverview() {
   const modalRef = useRef<HTMLDivElement | null>(null)
   const auth = useAuth()
   const navigate = useNavigate()
-  const sessionId = useMemo(() => localStorage.getItem('currentSessionId'), [])
+  const { currentSession, setCurrentSessionId } = useSession()
   const [error, setError] = useState('')
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [focusIdx, setFocusIdx] = useState<number | null>(null)
@@ -25,20 +26,8 @@ export default function DayOverview() {
   const [scale, setScale] = useState<number>(1)
   const DESIGN_WIDTH = 1200 // the width we design for (monitor)
 
-  // compute allowed days based on current date (Mon..Fri).
-  // JS getDay(): 0 = Sun, 1 = Mon, ..., 6 = Sat
-  const allowedMaxIndex = useMemo(() => {
-    const today = new Date()
-    const d = today.getDay()
-    // if weekday Mon-Fri: allow up to that day; else (Sat/Sun) allow full week (Fri)
-    const allowedCount = d >= 1 && d <= 5 ? d : 5
-    return Math.max(0, Math.min(allowedCount - 1, 4)) // index between 0..4
-  }, [])
-
-  // auto-select the latest allowed day on mount
-  useEffect(() => {
-    setSelectedIdx(allowedMaxIndex)
-  }, [allowedMaxIndex])
+  // All days should be clickable at any time; no disabled logic.
+  // (Removed previous allowedMaxIndex + auto-select rules.
 
   useEffect(() => {
     function updateScale() {
@@ -65,20 +54,33 @@ export default function DayOverview() {
     }
   }, [auth.user, navigate])
 
+  // reflect whether a session is currently active via context
+  const hasSession = Boolean(currentSession?.id)
+
   async function handleStop() {
-    if (!sessionId) return setError('Geen actieve sessie gevonden')
+    const sessionIdLocal = currentSession?.id
+    if (!sessionIdLocal) return setError('Geen actieve sessie gevonden')
+
     try {
-      await deleteSession(sessionId)
-      localStorage.removeItem('currentSessionId')
+      await deleteSession(sessionIdLocal)
+      // success
+      setCurrentSessionId(null)
       navigate('/start-session')
-    } catch (err) {
-      console.error('Failed to delete session', err)
-      setError('Kon sessie niet stoppen')
+      return
+    } catch (err: unknown) {
+      // If backend says session not found (404), treat it as success: clear local state and navigate
+      const msg = err instanceof Error ? err.message : String(err)
+      console.warn('Failed to delete session', msg)
+      if (msg.toLowerCase().includes('session not found') || msg.includes('HTTP 404') || msg.toLowerCase().includes('not found')) {
+        setCurrentSessionId(null)
+        navigate('/start-session')
+        return
+      }
+      setError(`Kon sessie niet stoppen: ${msg}`)
     }
   }
 
-  function handleDayClick(dayName: string, idx: number, enabled: boolean) {
-    if (!enabled) return
+  function handleDayClick(dayName: string, idx: number) {
     setSelectedIdx(idx)
     // placeholder action for day click; replace with real navigation later
     alert(`${dayName} geselecteerd`)
@@ -193,11 +195,11 @@ export default function DayOverview() {
 
   // scale wrapper style computed at render time so it uses the latest `scale`
   const scaleWrapperStyle: React.CSSProperties = {
-    width: DESIGN_WIDTH,
-    transform: `scale(${scale})`,
-    transformOrigin: 'top center',
-    margin: '0 auto',
-  }
+     width: DESIGN_WIDTH,
+     transform: `scale(${scale})`,
+     transformOrigin: 'top center',
+     margin: '0 auto',
+   }
 
   return (
     <main style={{ padding: 0 }}>
@@ -214,7 +216,7 @@ export default function DayOverview() {
           <div style={{ ...scaleWrapperStyle, filter: showManage ? 'blur(6px)' : undefined, pointerEvents: showManage ? 'none' : undefined }}>
             <div style={styles.days}>
               {days.map((day, idx) => {
-                const enabled = idx <= allowedMaxIndex
+                // all days enabled
                 const active = (hoverIdx === idx || focusIdx === idx) || selectedIdx === idx
                 const buttonStyle: React.CSSProperties = {
                   ...styles.dayCardButton,
@@ -228,21 +230,17 @@ export default function DayOverview() {
                   transform: active ? 'scale(1.04)' : undefined,
                 }
 
-                // If day is disabled, apply muted style
-                const finalButtonStyle: React.CSSProperties = !enabled ? { ...buttonStyle, ...styles.dayDisabled } : buttonStyle
-
                 return (
                   <button
                     key={day.name}
-                    onClick={() => handleDayClick(day.name, idx, enabled)}
-                    style={finalButtonStyle}
+                    onClick={() => handleDayClick(day.name, idx)}
+                    style={buttonStyle}
                     aria-label={day.name}
                     aria-pressed={selectedIdx === idx}
                     onMouseEnter={() => setHoverIdx(idx)}
                     onMouseLeave={() => setHoverIdx(null)}
                     onFocus={() => setFocusIdx(idx)}
                     onBlur={() => setFocusIdx(null)}
-                    disabled={!enabled}
                   >
                     {/* image container - keep full image visible */}
                     <div style={{ width: '100%', overflow: 'hidden' }}>
@@ -256,10 +254,10 @@ export default function DayOverview() {
             </div>
 
             <div style={styles.buttonsWrap}>
-              <button style={{ ...styles.btn, ...styles.yellow }}>Scorebord</button>
+              <button id="ScoreboardBtn" onClick={() => hasSession ? navigate('/scoreboard') : setError('Geen actieve sessie')} style={{ ...styles.btn, ...styles.yellow, ...( !hasSession ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>Scorebord</button>
               <button onClick={() => setShowManage(true)} style={{ ...styles.btn, ...styles.yellow }}>Spelers beheren</button>
-              <button onClick={handleStop} style={{ ...styles.btn, ...styles.red }}>QA-kamp stoppen</button>
-            </div>
+              <button onClick={handleStop} disabled={!hasSession} title={!hasSession ? 'Geen actieve sessie om te stoppen' : 'Stop het huidige QA-kamp'} style={{ ...styles.btn, ...styles.red, ...( !hasSession ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}>QA-kamp stoppen</button>
+             </div>
           </div>
         </div>
        </div>

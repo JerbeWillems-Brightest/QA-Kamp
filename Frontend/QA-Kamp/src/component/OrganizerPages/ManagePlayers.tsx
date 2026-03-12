@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom'
 import { read, utils } from 'xlsx'
 import { useAuth } from '../../context/AuthContext'
 import { fetchPlayersForSession, addPlayersToSession, updatePlayerInSession, deletePlayerFromSession } from '../../api'
+import { useSession } from '../../context/SessionContext'
 
 type Player = {
   playerNumber: string
   name: string
   age: number
   category?: string
+  lastSeen?: string | null
 }
 
 function categorize(age: number) {
@@ -39,6 +41,7 @@ type ManagePlayersProps = {
 export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   const auth = useAuth()
   const navigate = useNavigate()
+  const { currentSession } = useSession()
   const [players, setPlayers] = useState<Player[]>([])
   const [errors, setErrors] = useState<string[]>([])
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -47,7 +50,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   // new states for manual add/edit
   const [playerNumberInput, setPlayerNumberInput] = useState('')
   const [nameInput, setNameInput] = useState('')
-  const [ageInput, setAgeInput] = useState('')
+  // replace free-text age input with category dropdown (8-10, 11-13, 14-16)
+  const [categoryInput, setCategoryInput] = useState<'8-10'|'11-13'|'14-16'>('11-13')
   const [editing, setEditing] = useState<string | null>(null) // playerNumber of editing player
   const [showAdd, setShowAdd] = useState(false)
 
@@ -68,41 +72,50 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     throw new Error('Kon geen uniek spelersnummer genereren — te veel spelers')
   }
 
-  // load existing players for current session when component mounts
+  async function loadPlayers(sessionId: string) {
+    setLoading(true)
+    try {
+      const body = await fetchPlayersForSession(sessionId)
+      const playersField = (body as Record<string, unknown>)['players']
+      if (Array.isArray(playersField)) {
+        const rawPlayers = playersField as unknown
+        if (Array.isArray(rawPlayers)) {
+          const mapped: Player[] = rawPlayers.map((item) => {
+            const p = item as Record<string, unknown>
+            const playerNumberVal = p['playerNumber'] ?? p['nummer'] ?? ''
+            const nameVal = p['name'] ?? p['naam'] ?? ''
+            const ageVal = p['age'] ?? p['leeftijd'] ?? 0
+            const lastSeenVal = p['lastSeen'] ?? p['last_seen'] ?? p['lastseen'] ?? null
+            const playerNumber = String(playerNumberVal ?? '').trim()
+            const name = String(nameVal ?? '').toLowerCase()
+            const age = Number(ageVal ?? 0)
+            return { playerNumber, name, age, category: (p['category'] as string) ?? categorize(age), lastSeen: lastSeenVal ? String(lastSeenVal) : null }
+          })
+          // sort by playerNumber
+          mapped.sort((a, b) => a.playerNumber.localeCompare(b.playerNumber))
+          setPlayers(mapped)
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load players', err)
+      setErrors(prev => [...prev, 'Kon spelers niet laden'])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
-    const sessionId = localStorage.getItem('currentSessionId')
+    const sessionId = currentSession?.id
     if (!sessionId) return
     let cancelled = false
     ;(async () => {
-      setLoading(true)
-      try {
-        const body = await fetchPlayersForSession(sessionId).catch((e) => { throw e })
-        if (cancelled) return
-        const playersField = (body as Record<string, unknown>)['players']
-        if (Array.isArray(playersField)) {
-          const rawPlayers = playersField as unknown
-          if (Array.isArray(rawPlayers)) {
-            const mapped: Player[] = rawPlayers.map((item) => {
-              const p = item as Record<string, unknown>
-              const playerNumberVal = p['playerNumber'] ?? p['nummer'] ?? ''
-              const nameVal = p['name'] ?? p['naam'] ?? ''
-              const ageVal = p['age'] ?? p['leeftijd'] ?? 0
-              const playerNumber = String(playerNumberVal ?? '').trim()
-              const name = String(nameVal ?? '').toLowerCase()
-              const age = Number(ageVal ?? 0)
-              return { playerNumber, name, age, category: (p['category'] as string) ?? categorize(age) }
-            })
-            setPlayers(mapped)
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load players', err)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      if (cancelled) return
+      await loadPlayers(sessionId)
     })()
     return () => { cancelled = true }
-  }, [API_URL])
+  }, [API_URL, currentSession?.id])
+
+  // (status removed) no isOnline helper needed
 
   // helper to convert unknown errors to string message
   function toErrorMessage(err: unknown) {
@@ -132,7 +145,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         return
       }
       // if we have a session, load existing player numbers to avoid collisions
-      const sessionId = localStorage.getItem('currentSessionId')
+      const sessionId = currentSession?.id
       const existingNumbers = new Set<string>()
       if (sessionId) {
         try {
@@ -213,10 +226,11 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       setPlayers(parsed)
 
       // try send to backend (link to current session)
-      const sessionId2 = sessionId || localStorage.getItem('currentSessionId')
+      const sessionId2 = sessionId
       if (!sessionId2) {
-        setSuccessMsg('Import gelukt (lokaal), maar geen actieve sessie gevonden — players opgeslagen in localStorage')
-        localStorage.setItem('importedPlayers', JSON.stringify(parsed))
+        setSuccessMsg('Import gelukt (lokaal), maar geen actieve sessie gevonden — players niet opgeslagen op server')
+        // keep parsed in UI but avoid localStorage reliance
+        setPlayers(parsed)
         return
       }
 
@@ -226,8 +240,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const rc = (resp && typeof resp === 'object') ? (resp as RespCreated).created : undefined
         const createdCount = Array.isArray(rc) ? rc.length : parsed.length
         setSuccessMsg(`Spelers succesvol toegevoegd (${createdCount})`)
-        localStorage.setItem('importedPlayers', JSON.stringify(parsed))
-        setPlayers(parsed)
+        // update UI with created players from DB (refresh)
+        await loadPlayers(sessionId2)
       } catch (err: unknown) {
         console.error('Network error posting players', err)
         setErrors([toErrorMessage(err)])
@@ -267,7 +281,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
 
     const existingNumbers = new Set<string>(players.map(p => String(p.playerNumber).padStart(3, '0')))
 
-    const sessionId = localStorage.getItem('currentSessionId')
+    const sessionId = currentSession?.id
     if (sessionId) {
       try {
         const existingResp = await fetchPlayersForSession(sessionId)
@@ -286,7 +300,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       const generated = generateUniqueNumber(existingNumbers, new Set<string>())
       setPlayerNumberInput(generated)
       setNameInput('')
-      setAgeInput('')
+      setCategoryInput('11-13')
       setEditing(null)
       setShowAdd(true)
     } catch (err) {
@@ -294,7 +308,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       setErrors(['Kon geen uniek spelersnummer genereren, voeg er handmatig één toe'])
       setPlayerNumberInput('')
       setNameInput('')
-      setAgeInput('')
+      setCategoryInput('11-13')
       setShowAdd(true)
     }
   }
@@ -303,7 +317,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   async function submitPlayer() {
     setErrors([])
     setSuccessMsg(null)
-    const sess = localStorage.getItem('currentSessionId')
+    const sess = currentSession?.id
     if (!sess) {
       setErrors(['Geen actieve sessie gevonden'])
       return
@@ -315,10 +329,12 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     const playerNumber = numOnly.padStart(3, '0')
     const name = String(nameInput || '').trim().toLowerCase()
     if (!name) return setErrors(['Naam is verplicht'])
-    const ageNum = Number(String(ageInput || '').trim())
-    if (!Number.isFinite(ageNum) || ageNum < 8 || ageNum > 16) return setErrors(['Leeftijd moet een getal tussen 8 en 16 zijn'])
-    const age = Math.floor(ageNum)
-    const player: Player = { playerNumber, name, age, category: categorize(age) }
+    // map selected category to a representative age that satisfies backend validation
+    const category = categoryInput
+    const categoryToAge: Record<string, number> = { '8-10': 8, '11-13': 11, '14-16': 14 }
+    if (!category || !categoryToAge[category]) return setErrors(['Ongeldige leeftijdscategorie'])
+    const age = categoryToAge[category]
+    const player: Player = { playerNumber, name, age, category }
 
     // ensure the playerNumber is unique (check local state + backend session)
     try {
@@ -371,7 +387,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       }
       setPlayerNumberInput('')
       setNameInput('')
-      setAgeInput('')
+      setCategoryInput('11-13')
     } catch (err: unknown) {
       console.error('Network error in submitPlayer', err)
       setErrors([toErrorMessage(err) || 'Netwerkfout bij toevoegen/bijwerken speler'])
@@ -382,7 +398,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     setEditing(p.playerNumber)
     setPlayerNumberInput(p.playerNumber)
     setNameInput(p.name)
-    setAgeInput(String(p.age))
+    // prefill category from player if available
+    setCategoryInput((p.category as '8-10'|'11-13'|'14-16') ?? categorize(p.age) as '8-10'|'11-13'|'14-16')
     setShowAdd(true)
   }
 
@@ -390,14 +407,14 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     setEditing(null)
     setPlayerNumberInput('')
     setNameInput('')
-    setAgeInput('')
+    setCategoryInput('11-13')
     setShowAdd(false)
   }
 
   const deletePlayer = async (playerNumberToDelete: string) => {
     setErrors([])
     setSuccessMsg(null)
-    const sess = localStorage.getItem('currentSessionId')
+    const sess = currentSession?.id
     if (!sess) return setErrors(['Geen actieve sessie gevonden'])
     try {
       await deletePlayerFromSession(sess, playerNumberToDelete)
@@ -536,8 +553,12 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                     <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
-                    <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijd</label>
-                    <input value={ageInput} onChange={(e) => setAgeInput(e.target.value)} placeholder="10" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
+                    <select value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+                      <option value="8-10">8-10</option>
+                      <option value="11-13">11-13</option>
+                      <option value="14-16">14-16</option>
+                    </select>
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => submitPlayer()} style={{ background: '#f2c200', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 8, cursor: 'pointer' }}>{editing ? 'Bijwerken' : 'Opslaan'}</button>
@@ -553,30 +574,34 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         )}
 
         {/* If no players but manual add requested, show form below message too */}
-        {players.length === 0 && showAdd && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ padding: 12, border: '1px solid #eee', borderRadius: 8, background: '#fafafa' }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
-                  <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
-                  <input value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
-                  <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>
-                  <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
-                </div>
+         {players.length === 0 && showAdd && (
+           <div style={{ marginTop: 12 }}>
+             <div style={{ padding: 12, border: '1px solid #eee', borderRadius: 8, background: '#fafafa' }}>
+               <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
+                   <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
+                   <input value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                 </div>
+                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
+                   <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>
+                   <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
-                  <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijd</label>
-                  <input value={ageInput} onChange={(e) => setAgeInput(e.target.value)} placeholder="10" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                  <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
+                  <select value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+                    <option value="8-10">8-10</option>
+                    <option value="11-13">11-13</option>
+                    <option value="14-16">14-16</option>
+                  </select>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button onClick={() => submitPlayer()} style={{ background: '#f2c200', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 8, cursor: 'pointer' }}>{editing ? 'Bijwerken' : 'Opslaan'}</button>
-                  <button onClick={() => cancelEdit()} style={{ background: '#fff', color: '#111', border: '1px solid #ddd', padding: '10px 12px', borderRadius: 8, cursor: 'pointer' }}>Annuleren</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+                 <div style={{ display: 'flex', gap: 8 }}>
+                   <button onClick={() => submitPlayer()} style={{ background: '#f2c200', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: 8, cursor: 'pointer' }}>{editing ? 'Bijwerken' : 'Opslaan'}</button>
+                   <button onClick={() => cancelEdit()} style={{ background: '#fff', color: '#111', border: '1px solid #ddd', padding: '10px 12px', borderRadius: 8, cursor: 'pointer' }}>Annuleren</button>
+                 </div>
+               </div>
+             </div>
+           </div>
+         )}
 
       </div>
     </main>

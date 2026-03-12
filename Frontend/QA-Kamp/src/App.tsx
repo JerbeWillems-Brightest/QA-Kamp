@@ -5,13 +5,16 @@ import OrganizerLogin from './component/LoginPages/OrganizerLogin'
 import StartSession from './component/OrganizerPages/StartSession'
 import DayOverview from './component/OrganizerPages/DayOverview'
 import ManagePlayers from './component/OrganizerPages/ManagePlayers'
+import Scoreboard from './component/OrganizerPages/Scoreboard'
 import BrightestLogo from './assets/BrightestLogo.png'
 import { AuthProvider } from './context/AuthContext'
+import { SessionProvider } from './context/SessionContext'
 import Navbar from './component/Navbar'
 
 function App() {
     return (
         <AuthProvider>
+        <SessionProvider>
         <BrowserRouter>
         <div className="page">
 
@@ -25,14 +28,15 @@ function App() {
               <Route path="/start-session" element={<StartSession />} />
               <Route path="/day-overview" element={<DayOverview />} />
               <Route path="/manage-players" element={<ManagePlayers />} />
+              <Route path="/scoreboard" element={<Scoreboard />} />
             </Routes>
 
             {/* Footer */}
             <footer className="footer">
                 <div className="footer-inner">
                  <div>
-                     <h3>Over QA Kamp</h3>
-                     <p>Leerrijke IT minigames voor jongeren</p>
+                     <h3>Over QA-kamp</h3>
+                     <p>Leerrijke IT-minigames voor jongeren</p>
                      <p>tussen de 8 en 16 jaar</p>
                  </div>
 
@@ -46,7 +50,7 @@ function App() {
 
                  <div>
                      <h3>Pagina's</h3>
-                     <p><Link to="/organizer-login" style={{ color: 'inherit', textDecoration: 'none' }}>Organisator login</Link></p>
+                     <p><Link to="/organizer-login" style={{ color: 'inherit', textDecoration: 'none' }}>Organisator Login</Link></p>
                      <p>Overzicht Spellen</p>
                      <p>Minigames</p>
                  </div>
@@ -61,6 +65,7 @@ function App() {
 
         </div>
         </BrowserRouter>
+        </SessionProvider>
         </AuthProvider>
      );
 }

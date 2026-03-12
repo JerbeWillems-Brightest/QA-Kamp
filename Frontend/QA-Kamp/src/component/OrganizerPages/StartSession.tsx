@@ -1,7 +1,8 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { createSession, getSessions } from '../../api'
+import { createSession } from '../../api'
+import { useSession } from '../../context/SessionContext'
 import LineImg from "../../assets/Line.png";
 import CurveImg from "../../assets/curve.png";
 import StarImg from "../../assets/Star.png";
@@ -11,6 +12,7 @@ import BallImg from "../../assets/ball.png";
 export default function StartSession(){
     const auth = useAuth()
     const navigate = useNavigate()
+    const { setCurrentSessionId, refreshSessions } = useSession()
 
     useEffect(() => {
         if (!auth.user) {
@@ -18,22 +20,17 @@ export default function StartSession(){
             return
         }
 
-        // check if organizer already has an active session
+        // refresh sessions in context and navigate to latest if present
         (async () => {
             try {
-                const res = await getSessions(auth.user!.id)
-                const sessions = res.sessions || []
-                if (sessions.length > 0) {
-                    const s = sessions[0]
-                    // store and go directly to day overview
-                    localStorage.setItem('currentSessionId', s.id)
-                    navigate('/day-overview')
-                }
+                await refreshSessions()
+                // getSessions was called in the context; the context will hold the latest session
+                // navigate on next render if the session exists via setCurrentSessionId call after creation
             } catch (err) {
-                console.error('Failed to check sessions', err)
+                console.error('Failed to refresh sessions', err)
             }
         })()
-    }, [auth.user, navigate])
+    }, [auth.user, navigate, refreshSessions])
 
     return(
         <main className="main">
@@ -69,8 +66,8 @@ export default function StartSession(){
                                     try {
                                         const resp = await createSession(auth.user.id, `Sessie door ${auth.user.email}`)
                                         if (resp.session && resp.session.id) {
-                                            // store current session id in localStorage so DayOverview can access it
-                                            localStorage.setItem('currentSessionId', resp.session.id)
+                                            // set current session in context (avoid localStorage)
+                                            setCurrentSessionId(resp.session.id)
                                             navigate('/day-overview')
                                         } else {
                                             alert('Kon sessie niet starten')
