@@ -5,9 +5,9 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc -p .",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && mocha --reporter spec test-js --exit"
   },
   "keywords": [],
   "author": "",
@@ -24,6 +24,14 @@
     "@types/node": "^25.3.3",
     "concurrently": "^9.2.1",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "mocha": "^10.2.0",
+    "ts-node": "^10.9.1",
+    "supertest": "^6.3.3",
+    "@types/supertest": "^2.0.12",
+    "mongodb-memory-server": "^8.11.0",
+    "@types/mocha": "^10.0.1",
+    "chai": "^4.3.7",
+    "@types/chai": "^4.3.4"
   }
 }

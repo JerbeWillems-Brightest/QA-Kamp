@@ -1,4 +1,4 @@
-import React from 'react'
+import type { MouseEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import QAKampLogo from '../assets/QAKamp.png'
 import { useAuth } from '../context/AuthContext'
@@ -7,7 +7,7 @@ export default function Navbar() {
   const auth = useAuth()
   const navigate = useNavigate()
 
-  function handleLogout(e: React.MouseEvent) {
+  function handleLogout(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
     auth.logout()
     navigate('/organizer-login')
