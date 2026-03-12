@@ -66,6 +66,7 @@ export async function seedOrganizers() {
       console.log('Seeding default organizer...')
       // Use the organizer credentials requested by the user for easy testing
       await Organizer.create({ email: 'organizer@qa-kamp.be', password: 'Organizer123!', name: 'Organizer' })
+      await Organizer.create({ email: 'organizer@test.be', password: 'Test123!', name: 'Organizer' })
       console.log('Default organizer created: organizer@qa-kamp.be / Organizer123!')
     } else {
       console.log('Organizers already exist, skipping seed')
