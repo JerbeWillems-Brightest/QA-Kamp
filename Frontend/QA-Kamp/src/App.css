@@ -589,7 +589,9 @@ body, #root { word-break: break-word; overflow-wrap: break-word; }
   .hero-inner { padding: 8px; }
 
   /* Ensure footer and bottom bar remain visible */
-  .page { padding-bottom: calc(var(--footer-height) + var(--bottombar-height) + 8px); }
+  .page { padding-bottom: calc(var(--footer-height) + var(--bottombar-height) + 8px);
+
+  }
 }
 
 /* Accessibility: ensure inputs are full width on narrow screens */

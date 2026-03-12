@@ -1,7 +1,67 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 import { fetchLeaderboard, fetchPlayersForSession } from '../../api'
 import { useSession } from '../../context/SessionContext'
+// Embedded CSS so HTML + CSS live in a single file
+const embeddedCss = `
+body{
+    font-family: Arial, Helvetica, sans-serif;
+    background: #ffffff;
+}
+
+.container{
+    width:900px;
+    margin:40px auto;
+}
+
+.back{
+    text-decoration:none;
+    color:#555;
+    font-size:14px;
+}
+
+h1{ margin-top:10px }
+
+.table-header{
+    display:grid;
+    grid-template-columns: 1fr 3fr 1fr;
+    margin-top:30px;
+    font-weight:bold;
+    color:#666;
+}
+
+.row{
+    display:grid;
+    grid-template-columns: 1fr 3fr 1fr;
+    align-items:center;
+    padding:10px 15px;
+    margin-top:8px;
+    border-radius:8px;
+}
+
+/* top 3 */
+.gold1{ background:#f1c40f; color:white; font-weight:bold }
+.silver{ background:#bfbfbf; color:white; font-weight:bold }
+.gold3{ background:#f5b041; color:white; font-weight:bold }
+
+/* gewone rijen */
+.normal{ border:2px solid #f1c40f; background:white }
+
+.badge{
+    background:#f1c40f;
+    padding:4px 10px;
+    border-radius:6px;
+    color:white;
+    font-weight:bold;
+    width:fit-content;
+}
+
+@media (max-width: 640px) {
+  .container { width: 95%; margin: 20px auto; }
+  .table-header, .row { grid-template-columns: 1fr 2fr 1fr; }
+}
+`
+document.head.insertAdjacentHTML('beforeend', `<style>${embeddedCss}</style>`)
 
 type LeaderboardItem = {
   playerNumber: string
@@ -11,7 +71,6 @@ type LeaderboardItem = {
 }
 
 export default function Scoreboard() {
-  const navigate = useNavigate()
   const { currentSession } = useSession()
   const sessionId = currentSession?.id
   const [loading, setLoading] = useState(false)
@@ -67,51 +126,53 @@ export default function Scoreboard() {
       }
     }
     load()
-    const iv = setInterval(load, 3000)
+    const iv = setInterval(load, 10000) // poll every 10 seconds
     return () => { mounted = false; clearInterval(iv) }
   }, [sessionId])
 
-  function handleBack() {
-    navigate('/day-overview')
-  }
-
   return (
     <main style={{ padding: 20 }}>
+      {/* Back link and title grouped and left-aligned under the logo */}
+      <div style={{ marginLeft: 16, display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
+        <Link id="BackBtn" to="/day-overview" className="back-link" aria-label="Terug naar kalender" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
+            <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          <span>Terug</span>
+        </Link>
+        <h1 style={{ margin: 0 }}>Scorebord</h1>
+      </div>
       <div style={{ maxWidth: 900, margin: '0 auto' }}>
-        <button id="BackBtn" onClick={handleBack} style={{ marginBottom: 12, background: 'transparent', border: 'none', cursor: 'pointer', fontSize: 16 }}>⬅️ Terug</button>
-        <h2>Scorebord</h2>
         {!sessionId && <div style={{ color: '#b00020' }}>Geen actieve sessie gevonden</div>}
         {loading && <div>Laden...</div>}
         {error && <div style={{ color: '#b00020' }}>{error}</div>}
         {!loading && !error && (
-          <div>
+          <div className="container">
             {items.length === 0 ? (
               <div style={{ padding: 20, border: '1px dashed #ddd', borderRadius: 8 }}>Er is nog geen scorebord beschikbaar</div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ textAlign: 'left', background: '#f7f7f7' }}>
-                      <th style={{ padding: 8 }}>#</th>
-                      <th style={{ padding: 8 }}>Naam</th>
-                      <th style={{ padding: 8 }}>Spelersnummer</th>
-                      <th style={{ padding: 8 }}>Categorie</th>
-                      <th style={{ padding: 8 }}>Score</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((p, i) => (
-                      <tr key={p.playerNumber || i} style={{ borderBottom: '1px solid #f0f0f0' }}>
-                        <td style={{ padding: 8 }}>{i + 1}</td>
-                        <td style={{ padding: 8 }}>{p.name}</td>
-                        <td style={{ padding: 8 }}>{p.playerNumber}</td>
-                        <td style={{ padding: 8 }}>{p.category}</td>
-                        <td style={{ padding: 8 }}>{p.score ?? 0}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="table-header">
+                  <span>Plaats</span>
+                  <span>Naam</span>
+                  <span>Score</span>
+                </div>
+
+                {items.map((p, i) => {
+                  const idx = i + 1
+                  let cls = 'row normal'
+                  if (idx === 1) cls = 'row gold1'
+                  else if (idx === 2) cls = 'row silver'
+                  else if (idx === 3) cls = 'row gold3'
+                  return (
+                    <div key={p.playerNumber || i} className={cls}>
+                      <span>{idx}</span>
+                      <span>{p.name}</span>
+                      <span className={idx > 3 ? 'badge' : ''}>{p.score ?? 0}</span>
+                    </div>
+                  )
+                })}
+              </>
             )}
           </div>
         )}

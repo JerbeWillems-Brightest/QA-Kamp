@@ -546,15 +546,15 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
-                    <input value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    <input id={playerNumberInput} value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>
-                    <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    <input id={nameInput} value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
-                    <select value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+                    <select id={categoryInput} value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
                       <option value="8-10">8-10</option>
                       <option value="11-13">11-13</option>
                       <option value="14-16">14-16</option>
