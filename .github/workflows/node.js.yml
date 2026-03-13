@@ -17,23 +17,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: List package-lock files (debug)
+      - name: List package files (debug)
         run: |
           echo "Repository top-level files:"
           ls -la || true
           echo "Searching for package-lock.json files (no depth limit):"
           find . -type f -name 'package-lock.json' -print || true
+          echo "Searching for package.json files (no depth limit):"
+          find . -type f -name 'package.json' -print || true
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          # explicit candidate lockfile paths (comma or newline-separated supported)
+          # candidate dependency files: prefer package-lock, but fall back to package.json in each project
           cache-dependency-path: |
             Frontend/QA-Kamp/package-lock.json
             Frontend/package-lock.json
             Backend/package-lock.json
+            Frontend/QA-Kamp/package.json
+            Frontend/package.json
+            Backend/package.json
 
 
       - name: Install dependencies
@@ -58,12 +63,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: List package-lock files (debug)
+      - name: List package files (debug)
         run: |
           echo "Repository top-level files:"
           ls -la || true
           echo "Searching for package-lock.json files (no depth limit):"
           find . -type f -name 'package-lock.json' -print || true
+          echo "Searching for package.json files (no depth limit):"
+          find . -type f -name 'package.json' -print || true
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
@@ -74,6 +81,9 @@ jobs:
             Frontend/QA-Kamp/package-lock.json
             Frontend/package-lock.json
             Backend/package-lock.json
+            Frontend/QA-Kamp/package.json
+            Frontend/package.json
+            Backend/package.json
 
       - name: Install dependencies
         working-directory: Backend
