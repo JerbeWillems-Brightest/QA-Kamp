@@ -54,7 +54,7 @@ export default function OrganizerLogin() {
             const isInvalidCredentials = (s?: string) => {
                 if (!s) return false
                 const v = s.toLowerCase().trim()
-                return v === 'invalid credentials' || v === 'invalid credential' || v === 'invalid_credentials' || v === 'invalid'
+                return v === 'Foute Inloggegevens' || v === 'Foute Inloggegevens' || v === 'Foute_Inloggegevens' || v === 'Fout'
             }
 
             // direct message mapping

@@ -9,9 +9,11 @@ body{
     background: #ffffff;
 }
 
+/* make scoreboard full width with comfortable side padding */
 .container{
-    width:900px;
-    margin:40px auto;
+    width: calc(100% - 48px);
+    margin:20px 24px;
+    box-sizing: border-box;
 }
 
 .back{
@@ -37,6 +39,20 @@ h1{ margin-top:10px }
     padding:10px 15px;
     margin-top:8px;
     border-radius:8px;
+    width: 100%;
+}
+
+/* ensure individual cells are grid items and center the score (3rd column) */
+.row > span{
+    display: block; /* make spans act as grid items we can align */
+}
+.row > span:nth-child(3){
+    justify-self: center; /* center horizontally in the 3rd column */
+    text-align: center;   /* center the text inside the span */
+}
+
+.table-header span:nth-child(3){
+    text-align: center; /* center the header label for the score column */
 }
 
 /* top 3 */
@@ -57,7 +73,7 @@ h1{ margin-top:10px }
 }
 
 @media (max-width: 640px) {
-  .container { width: 95%; margin: 20px auto; }
+  .container { width: 100%; margin: 12px; }
   .table-header, .row { grid-template-columns: 1fr 2fr 1fr; }
 }
 `
@@ -133,16 +149,16 @@ export default function Scoreboard() {
   return (
     <main style={{ padding: 20 }}>
       {/* Back link and title grouped and left-aligned under the logo */}
-      <div style={{ marginLeft: 16, display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 8 }}>
-        <Link id="BackBtn" to="/day-overview" className="back-link" aria-label="Terug naar kalender" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'flex-start', paddingLeft: 24, gap: 8 }}>
+        <Link id="BackBtn" to="/day-overview" className="back" aria-label="Terug naar kalender" style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden>
             <path d="M15 18L9 12L15 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span>Terug</span>
         </Link>
-        <h1 style={{ margin: 0 }}>Scorebord</h1>
+        <h1 style={{ margin: 0, fontSize: 48, fontWeight: '800' }}>Scorebord</h1>
       </div>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <div style={{ width: '100%' }}>
         {!sessionId && <div style={{ color: '#b00020' }}>Geen actieve sessie gevonden</div>}
         {loading && <div>Laden...</div>}
         {error && <div style={{ color: '#b00020' }}>{error}</div>}
