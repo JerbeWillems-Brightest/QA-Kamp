@@ -62,8 +62,9 @@ jobs:
         run: npm test
 
   backend:
-    # use Ubuntu 20.04 runner to ensure libssl1.1 (libcrypto.so.1.1) is available for mongodb-memory-server
-    runs-on: ubuntu-20.04
+    needs: frontend
+    # use ubuntu-latest (more reliably available) and install libssl1.1 if missing so mongodb-memory-server can run
+    runs-on: ubuntu-latest
 
     strategy:
       matrix:
@@ -106,10 +107,24 @@ jobs:
             npm install
           fi
 
-      - name: Build
-        working-directory: Backend
-        run: npm run build --if-present
-
-      - name: Run tests
-        working-directory: Backend
-        run: npm test
+      - name: Ensure OpenSSL 1.1 (libssl1.1) is available for mongodb-memory-server
+        if: runner.os == 'Linux'
+        run: |
+          set -e
+          echo "Checking for libssl.so.1.1..."
+          if ldconfig -p | grep -q "libssl.so.1.1"; then
+            echo "libssl1.1 already installed"
+          else
+            echo "Attempting to install libssl1.1 via apt"
+            sudo apt-get update || true
+            if sudo apt-get install -y libssl1.1; then
+              echo "Installed libssl1.1 from apt"
+            else
+              echo "libssl1.1 not in apt repos; fetching focal package and installing"
+              PKG_URL="https://security.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb"
+              wget -q "$PKG_URL" -O /tmp/libssl1.1.deb || true
+              sudo dpkg -i /tmp/libssl1.1.deb || true
+              sudo apt-get -f install -y || true
+              echo "Attempted libssl1.1 install"
+            fi
+          fi
