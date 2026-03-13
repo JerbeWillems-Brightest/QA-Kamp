@@ -74,28 +74,12 @@ jobs:
             npm install
           fi
 
-      - name: Ensure OpenSSL 1.1 (libssl1.1) is available for mongodb-memory-server (frontend job)
+      - name: Run backend tests inside Node Docker (avoids libssl host issues)
         if: runner.os == 'Linux'
         run: |
-          set -e
-          echo "Checking for libssl.so.1.1..."
-          if ldconfig -p | grep -q "libssl.so.1.1"; then
-            echo "libssl1.1 already installed"
-          else
-            echo "Attempting to install libssl1.1 via apt"
-            sudo apt-get update || true
-            if sudo apt-get install -y libssl1.1; then
-              echo "Installed libssl1.1 from apt"
-            else
-              echo "libssl1.1 not in apt repos; fetching focal package and installing"
-              PKG_URL="https://security.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb"
-              wget -q "$PKG_URL" -O /tmp/libssl1.1.deb || true
-              sudo dpkg -i /tmp/libssl1.1.deb || true
-              sudo apt-get -f install -y || true
-              echo "Attempted libssl1.1 install"
-            fi
-          fi
-
-      - name: Run backend tests
-        working-directory: Backend
-        run: npm test
+          echo "Running backend tests inside node:18-bullseye container"
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work/Backend \
+            node:18-bullseye \
+            bash -lc "set -e; if [ -f package-lock.json ]; then npm ci; else npm install; fi; npm test"
