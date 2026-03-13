@@ -12,7 +12,7 @@ import BallImg from "../../assets/ball.png";
 export default function StartSession(){
     const auth = useAuth()
     const navigate = useNavigate()
-    const { setCurrentSessionId, refreshSessions } = useSession()
+    const { setCurrentSessionId, refreshSessions, currentSession } = useSession()
 
     useEffect(() => {
         if (!auth.user) {
@@ -31,6 +31,13 @@ export default function StartSession(){
             }
         })()
     }, [auth.user, navigate, refreshSessions])
+
+    // if a session exists in context, go to the day overview automatically
+    useEffect(() => {
+      if (currentSession && currentSession.id) {
+        navigate('/day-overview')
+      }
+    }, [currentSession, navigate])
 
     return(
         <main className="main">

@@ -8,23 +8,12 @@ vi.mock('../../api', () => ({
   getSessions: (...args: unknown[]) => (mockGetSessions as unknown as (...a: unknown[]) => unknown)(...args),
 }))
 
-// Mock useNavigate from react-router-dom to capture navigation calls
-const mockNavigate = vi.fn()
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual('react-router-dom')
-  // treat imported module as a record so we can spread it without using `any`
-  const actualRecord = actual as unknown as Record<string, unknown>
-  return {
-    ...actualRecord,
-    useNavigate: () => mockNavigate,
-  }
-})
-
 import { describe, it, expect, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import StartSession from './StartSession'
-import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from '../../context/AuthContext'
+import { SessionProvider } from '../../context/SessionContext'
 
 describe('StartSession (comprehensive)', () => {
   beforeEach(() => {
@@ -35,11 +24,13 @@ describe('StartSession (comprehensive)', () => {
 
   it('renders start button and heading', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <StartSession />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     // the button has aria-label="Start QA-Kamp" so query by that accessible name
@@ -49,16 +40,19 @@ describe('StartSession (comprehensive)', () => {
 
   it('navigates to organizer-login when no user is present', async () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <Routes>
+              <Route path="/" element={<StartSession />} />
+              <Route path="/organizer-login" element={<div>Organizer Login Page</div>} />
+            </Routes>
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/organizer-login')
-    })
+    await waitFor(() => expect(screen.getByText(/Organizer Login Page/i)).toBeDefined())
   })
 
   it('when user has active sessions, navigates to day-overview and stores session id', async () => {
@@ -68,15 +62,20 @@ describe('StartSession (comprehensive)', () => {
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 'sess-123', organizerId: 'org1', startedAt: new Date().toISOString() }] })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <Routes>
+              <Route path="/" element={<StartSession />} />
+              <Route path="/day-overview" element={<div>Day Overview Page</div>} />
+            </Routes>
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/day-overview')
+      expect(screen.getByText(/Day Overview Page/i)).toBeDefined()
       expect(localStorage.getItem('currentSessionId')).toBe('sess-123')
     })
   })
@@ -87,11 +86,13 @@ describe('StartSession (comprehensive)', () => {
     mockCreateSession.mockResolvedValue({ session: { id: 'new-sess', organizerId: 'org2', startedAt: new Date().toISOString() } })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <StartSession />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     const btn = screen.getByLabelText(/Start QA-Kamp/i)
@@ -110,17 +111,22 @@ describe('StartSession (comprehensive)', () => {
     mockCreateSession.mockResolvedValue({ session: { id: 'created-1' } })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <Routes>
+              <Route path="/" element={<StartSession />} />
+              <Route path="/day-overview" element={<div>Day Overview Page</div>} />
+            </Routes>
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByLabelText(/Start QA-Kamp/i))
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith('/day-overview')
+      expect(screen.getByText(/Day Overview Page/i)).toBeDefined()
       expect(localStorage.getItem('currentSessionId')).toBe('created-1')
     })
   })
@@ -132,11 +138,13 @@ describe('StartSession (comprehensive)', () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <StartSession />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByLabelText(/Start QA-Kamp/i))
@@ -153,11 +161,13 @@ describe('StartSession (comprehensive)', () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <StartSession />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByLabelText(/Start QA-Kamp/i))
@@ -169,11 +179,13 @@ describe('StartSession (comprehensive)', () => {
 
   it('button has aria-label Start QA-Kamp', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <StartSession />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
     expect(screen.getByLabelText(/Start QA-Kamp/i)).toBeDefined()
   })
@@ -184,11 +196,13 @@ describe('StartSession (comprehensive)', () => {
     mockCreateSession.mockResolvedValue({ session: { id: 'm1' } })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <StartSession />
+          <SessionProvider>
+            <StartSession />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     const btn = screen.getByLabelText(/Start QA-Kamp/i)

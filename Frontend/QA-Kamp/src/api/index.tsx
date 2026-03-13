@@ -11,25 +11,26 @@ export interface LoginResponse {
 
 // Helper: centralize fetch handling so network/CORS errors are surfaced clearly
 async function safeFetch<T = never>(url: string, opts?: RequestInit): Promise<T> {
+  // First do the network-level fetch and catch network/CORS errors explicitly
+  let res: Response
   try {
-    const res = await fetch(url, opts)
-    // network-level success (request completed)
-    if (!res.ok) {
-      // try to parse JSON body for better message
-      const body = await res.json().catch(() => null)
-      const errMsg = (body && (body.error || body.message)) || `HTTP ${res.status}`
-      throw new Error(errMsg)
-    }
-    // parse JSON (or throw if invalid)
-    return await res.json()
+    res = await fetch(url, opts)
   } catch (err: unknown) {
-    // fetch throws TypeError for network-level failures (DNS, CORS, mixed-content, offline)
     const original = err instanceof Error ? err.message : String(err)
-    // Add the target URL to help with diagnostics in the browser console/logs
     const message = `Network or CORS error fetching ${url}: ${original}`
     console.error(message, { url, opts, err })
     throw new Error(message)
   }
+
+  // Now handle non-OK HTTP responses (server returned error)
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const errMsg = (body && (body.error || body.message)) || `HTTP ${res.status}`
+    throw new Error(errMsg)
+  }
+
+  // parse JSON (or throw if invalid)
+  return await res.json()
 }
 
 export async function loginOrganizer(email: string, password: string): Promise<LoginResponse> {
@@ -206,17 +207,6 @@ export async function deletePlayerFromSession(sessionId: string, playerNumber: s
   return res.json()
 }
 
-// exported for player clients; may be unused in the frontend codebase yet
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export async function heartbeatPlayer(sessionId: string, playerNumber: string): Promise<{ success?: boolean }> {
-  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`, { method: 'POST' })
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
-  }
-  return res.json()
-}
-
 export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard: ApiPlayer[] }> {
   const res = await fetch(`${API_URL}/api/sessions/${sessionId}/leaderboard`)
   if (!res.ok) {
@@ -224,18 +214,19 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
     throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
   }
   const json = await res.json()
-  // backend returns { leaderboard: [...] }
   const list = (json.leaderboard || []).map((p: unknown) => {
     const bp = p as Record<string, unknown>
-    return {
-      playerNumber: String(bp.playerNumber ?? bp.nummer ?? ''),
-      name: String(bp.name ?? bp.naam ?? ''),
-      age: Number(bp.age ?? bp.leeftijd ?? 0),
-      category: String(bp.category ?? ''),
-      lastSeen: bp.lastSeen ? String(bp.lastSeen) : null,
-      // score might be present
-      ...(typeof bp.score === 'number' ? { score: bp.score as number } : {}),
-    } as ApiPlayer & { score?: number }
+    const playerNumber = String(bp['playerNumber'] ?? bp['nummer'] ?? '')
+    const name = String(bp['name'] ?? bp['naam'] ?? '')
+    const age = Number(bp['age'] ?? bp['leeftijd'] ?? 0)
+    const category = typeof bp['category'] === 'string' ? String(bp['category']) : ''
+    const lastSeen = bp && bp['lastSeen'] ? String(bp['lastSeen']) : null
+    const out: ApiPlayer & { score?: number } = { playerNumber, name, age, category, lastSeen }
+    const scoreVal = bp['score']
+    if (typeof scoreVal === 'number') out.score = scoreVal as number
+    return out
   })
   return { leaderboard: list }
 }
+
+// heartbeat endpoint is intentionally not exported for now; if needed implement and enable.

@@ -20,7 +20,10 @@ export default function DayOverview() {
   const [error, setError] = useState('')
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [focusIdx, setFocusIdx] = useState<number | null>(null)
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+  const [selectedIdx, setSelectedIdx] = useState<number | null>(() => {
+    const d = new Date().getDay() // 0 Sun .. 6 Sat
+    return (d >= 1 && d <= 5) ? d - 1 : 0
+  })
 
   // responsive scale so tablet/laptop show the same visual layout as a large monitor
   const [scale, setScale] = useState<number>(1)
@@ -54,17 +57,19 @@ export default function DayOverview() {
     }
   }, [auth.user, navigate])
 
-  // reflect whether a session is currently active via context
-  const hasSession = Boolean(currentSession?.id)
+  // reflect whether a session is currently active via context or localStorage fallback
+  const sessionIdFallback = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
+  const hasSession = Boolean(sessionIdFallback)
 
   async function handleStop() {
-    const sessionIdLocal = currentSession?.id
+    const sessionIdLocal = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sessionIdLocal) return setError('Geen actieve sessie gevonden')
 
     try {
       await deleteSession(sessionIdLocal)
       // success
       setCurrentSessionId(null)
+      try { localStorage.removeItem('currentSessionId') } catch (e) { console.warn('Failed to remove currentSessionId from localStorage', e) }
       navigate('/start-session')
       return
     } catch (err: unknown) {
@@ -73,6 +78,7 @@ export default function DayOverview() {
       console.warn('Failed to delete session', msg)
       if (msg.toLowerCase().includes('session not found') || msg.includes('HTTP 404') || msg.toLowerCase().includes('not found')) {
         setCurrentSessionId(null)
+        try { localStorage.removeItem('currentSessionId') } catch (e) { console.warn('Failed to remove currentSessionId from localStorage', e) }
         navigate('/start-session')
         return
       }
@@ -256,7 +262,7 @@ export default function DayOverview() {
             <div style={styles.buttonsWrap}>
               <button id="ScoreboardBtn" onClick={() => hasSession ? navigate('/scoreboard') : setError('Geen actieve sessie')} style={{ ...styles.btn, ...styles.yellow, ...( !hasSession ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>Scorebord</button>
               <button onClick={() => setShowManage(true)} style={{ ...styles.btn, ...styles.yellow }}>Spelers beheren</button>
-              <button onClick={handleStop} disabled={!hasSession} title={!hasSession ? 'Geen actieve sessie om te stoppen' : 'Stop het huidige QA-kamp'} style={{ ...styles.btn, ...styles.red, ...( !hasSession ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}>QA-kamp stoppen</button>
+              <button onClick={handleStop} disabled={!hasSession} title={!hasSession ? 'Geen actieve sessie om te stoppen' : 'Stop het huidige QA-kamp'} style={{ ...styles.btn, ...styles.red, ...( !hasSession ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}>QA kamp stoppen</button>
              </div>
           </div>
         </div>

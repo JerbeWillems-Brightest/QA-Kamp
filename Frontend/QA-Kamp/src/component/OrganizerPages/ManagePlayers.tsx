@@ -105,7 +105,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   }
 
   useEffect(() => {
-    const sessionId = currentSession?.id
+    const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sessionId) return
     let cancelled = false
     ;(async () => {
@@ -145,7 +145,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         return
       }
       // if we have a session, load existing player numbers to avoid collisions
-      const sessionId = currentSession?.id
+      const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
       const existingNumbers = new Set<string>()
       if (sessionId) {
         try {
@@ -281,7 +281,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
 
     const existingNumbers = new Set<string>(players.map(p => String(p.playerNumber).padStart(3, '0')))
 
-    const sessionId = currentSession?.id
+    const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (sessionId) {
       try {
         const existingResp = await fetchPlayersForSession(sessionId)
@@ -317,7 +317,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   async function submitPlayer() {
     setErrors([])
     setSuccessMsg(null)
-    const sess = currentSession?.id
+    const sess = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sess) {
       setErrors(['Geen actieve sessie gevonden'])
       return
@@ -414,7 +414,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   const deletePlayer = async (playerNumberToDelete: string) => {
     setErrors([])
     setSuccessMsg(null)
-    const sess = currentSession?.id
+    const sess = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sess) return setErrors(['Geen actieve sessie gevonden'])
     try {
       await deletePlayerFromSession(sess, playerNumberToDelete)
@@ -553,8 +553,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                     <input id={nameInput} value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
-                    <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
-                    <select id={categoryInput} value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+                    <label htmlFor="category-select" style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
+                    <select id="category-select" value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
                       <option value="8-10">8-10</option>
                       <option value="11-13">11-13</option>
                       <option value="14-16">14-16</option>
@@ -587,8 +587,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                    <input value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="naam" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
                  </div>
                 <div style={{ display: 'flex', flexDirection: 'column', minWidth: 140 }}>
-                  <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
-                  <select value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
+                  <label htmlFor="categoryInput" style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Leeftijdscategorie</label>
+                  <select id="categoryInput" value={categoryInput} onChange={(e) => setCategoryInput(e.target.value as '8-10'|'11-13'|'14-16')} style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }}>
                     <option value="8-10">8-10</option>
                     <option value="11-13">11-13</option>
                     <option value="14-16">14-16</option>

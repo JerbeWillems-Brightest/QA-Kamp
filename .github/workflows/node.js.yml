@@ -60,7 +60,7 @@ jobs:
       - name: Run tests
         working-directory: Frontend/QA-Kamp
         run: npm test
-        
+
   backend:
     # use Ubuntu 20.04 runner to ensure libssl1.1 (libcrypto.so.1.1) is available for mongodb-memory-server
     runs-on: ubuntu-20.04

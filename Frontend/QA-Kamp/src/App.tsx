@@ -35,7 +35,7 @@ function App() {
             <footer className="footer">
                 <div className="footer-inner">
                  <div>
-                     <h3>Over QA-kamp</h3>
+                     <h3>Over QA kamp</h3>
                      <p>Leerrijke IT-minigames voor jongeren</p>
                      <p>tussen de 8 en 16 jaar</p>
                  </div>
