@@ -11,25 +11,26 @@ export interface LoginResponse {
 
 // Helper: centralize fetch handling so network/CORS errors are surfaced clearly
 async function safeFetch<T = never>(url: string, opts?: RequestInit): Promise<T> {
+  // First do the network-level fetch and catch network/CORS errors explicitly
+  let res: Response
   try {
-    const res = await fetch(url, opts)
-    // network-level success (request completed)
-    if (!res.ok) {
-      // try to parse JSON body for better message
-      const body = await res.json().catch(() => null)
-      const errMsg = (body && (body.error || body.message)) || `HTTP ${res.status}`
-      throw new Error(errMsg)
-    }
-    // parse JSON (or throw if invalid)
-    return await res.json()
+    res = await fetch(url, opts)
   } catch (err: unknown) {
-    // fetch throws TypeError for network-level failures (DNS, CORS, mixed-content, offline)
     const original = err instanceof Error ? err.message : String(err)
-    // Add the target URL to help with diagnostics in the browser console/logs
     const message = `Network or CORS error fetching ${url}: ${original}`
     console.error(message, { url, opts, err })
     throw new Error(message)
   }
+
+  // Now handle non-OK HTTP responses (server returned error)
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const errMsg = (body && (body.error || body.message)) || `HTTP ${res.status}`
+    throw new Error(errMsg)
+  }
+
+  // parse JSON (or throw if invalid)
+  return await res.json()
 }
 
 export async function loginOrganizer(email: string, password: string): Promise<LoginResponse> {
@@ -85,10 +86,20 @@ export async function createSession(organizerId: string, name?: string): Promise
 }
 
 export async function deleteSession(sessionId: string): Promise<SessionResponse> {
-  const res = await fetch(`${API_URL}/api/sessions/${sessionId}`, { method: 'DELETE' })
+  // Build URL: if VITE_API_URL is empty this becomes a relative path (/api/...), which works with Vite dev proxy
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${sessionId}?confirm=true`
+  const res = await fetch(url, { method: 'DELETE', headers: { 'Content-Type': 'application/json', 'x-confirm-delete': 'true' } })
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(err.error || err.message || `HTTP ${res.status}`)
+    // If session not found (404), treat as successful deletion (session already gone)
+    if (res.status === 404) {
+      const body = await res.json().catch(() => null)
+      console.warn('deleteSession: server returned 404 (not found):', body)
+      return { success: true }
+    }
+    const body = await res.json().catch(() => null)
+    const msg = (body && (body.error || body.message)) || `HTTP ${res.status}`
+    throw new Error(String(msg))
   }
   return res.json()
 }
@@ -118,11 +129,12 @@ export interface ApiPlayer {
   playerNumber: string
   name: string
   age: number
+  lastSeen?: string | null
   category?: string
 }
 
 // Represent possible shapes returned by the backend (old Dutch names included for robustness)
-type BackendPlayer = Partial<Record<'playerNumber'|'nummer'|'name'|'naam'|'age'|'leeftijd'|'category', unknown>>
+type BackendPlayer = Partial<Record<'playerNumber'|'nummer'|'name'|'naam'|'age'|'leeftijd'|'category'|'lastSeen'|'last_seen'|'lastseen', unknown>>
 
 function parseErrorMessage(err: unknown, fallback: string) {
   if (!err) return fallback
@@ -152,7 +164,9 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
     const name = String(bp.name ?? bp.naam ?? '')
     const age = Number(bp.age ?? bp.leeftijd ?? 0)
     const category = typeof bp.category === 'string' ? bp.category : undefined
-    return { playerNumber, name, age, category } as ApiPlayer
+    const bpRec = bp as Record<string, unknown>
+    const lastSeen = (bpRec['lastSeen'] ?? bpRec['last_seen'] ?? bpRec['lastseen'] ?? null) as string | null
+    return { playerNumber, name, age, category, lastSeen } as ApiPlayer
   })
   return { players }
 }
@@ -192,3 +206,27 @@ export async function deletePlayerFromSession(sessionId: string, playerNumber: s
   }
   return res.json()
 }
+
+export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard: ApiPlayer[] }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/leaderboard`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  const list = (json.leaderboard || []).map((p: unknown) => {
+    const bp = p as Record<string, unknown>
+    const playerNumber = String(bp['playerNumber'] ?? bp['nummer'] ?? '')
+    const name = String(bp['name'] ?? bp['naam'] ?? '')
+    const age = Number(bp['age'] ?? bp['leeftijd'] ?? 0)
+    const category = typeof bp['category'] === 'string' ? String(bp['category']) : ''
+    const lastSeen = bp && bp['lastSeen'] ? String(bp['lastSeen']) : null
+    const out: ApiPlayer & { score?: number } = { playerNumber, name, age, category, lastSeen }
+    const scoreVal = bp['score']
+    if (typeof scoreVal === 'number') out.score = scoreVal as number
+    return out
+  })
+  return { leaderboard: list }
+}
+
+// heartbeat endpoint is intentionally not exported for now; if needed implement and enable.

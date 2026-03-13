@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import ManagePlayers from './ManagePlayers'
-import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from '../../context/AuthContext'
+import { SessionProvider } from '../../context/SessionContext'
 
 // mock api
 const mockFetchPlayers = vi.fn()
@@ -24,11 +25,13 @@ describe('ManagePlayers (merged tests)', () => {
 
   it('renders header and action buttons', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     expect(screen.getByText(/Spelers beheren/i)).toBeDefined()
@@ -40,11 +43,13 @@ describe('ManagePlayers (merged tests)', () => {
   it('shows message when no players and shows import button', () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     expect(screen.getByText(/Klik op de knop om een Excel\/CSV-bestand te importeren/i)).toBeDefined()
@@ -57,11 +62,13 @@ describe('ManagePlayers (merged tests)', () => {
     localStorage.setItem('currentSessionId', 's1')
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     await waitFor(() => expect(screen.queryByText(/Spelers importeren/i)).toBeNull())
@@ -74,11 +81,13 @@ describe('ManagePlayers (merged tests)', () => {
     localStorage.setItem('currentSessionId', 's2')
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     await waitFor(() => expect(screen.getByText(/bob/i)).toBeDefined())
@@ -94,45 +103,51 @@ describe('ManagePlayers (merged tests)', () => {
     mockFetchPlayers.mockImplementation(mockFetchExisting)
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByText(/Spelers toevoegen/i))
     const numInput = await screen.findByPlaceholderText(/001/)
     const nameInput = screen.getByPlaceholderText(/naam/i)
-    const ageInput = screen.getByPlaceholderText(/10/)
+    // the UI now uses a category select; test validation for missing name instead
+    const categoryInput = screen.getByLabelText(/Leeftijdscategorie/i)
 
+    // leave name empty to trigger validation
     fireEvent.change(numInput, { target: { value: '123' } })
-    fireEvent.change(nameInput, { target: { value: 'X' } })
-    fireEvent.change(ageInput, { target: { value: '5' } })
+    fireEvent.change(nameInput, { target: { value: '' } })
+    fireEvent.change(categoryInput, { target: { value: '8-10' } })
 
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
-    await waitFor(() => expect(screen.getByText(/Leeftijd moet een getal tussen 8 en 16 zijn/i)).toBeDefined())
+    await waitFor(() => expect(screen.getByText(/Naam is verplicht/i)).toBeDefined())
   })
 
   it('submitPlayer without session shows error', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByText(/Spelers toevoegen/i))
     const numInput2 = await screen.findByPlaceholderText(/001/)
     const nameInput2 = screen.getByPlaceholderText(/naam/i)
-    const ageInput2 = screen.getByPlaceholderText(/10/)
+    const categorySelect2 = screen.getByLabelText(/Leeftijdscategorie/i)
 
     // leave session missing
     fireEvent.change(numInput2, { target: { value: '123' } })
     fireEvent.change(nameInput2, { target: { value: 'John' } })
-    fireEvent.change(ageInput2, { target: { value: '10' } })
+    fireEvent.change(categorySelect2, { target: { value: '11-13' } })
 
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
     await waitFor(() => expect(screen.getByText(/Geen actieve sessie gevonden/i)).toBeDefined())
@@ -144,21 +159,23 @@ describe('ManagePlayers (merged tests)', () => {
     mockAdd.mockResolvedValue({ created: [{ playerNumber: '555', name: 'new', age: 9 }] })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByText(/Spelers toevoegen/i))
     const numInput3 = await screen.findByPlaceholderText(/001/)
     const nameInput3 = screen.getByPlaceholderText(/naam/i)
-    const ageInput3 = screen.getByPlaceholderText(/10/)
+    const categorySelect3 = screen.getByLabelText(/Leeftijdscategorie/i)
 
     fireEvent.change(numInput3, { target: { value: '555' } })
     fireEvent.change(nameInput3, { target: { value: 'new' } })
-    fireEvent.change(ageInput3, { target: { value: '9' } })
+    fireEvent.change(categorySelect3, { target: { value: '8-10' } })
 
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
     await waitFor(() => expect(mockAdd).toHaveBeenCalled())
@@ -172,11 +189,13 @@ describe('ManagePlayers (merged tests)', () => {
     mockUpdate.mockResolvedValue({ player: { playerNumber: '777', name: 'edited', age: 12 } })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     await waitFor(() => expect(screen.getByText(/editme/i)).toBeDefined())
@@ -197,11 +216,13 @@ describe('ManagePlayers (merged tests)', () => {
     mockDelete.mockResolvedValue({ success: true })
 
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <ManagePlayers />
+          <SessionProvider>
+            <ManagePlayers />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     await waitFor(() => expect(screen.getByText(/todelete/i)).toBeDefined())

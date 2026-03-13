@@ -54,7 +54,14 @@ export default function OrganizerLogin() {
             const isInvalidCredentials = (s?: string) => {
                 if (!s) return false
                 const v = s.toLowerCase().trim()
-                return v === 'invalid credentials' || v === 'invalid credential' || v === 'invalid_credentials' || v === 'invalid'
+                // accept both Dutch and English variants from backend
+                return (
+                    v === 'foute inloggegevens' ||
+                    v === 'foute_inloggegevens' ||
+                    v === 'fout' ||
+                    v === 'invalid credentials' ||
+                    v === 'invalid'
+                )
             }
 
             // direct message mapping
@@ -161,4 +168,3 @@ export default function OrganizerLogin() {
         </main>
     );
 }
-

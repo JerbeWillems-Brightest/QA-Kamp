@@ -1,8 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import DayOverview from './DayOverview'
-import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from '../../context/AuthContext'
+import { SessionProvider } from '../../context/SessionContext'
 
 // Mock deleteSession API
 const mockDelete = vi.fn()
@@ -16,11 +17,13 @@ describe('DayOverview (merged tests)', () => {
 
   it('renders title and day buttons', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     // Select the main heading (level 1) and assert it contains the parts
@@ -35,22 +38,26 @@ describe('DayOverview (merged tests)', () => {
 
   it('renders QA kalender title', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
     expect(screen.getByText(/kalender/i)).toBeDefined()
   })
 
   it('default selected day is based on current date', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
     // should have one day button with aria-pressed attribute true for selected day
     const buttons = screen.getAllByRole('button').filter(b => b.getAttribute('aria-label'))
@@ -61,11 +68,13 @@ describe('DayOverview (merged tests)', () => {
   it('clicking a disabled day does nothing', () => {
     // we can't easily simulate date; assert disabled buttons have not-allowed cursor
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     const disabled = screen.getAllByRole('button', { hidden: true }).filter(b => b.hasAttribute('disabled'))
@@ -79,11 +88,13 @@ describe('DayOverview (merged tests)', () => {
   it('clicking day triggers alert with day name', () => {
     const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     // click Monday
@@ -94,54 +105,73 @@ describe('DayOverview (merged tests)', () => {
 
   it('has three main action buttons', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
     expect(screen.getByText(/Scorebord/i)).toBeDefined()
     expect(screen.getByText(/Spelers beheren/i)).toBeDefined()
-    expect(screen.getByText(/QA-kamp stoppen/i)).toBeDefined()
+    expect(screen.getByText(/QA kamp stoppen/i)).toBeDefined()
   })
 
   it('stop button calls deleteSession and navigates', async () => {
     localStorage.setItem('currentSessionId', 'stop-me')
     mockDelete.mockResolvedValue({ success: true })
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByText(/QA-kamp stoppen/i))
+    fireEvent.click(screen.getByText(/QA[- ]kamp stoppen/i))
     await waitFor(() => expect(mockDelete).toHaveBeenCalled())
   })
 
   it('scale responds to window resizing', () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
-    // Resize simulation
-    window.innerWidth = 800
+    // Resize simulation — avoid directly assigning to window.innerWidth which can be readonly
+    const originalInnerWidth = window.innerWidth
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
+    } catch {
+      // Some environments prevent redefining; fall back to no-op
+    }
     fireEvent(window, new Event('resize'))
+    // restore original width if possible
+    try {
+      Object.defineProperty(window, 'innerWidth', { configurable: true, value: originalInnerWidth })
+    } catch {
+      // ignore
+    }
     expect(true).toBeTruthy()
   })
 
   it('shows manage players modal when clicked', async () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByText(/Spelers beheren/i))
@@ -150,11 +180,13 @@ describe('DayOverview (merged tests)', () => {
 
   it('modal closes when clicking outside (overlay)', async () => {
     render(
-      <BrowserRouter>
+      <MemoryRouter>
         <AuthProvider>
-          <DayOverview />
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
         </AuthProvider>
-      </BrowserRouter>
+      </MemoryRouter>
     )
 
     fireEvent.click(screen.getByText(/Spelers beheren/i))
