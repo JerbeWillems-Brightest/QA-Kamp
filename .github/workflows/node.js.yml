@@ -17,13 +17,23 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: List package-lock files (debug)
+        run: |
+          echo "Repository top-level files:"
+          ls -la || true
+          echo "Searching for package-lock.json files (no depth limit):"
+          find . -type f -name 'package-lock.json' -print || true
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          # use a glob to match any package-lock.json in the repo (safer for monorepos)
-          cache-dependency-path: '**/package-lock.json'
+          # explicit candidate lockfile paths (comma or newline-separated supported)
+          cache-dependency-path: |
+            Frontend/QA-Kamp/package-lock.json
+            Frontend/package-lock.json
+            Backend/package-lock.json
 
 
       - name: Install dependencies
@@ -50,16 +60,20 @@ jobs:
 
       - name: List package-lock files (debug)
         run: |
-          echo "Looking for package-lock.json files"
-          find . -maxdepth 5 -type f -name 'package-lock.json' -print || true
+          echo "Repository top-level files:"
+          ls -la || true
+          echo "Searching for package-lock.json files (no depth limit):"
+          find . -type f -name 'package-lock.json' -print || true
 
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          # use a glob to match any package-lock.json in the repo (safer for monorepos)
-          cache-dependency-path: '**/package-lock.json'
+          cache-dependency-path: |
+            Frontend/QA-Kamp/package-lock.json
+            Frontend/package-lock.json
+            Backend/package-lock.json
 
       - name: Install dependencies
         working-directory: Backend
