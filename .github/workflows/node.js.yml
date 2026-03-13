@@ -59,10 +59,11 @@ jobs:
 
       - name: Run tests
         working-directory: Frontend/QA-Kamp
-        run: npm test -- --reporters=default --reporters=jest-junit
+        run: npm test
         
   backend:
-    runs-on: ubuntu-latest
+    # use Ubuntu 20.04 runner to ensure libssl1.1 (libcrypto.so.1.1) is available for mongodb-memory-server
+    runs-on: ubuntu-20.04
 
     strategy:
       matrix:
@@ -111,4 +112,4 @@ jobs:
 
       - name: Run tests
         working-directory: Backend
-        run: npm test -- --reporters=default --reporters=jest-junit
+        run: npm test
