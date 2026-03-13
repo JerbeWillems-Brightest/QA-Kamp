@@ -22,7 +22,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          cache-dependency-path: QA-Kamp/Frontend/QA-Kamp/package-lock.json
+          # package-lock.json path relative to repository root
+          cache-dependency-path: Frontend/QA-Kamp/package-lock.json
 
 
       - name: Install dependencies
@@ -52,7 +53,8 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          cache-dependency-path: QA-Kamp/Backend/package-lock.json
+          # package-lock.json path relative to repository root
+          cache-dependency-path: Backend/package-lock.json
 
       - name: Install dependencies
         working-directory: QA-Kamp/Backend
