@@ -43,7 +43,15 @@ jobs:
 
       - name: Install dependencies
         working-directory: Frontend/QA-Kamp
-        run: npm ci
+        run: |
+          # use npm ci when a lockfile exists, otherwise fall back to npm install
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "Lockfile found — running npm ci"
+            npm ci
+          else
+            echo "No lockfile — running npm install"
+            npm install
+          fi
 
       - name: Build
         working-directory: Frontend/QA-Kamp
@@ -87,7 +95,15 @@ jobs:
 
       - name: Install dependencies
         working-directory: Backend
-        run: npm ci
+        run: |
+          # use npm ci when a lockfile exists, otherwise fall back to npm install
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "Lockfile found — running npm ci"
+            npm ci
+          else
+            echo "No lockfile — running npm install"
+            npm install
+          fi
 
       - name: Build
         working-directory: Backend
