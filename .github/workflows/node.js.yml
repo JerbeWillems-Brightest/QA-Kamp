@@ -22,20 +22,20 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          # package-lock.json path relative to repository root
-          cache-dependency-path: Frontend/QA-Kamp/package-lock.json
+          # use a glob to match any package-lock.json in the repo (safer for monorepos)
+          cache-dependency-path: '**/package-lock.json'
 
 
       - name: Install dependencies
-        working-directory: QA-Kamp/Frontend/QA-Kamp
+        working-directory: Frontend/QA-Kamp
         run: npm ci
 
       - name: Build
-        working-directory: QA-Kamp/Frontend/QA-Kamp
+        working-directory: Frontend/QA-Kamp
         run: npm run build --if-present
 
       - name: Run tests
-        working-directory: QA-Kamp/Frontend/QA-Kamp
+        working-directory: Frontend/QA-Kamp
         run: npm test -- --reporters=default --reporters=jest-junit
         
   backend:
@@ -48,22 +48,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: List package-lock files (debug)
+        run: |
+          echo "Looking for package-lock.json files"
+          find . -maxdepth 5 -type f -name 'package-lock.json' -print || true
+
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
-          # package-lock.json path relative to repository root
-          cache-dependency-path: Backend/package-lock.json
+          # use a glob to match any package-lock.json in the repo (safer for monorepos)
+          cache-dependency-path: '**/package-lock.json'
 
       - name: Install dependencies
-        working-directory: QA-Kamp/Backend
+        working-directory: Backend
         run: npm ci
 
       - name: Build
-        working-directory: QA-Kamp/Backend
+        working-directory: Backend
         run: npm run build --if-present
 
       - name: Run tests
-        working-directory: QA-Kamp/Backend
+        working-directory: Backend
         run: npm test -- --reporters=default --reporters=jest-junit
