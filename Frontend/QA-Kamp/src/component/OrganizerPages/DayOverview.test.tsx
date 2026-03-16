@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import DayOverview from './DayOverview'
 import { AuthProvider } from '../../context/AuthContext'
 import { SessionProvider } from '../../context/SessionContext'
@@ -86,24 +86,6 @@ describe('DayOverview (merged tests)', () => {
     expect(true).toBeTruthy()
   })
 
-  it('clicking day triggers alert with day name', () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
-    render(
-      <MemoryRouter>
-        <AuthProvider>
-          <SessionProvider>
-            <DayOverview />
-          </SessionProvider>
-        </AuthProvider>
-      </MemoryRouter>
-    )
-
-    // click Monday
-    const monday = screen.getByRole('button', { name: /Maandag/i })
-    fireEvent.click(monday)
-    expect(alertSpy).toHaveBeenCalled()
-  })
-
   it('has three main action buttons', () => {
     render(
       <MemoryRouter>
@@ -154,31 +136,59 @@ describe('DayOverview (merged tests)', () => {
     })
   })
 
-  // Checklist test: all day buttons are clickable (if not disabled)
-  it('all day buttons are clickable (when enabled)', () => {
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+  it('clicking day navigates to the day dashboard', async () => {
+    // ensure auth present so component doesn't redirect
+    localStorage.setItem('user', JSON.stringify({ id: 'u-nav', email: 'nav@x' }))
+
     render(
-      <MemoryRouter>
+      <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
           <SessionProvider>
-            <DayOverview />
+            <Routes>
+              <Route path="/" element={<DayOverview />} />
+              <Route path="/day/:day" element={<div data-testid="day-page">Day page</div>} />
+            </Routes>
           </SessionProvider>
         </AuthProvider>
       </MemoryRouter>
     )
 
-    const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
-    let clickCount = 0
-    days.forEach(day => {
-      const btn = screen.getByRole('button', { name: new RegExp(day, 'i') })
-      // if the button is disabled, skip clicking
-      if (btn.hasAttribute('disabled')) return
-      fireEvent.click(btn)
-      clickCount++
-    })
+    const monday = screen.getByRole('button', { name: /Maandag/i })
+    fireEvent.click(monday)
 
-    if (clickCount > 0) {
-      expect(alertSpy).toHaveBeenCalled()
+    await waitFor(() => expect(screen.getByTestId('day-page')).toBeDefined())
+  })
+
+  // Checklist test: all day buttons are clickable (if not disabled)
+  it('all day buttons are clickable (when enabled) - each navigates to its dashboard', async () => {
+    const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
+
+    for (const day of days) {
+      // seed user before each render so DayOverview won't redirect
+      localStorage.setItem('user', JSON.stringify({ id: `u-${day}`, email: `${day}@x` }))
+
+      const { unmount } = render(
+        <MemoryRouter initialEntries={["/"]}>
+          <AuthProvider>
+            <SessionProvider>
+              <Routes>
+                <Route path="/" element={<DayOverview />} />
+                <Route path="/day/:day" element={<div>{`Day: ${day.toLowerCase()}`}</div>} />
+              </Routes>
+            </SessionProvider>
+          </AuthProvider>
+        </MemoryRouter>
+      )
+
+      const btn = await screen.findByRole('button', { name: new RegExp(day, 'i') })
+      // if the button is disabled, ensure no navigation occurs; otherwise expect navigation
+      if (!btn.hasAttribute('disabled')) {
+        fireEvent.click(btn)
+        await waitFor(() => expect(screen.getByText(new RegExp(`Day: ${day.toLowerCase()}`, 'i'))).toBeDefined())
+      }
+
+      unmount()
+      cleanup()
     }
   })
 

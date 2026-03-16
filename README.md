@@ -6,6 +6,7 @@ Backend:
 - Ga naar ./QA-Kamp/Backend
 - Run: npm install
 - Run: npm run dev
+
 Frontend:
 - Ga naar ./QA-Kamp/Frontend/QA-Kamp
 - Run: npm install
