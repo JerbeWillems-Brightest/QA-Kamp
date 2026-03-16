@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router-dom'
 import DayOverview from './DayOverview'
 import { AuthProvider } from '../../context/AuthContext'
 import { SessionProvider } from '../../context/SessionContext'
+import Navbar from '../Navbar'
 
 // Mock deleteSession API
 const mockDelete = vi.fn()
@@ -116,6 +117,69 @@ describe('DayOverview (merged tests)', () => {
     expect(screen.getByText(/Scorebord/i)).toBeDefined()
     expect(screen.getByText(/Spelers beheren/i)).toBeDefined()
     expect(screen.getByText(/QA kamp stoppen/i)).toBeDefined()
+  })
+
+  // Checklist test: logout button present in header when user logged in
+  it('shows logout button in header when user is logged in', async () => {
+    localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'u@x' }))
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <SessionProvider>
+            <Navbar />
+            <DayOverview />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/Uitloggen|uitloggen|logout|log out/i)).toBeDefined())
+  })
+
+  // Checklist test: all weekdays present (Maandag - Vrijdag)
+  it('renders all weekdays (maandag t/m vrijdag)', () => {
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
+    days.forEach(day => {
+      expect(screen.getByRole('button', { name: new RegExp(day, 'i') })).toBeDefined()
+    })
+  })
+
+  // Checklist test: all day buttons are clickable (if not disabled)
+  it('all day buttons are clickable (when enabled)', () => {
+    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <SessionProvider>
+            <DayOverview />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
+    let clickCount = 0
+    days.forEach(day => {
+      const btn = screen.getByRole('button', { name: new RegExp(day, 'i') })
+      // if the button is disabled, skip clicking
+      if (btn.hasAttribute('disabled')) return
+      fireEvent.click(btn)
+      clickCount++
+    })
+
+    if (clickCount > 0) {
+      expect(alertSpy).toHaveBeenCalled()
+    }
   })
 
   it('stop button calls deleteSession and navigates', async () => {

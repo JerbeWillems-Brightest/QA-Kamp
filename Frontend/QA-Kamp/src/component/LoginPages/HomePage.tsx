@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import LineImg from '../../assets/Line.png';
 import CurveImg from '../../assets/curve.png';
@@ -8,33 +8,77 @@ import RocketImg from '../../assets/Rocketship.png';
 
 function HomePage() {
   const [playerNumber, setPlayerNumber] = useState('');
+  const rawInputRef = useRef('');
   const [numberError, setNumberError] = useState('');
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // validate: must be non-empty and numeric
-    if (!playerNumber) {
+
+    // prevent submitting while there is a known input-format error
+    if (numberError) {
+      return;
+    }
+
+    // Use rawInputRef for format checks to avoid race conditions between change and submit
+    const rawInput = rawInputRef.current;
+
+    if (!rawInput) {
       setNumberError('Vul je spelersnummer in');
       return;
     }
-    if (!/^\d+$/.test(playerNumber)) {
-      setNumberError('Alleen cijfers zijn toegestaan');
+
+    if (/\D/.test(rawInput)) {
+      setNumberError('Geen letters of speciale tekens toegestaan');
       return;
     }
+
+    if (rawInput.length > 3) {
+      setNumberError('Maximaal 3 cijfers toegestaan');
+      return;
+    }
+
+    // At this point, playerNumber should equal rawInput (or truncated form) and be numeric.
+    if (playerNumber.length !== 3) {
+      setNumberError('Spelersnummer moet uit precies 3 cijfers bestaan');
+      return;
+    }
+
+    // check uniqueness against localStorage key 'onlinePlayers' (assumed to be an array of used numbers)
+    try {
+      const raw = localStorage.getItem('onlinePlayers');
+      const onlinePlayers: string[] = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(onlinePlayers) && onlinePlayers.includes(playerNumber)) {
+        setNumberError('Dit spelersnummer is al in gebruik');
+        return;
+      }
+    } catch {
+      // if parsing fails, ignore and allow (or treat as empty)
+    }
+
     setNumberError('');
     alert(`Spelersnummer: ${playerNumber}`);
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
-    // remove any non-digit characters so letters are not allowed
+    rawInputRef.current = raw;
+
+    // remove any non-digit characters so letters/specials are not allowed
     const cleaned = raw.replace(/\D/g, '');
+    // limit to maximum 3 digits
+    const truncated = cleaned.slice(0, 3);
+
+    // set appropriate error messages for invalid input as the user types
     if (cleaned !== raw) {
-      setNumberError('Alleen cijfers zijn toegestaan');
+      setNumberError('Geen letters of speciale tekens toegestaan');
+    } else if (cleaned.length > 3) {
+      setNumberError('Maximaal 3 cijfers toegestaan');
     } else {
+      // clear only the input-format related errors; keep uniqueness/emptiness handled on submit
       setNumberError('');
     }
-    setPlayerNumber(cleaned);
+
+    setPlayerNumber(truncated);
   }
 
   return (
@@ -69,6 +113,7 @@ function HomePage() {
                 required
                 value={playerNumber}
                 onChange={handleChange}
+                maxLength={3}
                 style={{ padding: '10px', width: '220px', borderRadius: '6px', border: numberError ? '1px solid #e74c3c' : '1px solid #ccc' }}
               />
 

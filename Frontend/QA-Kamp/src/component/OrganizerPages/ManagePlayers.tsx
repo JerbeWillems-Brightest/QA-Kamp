@@ -329,6 +329,18 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     const playerNumber = numOnly.padStart(3, '0')
     const name = String(nameInput || '').trim().toLowerCase()
     if (!name) return setErrors(['Naam is verplicht'])
+
+    // New stricter name validations
+    // reject names containing spaces
+    if (/\s/.test(name)) return setErrors(['Naam mag geen spaties bevatten'])
+    // length constraints
+    if (name.length < 2) return setErrors(['Naam moet minimaal 2 tekens bevatten'])
+    if (name.length > 25) return setErrors(['Naam mag maximaal 25 tekens bevatten'])
+    // disallow digits
+    if (/\d/.test(name)) return setErrors(['Naam mag geen cijfers bevatten'])
+    // allow only letters (include common latin accents)
+    if (!/^[a-z\u00C0-\u017F]+$/.test(name)) return setErrors(['Geen speciale tekens toegestaan in naam'])
+
     // map selected category to a representative age that satisfies backend validation
     const category = categoryInput
     const categoryToAge: Record<string, number> = { '8-10': 8, '11-13': 11, '14-16': 14 }

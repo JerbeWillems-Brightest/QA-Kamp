@@ -42,6 +42,34 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/Ongeldig emailadres/i)
   })
 
+  it('empty email shows validation error', async () => {
+    render(
+      <BrowserRouter>
+        <AuthProvider>
+          <OrganizerLogin />
+        </AuthProvider>
+      </BrowserRouter>
+    )
+    // leave email empty
+    fireEvent.change(screen.getByLabelText(/wachtwoord/i), { target: { value: 'secret' } })
+    fireEvent.submit(document.querySelector('form')!)
+    await screen.findByText(/Vul je emailadres in/i)
+  })
+
+  it('empty password shows validation error', async () => {
+    render(
+      <BrowserRouter>
+        <AuthProvider>
+          <OrganizerLogin />
+        </AuthProvider>
+      </BrowserRouter>
+    )
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'u@x.com' } })
+    // leave password empty
+    fireEvent.submit(document.querySelector('form')!)
+    await screen.findByText(/Vul je wachtwoord in/i)
+  })
+
   it('successful login calls api and navigates', async () => {
     mockLogin.mockResolvedValue({ user: { id: 'u1', email: 'u@x.com' } })
 
@@ -58,6 +86,22 @@ describe('OrganizerLogin (merged tests)', () => {
     fireEvent.submit(document.querySelector('form')!)
 
     await waitFor(() => expect(mockLogin).toHaveBeenCalled())
+  })
+
+  it('non-existing email shows backend message as general error', async () => {
+    mockLogin.mockResolvedValue({ message: 'User not found' })
+    render(
+      <BrowserRouter>
+        <AuthProvider>
+          <OrganizerLogin />
+        </AuthProvider>
+      </BrowserRouter>
+    )
+
+    fireEvent.change(screen.getByLabelText(/email/i), { target: { value: 'noone@x.com' } })
+    fireEvent.change(screen.getByLabelText(/wachtwoord/i), { target: { value: 'p' } })
+    fireEvent.submit(document.querySelector('form')!)
+    await screen.findByText(/User not found/i)
   })
 
   it('invalid credentials show general error', async () => {
