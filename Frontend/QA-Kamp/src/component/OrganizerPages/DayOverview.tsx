@@ -88,8 +88,8 @@ export default function DayOverview() {
 
   function handleDayClick(dayName: string, idx: number) {
     setSelectedIdx(idx)
-    // placeholder action for day click; replace with real navigation later
-    alert(`${dayName} geselecteerd`)
+    // navigate to a per-day dashboard route (e.g. /day/maandag)
+    navigate(`/day/${dayName.toLowerCase()}`)
   }
 
   // styles colocated

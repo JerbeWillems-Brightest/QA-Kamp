@@ -6,6 +6,7 @@ import StartSession from './component/OrganizerPages/StartSession'
 import DayOverview from './component/OrganizerPages/DayOverview'
 import ManagePlayers from './component/OrganizerPages/ManagePlayers'
 import Scoreboard from './component/OrganizerPages/Scoreboard'
+import DayDashboard from './component/OrganizerPages/DayDashboard'
 import BrightestLogo from './assets/BrightestLogo.png'
 import { AuthProvider } from './context/AuthContext'
 import { SessionProvider } from './context/SessionContext'
@@ -27,6 +28,7 @@ function App() {
               <Route path="/organizer-login" element={<OrganizerLogin />} />
               <Route path="/start-session" element={<StartSession />} />
               <Route path="/day-overview" element={<DayOverview />} />
+              <Route path="/day/:day" element={<DayDashboard />} />
               <Route path="/manage-players" element={<ManagePlayers />} />
               <Route path="/scoreboard" element={<Scoreboard />} />
             </Routes>
