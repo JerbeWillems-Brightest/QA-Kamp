@@ -14,6 +14,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import StartSession from './StartSession'
 import { AuthProvider } from '../../context/AuthContext'
 import { SessionProvider } from '../../context/SessionContext'
+import Navbar from '../Navbar'
 
 describe('StartSession (comprehensive)', () => {
   beforeEach(() => {
@@ -36,6 +37,29 @@ describe('StartSession (comprehensive)', () => {
     // the button has aria-label="Start QA-Kamp" so query by that accessible name
     expect(screen.getByLabelText(/Start QA-Kamp/i)).toBeDefined()
     expect(screen.getByText(/Klik om het QA-kamp te starten\./i)).toBeDefined()
+  })
+
+  it('shows logout button in header when user is logged in', async () => {
+    // seed auth user
+    localStorage.setItem('user', JSON.stringify({ id: 'org-logout', email: 'o@logout' }))
+    // ensure getSessions returns empty so component stays on page
+    mockGetSessions.mockResolvedValue({ sessions: [] })
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <SessionProvider>
+            <Navbar />
+            <StartSession />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
+
+    // header may render a logout control with aria-label or text 'uitloggen' (Dutch) or 'logout'
+    await waitFor(() => {
+      expect(screen.getByLabelText(/uitloggen|logout|log out/i)).toBeDefined()
+    })
   })
 
   it('navigates to organizer-login when no user is present', async () => {
