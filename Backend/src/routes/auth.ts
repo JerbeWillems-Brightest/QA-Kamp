@@ -8,13 +8,13 @@ const router = Router()
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body
-    if (!email || !password) return res.status(400).json({ error: 'Email and password required' })
+    if (!email || !password) return res.status(400).json({ error: 'Email en wachtwoord nodig' })
 
     const user = await Organizer.findOne({ email: email.toLowerCase().trim() })
-    if (!user) return res.status(401).json({ error: 'Invalid credentials' })
+    if (!user) return res.status(401).json({ error: 'Foute logingegevens' })
 
     // Plain text compare for now (we'll hash later)
-    if (user.password !== password) return res.status(401).json({ error: 'Invalid credentials' })
+    if (user.password !== password) return res.status(401).json({ error: 'Foute logingegevens' })
 
     // Successful login
     res.json({ message: 'Succesvol ingelogd', user: { id: user._id, email: user.email, name: user.name } })

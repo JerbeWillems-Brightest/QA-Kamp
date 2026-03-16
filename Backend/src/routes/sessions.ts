@@ -63,8 +63,18 @@ router.get('/', async (req, res) => {
 router.post('/:id/players', async (req, res) => {
   try {
     const { id } = req.params
-    const { players } = req.body
-    if (!players || !Array.isArray(players)) return res.status(400).json({ error: 'players array required' })
+    // Accept both formats: raw array body OR { players: [...] }
+    // Some clients send the array as the root body (req.body = [ ... ]) while
+    // others send { players: [...] }; handle both to avoid 400s.
+    let players: any[] | undefined
+    if (Array.isArray(req.body)) players = req.body
+    else if (req.body && Array.isArray(req.body.players)) players = req.body.players
+    else players = undefined
+
+    if (!players || !Array.isArray(players)) {
+      console.error('POST /:id/players called with invalid body type:', typeof req.body, 'body:', req.body)
+      return res.status(400).json({ error: 'players array required' })
+    }
 
     // ensure session exists
     const session = await Session.findById(id)
@@ -72,36 +82,160 @@ router.post('/:id/players', async (req, res) => {
 
     const overwrite = (req.query && String(req.query.overwrite) === 'true')
 
+    // normalize incoming player numbers: keep only digits and pad to 3 characters
+    const normalizeNumber = (v: unknown) => {
+      const s = String(v ?? '')
+      const digits = s.replace(/\D/g, '')
+      return digits ? digits.padStart(3, '0') : ''
+    }
+
+    // Basic validation of incoming rows before doing DB work
+    const validationErrors: string[] = []
+    players.forEach((p: any, i: number) => {
+      const name = String(p.name ?? p.naam ?? '').trim()
+      const ageRaw = p.age ?? p.leeftijd ?? ''
+      const ageNum = Number(ageRaw)
+      if (!name) validationErrors.push(`Rij ${i + 1}: Naam ontbreekt`)
+      if (!Number.isFinite(ageNum) || ageNum < 8 || ageNum > 16) validationErrors.push(`Rij ${i + 1}: Leeftijd ongeldig (verwacht 8-16): ${ageRaw}`)
+    })
+    if (validationErrors.length) {
+      return res.status(400).json({ error: validationErrors.join('; ') })
+    }
+
     if (!overwrite) {
-      const numbers = players.map((p: any) => p.playerNumber)
+      const numbers = players.map((p: any) => normalizeNumber(p.playerNumber ?? p.nummer ?? ''))
       // check duplicates already in DB for this session
-      const existing = await Player.find({ sessionId: id, playerNumber: { $in: numbers } }).select('playerNumber')
+      const existing = await Player.find({ sessionId: id, playerNumber: { $in: numbers.filter(n => n) } }).select('playerNumber')
       if (existing.length > 0) {
         const nums = existing.map((e: any) => e.playerNumber)
         return res.status(400).json({ error: `Some players already exist in session: ${nums.join(', ')}` })
+      }
+      // check duplicates inside uploaded payload
+      const seenProvided = new Set<string>()
+      for (const p of players) {
+        const raw = normalizeNumber(p.playerNumber ?? p.nummer ?? '')
+        if (raw) {
+          if (seenProvided.has(raw)) return res.status(400).json({ error: `Duplicate playerNumber in upload: ${raw}` })
+          seenProvided.add(raw)
+        }
       }
     } else {
       // overwrite: remove existing players for this session first
       await Player.deleteMany({ sessionId: id })
     }
 
-    const docs = players.map((p: any) => ({
-      sessionId: id,
-      playerNumber: p.playerNumber,
-      name: p.name,
-      age: p.age,
-      category: p.category || 'unknown'
-    }))
-    const created = await Player.insertMany(docs)
-    return res.status(201).json({ created })
-  } catch (err) {
-    console.error('Create players error:', err)
-    return res.status(500).json({ error: 'Failed to create players' })
-  }
-})
+    // Preload existing playerNumbers for this session so we can avoid collisions
+    const existingDocs = await Player.find({ sessionId: id }).select('playerNumber').lean()
+    const existingSet = new Set<string>(existingDocs.map((d: any) => String(d.playerNumber).padStart(3, '0')))
 
-// List players for a session
-router.get('/:id/players', async (req, res) => {
+    const assignedInImport = new Set<string>()
+    const MAX_ATTEMPTS = 1000
+    const genRandomNumber = () => String(Math.floor(Math.random() * 900) + 100).padStart(3, '0')
+
+    const docs: any[] = []
+    for (const p of players) {
+      // normalize provided number (if any)
+      const provided = normalizeNumber(p.playerNumber ?? p.nummer ?? '')
+      let finalNumber = provided || ''
+
+      // If provided number is empty or conflicts, attempt to generate a new unique one
+      if (!finalNumber || existingSet.has(finalNumber) || assignedInImport.has(finalNumber)) {
+        let candidate: string | undefined
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+          const c = genRandomNumber()
+          if (!existingSet.has(c) && !assignedInImport.has(c)) {
+            candidate = c
+            break
+          }
+        }
+
+        if (!candidate) {
+          return res.status(500).json({ error: `Kon geen uniek spelersnummer genereren voor speler ${p.name || '(onbekend)'}` })
+        }
+        finalNumber = candidate
+      }
+
+      // reserve the number so subsequent rows won't reuse it
+      assignedInImport.add(finalNumber)
+      existingSet.add(finalNumber)
+
+      docs.push({
+        sessionId: id,
+        playerNumber: finalNumber,
+        // populate legacy field to avoid duplicate-null index collisions
+        nummer: finalNumber,
+        name: String(p.name ?? p.naam ?? '').trim(),
+        age: Number(p.age ?? p.leeftijd ?? 0),
+        category: p.category || 'unknown',
+        // imported players should start offline — lastSeen is null
+        lastSeen: null,
+        // initial score is zero
+        score: 0,
+      })
+    }
+
+    // Insert docs one-by-one with retry on duplicate-key errors so we can guarantee
+    // unique playerNumber per session. This is safer than a single bulk insert where
+    // duplicate key errors may prevent many inserts depending on the DB state.
+    const created: any[] = []
+    const errors: string[] = []
+
+    for (let i = 0; i < docs.length; i++) {
+      const doc = { ...docs[i] }
+      let inserted = null
+      let attempts = 0
+      while (attempts < MAX_ATTEMPTS) {
+        try {
+          console.info(`Attempting insert for row ${i + 1} playerNumber=${doc.playerNumber} name=${doc.name}`)
+          inserted = await Player.create(doc)
+          created.push(inserted)
+          console.info(`Inserted row ${i + 1} id=${inserted._id} playerNumber=${inserted.playerNumber}`)
+          break
+        } catch (e: any) {
+          // duplicate key error on playerNumber -> generate a new number and retry
+          const isDup = e && (e.code === 11000 || (e.codeName && e.codeName === 'DuplicateKey'))
+          console.warn(`Insert failed for row ${i + 1} playerNumber=${doc.playerNumber} (attempts=${attempts})`, e && e.message ? e.message : e)
+          if (isDup && attempts < MAX_ATTEMPTS) {
+            // generate a fresh candidate not in existingSet or assignedInImport
+            let candidate: string | undefined
+            let innerAttempts = 0
+            do {
+              candidate = genRandomNumber()
+              innerAttempts++
+              if (innerAttempts > MAX_ATTEMPTS) break
+            } while (existingSet.has(candidate) || assignedInImport.has(candidate))
+
+            if (!candidate) {
+              errors.push(`Rij ${i + 1}: kon geen uniek spelersnummer genereren na duplicate-key`)
+              break
+            }
+            doc.playerNumber = candidate
+            assignedInImport.add(candidate)
+            existingSet.add(candidate)
+            attempts++
+            continue
+          }
+
+          // other errors: record and stop retrying this row
+          console.error(`Failed to insert player at index ${i}:`, e)
+          errors.push(`Rij ${i + 1}: ${e && e.message ? e.message : 'Insert error'}`)
+          break
+        }
+      }
+    }
+
+    // Return created docs and any per-row errors
+    return res.status(201).json({ created, errors })
+
+   } catch (err) {
+     console.error('Create players error:', err)
+     const msg = err instanceof Error ? err.message : String(err)
+     return res.status(500).json({ error: `Failed to create players: ${msg}` })
+   }
+ })
+
+ // List players for a session
+ router.get('/:id/players', async (req, res) => {
   try {
     const { id } = req.params
     const players = await Player.find({ sessionId: id }).sort({ playerNumber: 1 })
@@ -124,6 +258,12 @@ router.put('/:id/players/:playerNumber', async (req, res) => {
       { sessionId: id, playerNumber },
       {
         playerNumber: (player.playerNumber ?? playerNumber),
+        // keep legacy field in sync
+        nummer: (player.playerNumber ?? playerNumber),
+        // optionally update lastSeen if client provides it
+        ...(player.lastSeen ? { lastSeen: new Date(player.lastSeen) } : {}),
+        // optionally update score if provided
+        ...(typeof player.score === 'number' ? { score: player.score } : {}),
         name: player.name,
         age: player.age,
         category: player.category ?? 'unknown',
@@ -149,6 +289,37 @@ router.delete('/:id/players/:playerNumber', async (req, res) => {
   } catch (err) {
     console.error('Delete player error:', err)
     return res.status(500).json({ error: 'Failed to delete player' })
+  }
+})
+
+// Heartbeat: update lastSeen for a player in session (used by player clients)
+router.post('/:id/players/:playerNumber/heartbeat', async (req, res) => {
+  try {
+    const { id, playerNumber } = req.params
+    const now = new Date()
+    const updated = await Player.findOneAndUpdate(
+      { sessionId: id, playerNumber },
+      { lastSeen: now },
+      { new: true }
+    )
+    if (!updated) return res.status(404).json({ error: 'Player not found in session' })
+    return res.json({ success: true, player: updated })
+  } catch (err) {
+    console.error('Heartbeat error:', err)
+    return res.status(500).json({ error: 'Failed to update heartbeat' })
+  }
+})
+
+// Leaderboard: players sorted by score descending
+router.get('/:id/leaderboard', async (req, res) => {
+  try {
+    const { id } = req.params
+    // return players with name, playerNumber, category, score sorted by score desc
+    const list = await Player.find({ sessionId: id }).select('name playerNumber category score').sort({ score: -1 })
+    return res.json({ leaderboard: list })
+  } catch (err) {
+    console.error('Leaderboard error:', err)
+    return res.status(500).json({ error: 'Failed to fetch leaderboard' })
   }
 })
 
