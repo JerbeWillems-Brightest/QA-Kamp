@@ -10,6 +10,12 @@ import PASS_IMG from '../../assets/PasswordZapper.png'
 import BUG_IMG from '../../assets/BugCleanup.png'
 import GETAL_IMG from '../../assets/GetalRace.png'
 import REACTIE_IMG from '../../assets/ReactieTijdTest.png'
+import WHACK_IMG from '../../assets/WhackTheBug.png'
+import PRINTER_SLAAT_IMG from '../../assets/PrinterSlaatOpHol.png'
+import PRINTER_KRAKEN_IMG from '../../assets/PrinterKraken.png'
+import HERSTART_IMG from '../../assets/HerstartDePc.png'
+import THERMOSTAAT_IMG from '../../assets/SlimmeThermostaat.png'
+import FIGHT_IMG from '../../assets/FightTheBug.png'
 
 // embedded CSS so the component is self-contained
 const embeddedCss = `
@@ -485,6 +491,13 @@ export default function DayDashboard(){
                     case 'getalrace': inlineSrc = GETAL_IMG; break
                     case 'reactietijdtest':
                     case 'reactietijd': inlineSrc = REACTIE_IMG; break
+                    case 'whackthebug': inlineSrc = WHACK_IMG; break
+                    case 'printerslaatophol': inlineSrc = PRINTER_SLAAT_IMG; break
+                    case 'printerkraken': inlineSrc = PRINTER_KRAKEN_IMG; break
+                    case 'herstartdepc': inlineSrc = HERSTART_IMG; break
+                    case 'nietzoslimmethermostaat':
+                    case 'slimmethermostaat': inlineSrc = THERMOSTAAT_IMG; break
+                    case 'fightthebug': inlineSrc = FIGHT_IMG; break
                     default: inlineSrc = undefined
                   }
                   const style = inlineSrc ? { backgroundImage: `url(${inlineSrc})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined
