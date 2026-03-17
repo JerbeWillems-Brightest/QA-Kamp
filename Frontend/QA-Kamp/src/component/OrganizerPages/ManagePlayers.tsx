@@ -558,7 +558,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
-                    <input id={playerNumberInput} value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                    {/* player number is auto-generated and must not be editable by the user */}
+                    <input id="player-number-input" value={playerNumberInput} readOnly placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd', background: '#f7f7f7' }} aria-readonly="true" />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
                     <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>
@@ -592,7 +593,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 160 }}>
                    <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Spelersnummer</label>
-                   <input value={playerNumberInput} onChange={(e) => setPlayerNumberInput(e.target.value)} placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd' }} />
+                   {/* same readOnly behaviour for the fallback form when no players exist */}
+                   <input id="player-number-input-2" value={playerNumberInput} readOnly placeholder="001" style={{ padding: 8, borderRadius: 6, border: '1px solid #ddd', background: '#f7f7f7' }} aria-readonly="true" />
                  </div>
                  <div style={{ display: 'flex', flexDirection: 'column', minWidth: 220 }}>
                    <label style={{ fontSize: 13, marginBottom: 6, textAlign: 'left' }}>Naam</label>

@@ -27,7 +27,9 @@ export default function DayOverview() {
 
   // responsive scale so tablet/laptop show the same visual layout as a large monitor
   const [scale, setScale] = useState<number>(1)
-  const DESIGN_WIDTH = 1200 // the width we design for (monitor)
+  // track if another day has an active game so we can disable day tiles
+  const [activeGameInfo, setActiveGameInfo] = useState<{ game?: string; day?: string } | null>(null)
+   const DESIGN_WIDTH = 1200 // the width we design for (monitor)
 
   // All days should be clickable at any time; no disabled logic.
   // (Removed previous allowedMaxIndex + auto-select rules.
@@ -207,6 +209,29 @@ export default function DayOverview() {
      margin: '0 auto',
    }
 
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('activeGameInfo')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        // defer to avoid synchronous setState inside effect
+        setTimeout(() => setActiveGameInfo(parsed), 0)
+      }
+    } catch { /* ignore */ }
+
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === 'activeGameInfo') {
+        if (ev.newValue) {
+          try { setActiveGameInfo(JSON.parse(ev.newValue as string)) } catch { setActiveGameInfo(null) }
+        } else {
+          setActiveGameInfo(null)
+        }
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
   return (
     <main style={{ padding: 0 }}>
       <div style={styles.container}>
@@ -237,17 +262,20 @@ export default function DayOverview() {
                 }
 
                 return (
-                  <button
-                    key={day.name}
-                    onClick={() => handleDayClick(day.name, idx)}
-                    style={buttonStyle}
-                    aria-label={day.name}
-                    aria-pressed={selectedIdx === idx}
-                    onMouseEnter={() => setHoverIdx(idx)}
-                    onMouseLeave={() => setHoverIdx(null)}
-                    onFocus={() => setFocusIdx(idx)}
-                    onBlur={() => setFocusIdx(null)}
-                  >
+                   <button
+                     key={day.name}
+                     onClick={() => handleDayClick(day.name, idx)}
+                     style={buttonStyle}
+                     aria-label={day.name}
+                     aria-pressed={selectedIdx === idx}
+                     onMouseEnter={() => setHoverIdx(idx)}
+                     onMouseLeave={() => setHoverIdx(null)}
+                     onFocus={() => setFocusIdx(idx)}
+                     onBlur={() => setFocusIdx(null)}
+                    // disable day tile when another day's game is active
+                    disabled={!!(activeGameInfo && activeGameInfo.day && activeGameInfo.day.toLowerCase() !== day.name.toLowerCase())}
+                    aria-disabled={!!(activeGameInfo && activeGameInfo.day && activeGameInfo.day.toLowerCase() !== day.name.toLowerCase())}
+                   >
                     {/* image container - keep full image visible */}
                     <div style={{ width: '100%', overflow: 'hidden' }}>
                       {day.img ? <img src={day.img} alt={day.name} style={{ ...imgStyle, borderTopLeftRadius: 14, borderTopRightRadius: 14 }} /> : null}

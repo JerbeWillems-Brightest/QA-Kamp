@@ -29,8 +29,8 @@ describe('DayOverview (merged tests)', () => {
 
     // Select the main heading (level 1) and assert it contains the parts
     const heading = screen.getByRole('heading', { level: 1 })
-    expect(heading).toBeDefined()
-    expect(heading).toHaveTextContent(/kalender/i)
+    expect(heading).toBeDefined()// use textContent match instead of jest-dom matcher toHaveTextContent
+    expect(heading.textContent).toMatch(/kalender/i)
     // the 'QA' label is inside the heading as a child <span>
     expect(within(heading).getByText(/QA/i)).toBeDefined()
     // check for at least one day button label by aria-label

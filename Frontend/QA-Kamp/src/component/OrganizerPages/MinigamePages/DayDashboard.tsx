@@ -1,21 +1,22 @@
 import { useEffect } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
-import Navbar from '../Navbar'
-import { useSession } from '../../context/SessionContext'
-import { fetchPlayersForSession, fetchLeaderboard } from '../../api'
+import Navbar from '../../Navbar.tsx'
+import { useSession } from '../../../context/SessionContext.tsx'
+import { fetchPlayersForSession, fetchLeaderboard } from '../../../api'
 import { useState } from 'react'
 // import images so the bundler (Vite) resolves their URLs
-import KRAAK_IMG from '../../assets/KraakHetWachtwoord.png'
-import PASS_IMG from '../../assets/PasswordZapper.png'
-import BUG_IMG from '../../assets/BugCleanup.png'
-import GETAL_IMG from '../../assets/GetalRace.png'
-import REACTIE_IMG from '../../assets/ReactieTijdTest.png'
-import WHACK_IMG from '../../assets/WhackTheBug.png'
-import PRINTER_SLAAT_IMG from '../../assets/PrinterSlaatOpHol.png'
-import PRINTER_KRAKEN_IMG from '../../assets/PrinterKraken.png'
-import HERSTART_IMG from '../../assets/HerstartDePc.png'
-import THERMOSTAAT_IMG from '../../assets/SlimmeThermostaat.png'
-import FIGHT_IMG from '../../assets/FightTheBug.png'
+import KRAAK_IMG from '../../../assets/KraakHetWachtwoord.png'
+import PASS_IMG from '../../../assets/PasswordZapper.png'
+import BUG_IMG from '../../../assets/BugCleanup.png'
+import GETAL_IMG from '../../../assets/GetalRace.png'
+import REACTIE_IMG from '../../../assets/ReactieTijdTest.png'
+import WHACK_IMG from '../../../assets/WhackTheBug.png'
+import PRINTER_SLAAT_IMG from '../../../assets/PrinterSlaatOpHol.png'
+import PRINTER_KRAKEN_IMG from '../../../assets/PrinterKraken.png'
+import HERSTART_IMG from '../../../assets/HerstartDePc.png'
+import THERMOSTAAT_IMG from '../../../assets/SlimmeThermostaat.png'
+import FIGHT_IMG from '../../../assets/FightTheBug.png'
+import MinigamePopup from './MinigamePopup'
 
 // embedded CSS so the component is self-contained
 const embeddedCss = `
@@ -331,6 +332,151 @@ export default function DayDashboard(){
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loading, setLoading] = useState(false)
 
+  // popup state
+  const [selectedGame, setSelectedGame] = useState<string | null>(null)
+  const [selectedAges, setSelectedAges] = useState<string[]>([])
+  // global running state for the day dashboard: which game is active
+  const [isGameRunning, setIsGameRunning] = useState(false)
+  const [activeGame, setActiveGame] = useState<string | null>(null)
+
+  // initialize running state from localStorage so it persists across navigation/tabs
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('activeGameInfo')
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (parsed && parsed.game) {
+          // defer state update to avoid calling setState synchronously in effect
+          setTimeout(() => {
+            setIsGameRunning(true)
+            setActiveGame(parsed.game)
+          }, 0)
+        }
+      }
+    } catch { /* ignore */ }
+
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === 'activeGameInfo') {
+        if (ev.newValue) {
+          try {
+            const parsed = JSON.parse(ev.newValue)
+            // defer to avoid synchronous state update within storage event handler
+            setTimeout(() => {
+              setIsGameRunning(true)
+              setActiveGame(parsed.game)
+            }, 0)
+          } catch { setIsGameRunning(true) }
+        } else {
+          setIsGameRunning(false)
+          setActiveGame(null)
+        }
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
+
+  const gameDetails: Record<string, { title: string; rules: string; ages?: string[]; ageDescriptions?: Record<string,string> }> = {
+    'kraakhetwachtwoord': { title: 'Kraak het wachtwoord', rules: 'Ontcijfer het wachtwoord binnen de tijd. Punten worden gegeven per juist antwoord.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+      '8-10': 'Je krijgt een computer die niet meer werkt na een vreemde USB-stick. Zoek hints in de kamer en raad het wachtwoord. Leer hoe je sterke wachtwoorden maakt en hackers slim af bent!',
+      '11-13': 'Een computer is geblokkeerd na een verdachte USB-stick. Gebruik slimme hints (zoals foto’s en info) om het wachtwoord te achterhalen. Ontdek hoe makkelijk zwakke wachtwoorden te kraken zijn en hoe je ze beter maakt.',
+      '14-16': 'Een computer raakt besmet na het gebruik van een onbekende USB-stick. Analyseer de omgeving en gebruik indirecte hints om het wachtwoord te achterhalen. Leer waarom voorspelbare wachtwoorden onveilig zijn en hoe je ze sterker maakt.'
+    }},
+    'passwordzapper': { title: 'Password Zapper', rules: 'Verwijder de kwetsbare wachtwoorden door correcte keuzes te maken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+      '8-10': 'Vlieg met je ruimteschip en schiet slechte wachtwoorden kapot. Laat de goede wachtwoorden met rust. Leer spelenderwijs wat een sterk wachtwoord is!',
+      '11-13': 'Bestuur je schip en zap zwakke wachtwoorden met duidelijke patronen. Let goed op, want sommige lijken sterk maar zijn dat niet. Ontdek hoe je betere wachtwoorden herkent!',
+      '14-16': 'Zweef door de ruimte en analyseer complexe wachtwoorden voordat je ze zapt. Vermijd fouten en denk na over veiligheid en patronen. Leer hoe hackers zwakke wachtwoorden kunnen kraken.'
+    }},
+     'bugcleanup': { title: 'Bug Cleanup', rules: 'Verwijder bugs uit de code. Hoe sneller, hoe meer punten.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Klik de bugs weg en maak je computer weer snel. Hoe meer je er weghaalt, hoe beter alles werkt. Werk rustig en precies!',
+             '11-13': 'Verwijder bugs terwijl je muis traag reageert. Hoe beter je mikt, hoe sneller je systeem wordt. Let op snelheid én controle!',
+             '14-16': 'Ruim zoveel mogelijk bugs op in een traag systeem. Kleine en bewegende bugs maken het moeilijker. Optimaliseer je prestaties door efficiënt te werken.'
+         }},
+     'getalrace': { title: 'Getalrace', rules: 'Zoek het juiste getal. Sneller is beter.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Zoek de getallen in de juiste volgorde zo snel mogelijk. Klik ze één voor één aan. Hoe sneller, hoe beter!',
+             '11-13': 'Klik de juiste cijfers in volgorde onder tijdsdruk. Fouten kosten je tijd. Blijf gefocust!',
+             '14-16': 'Werk door een chaotisch raster en vind alle getallen in volgorde. Snelheid en nauwkeurigheid zijn cruciaal. Hoe laag is jouw tijd?'
+         }},
+     'reactietijdtest': { title: 'Reactietijd Test', rules: 'Klik zo snel mogelijk wanneer het signaal verschijnt.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Klik zo snel mogelijk wanneer je het signaal ziet. Test hoe snel jij reageert. Kan jij supersnel zijn?',
+             '11-13': 'Reageer zo snel mogelijk op onverwachte signalen. Vergelijk jouw score met anderen. Hoe scherp zijn jouw reflexen?',
+             '14-16': 'Meet je reactietijd tot op milliseconden. Snelle beslissingen maken het verschil. Analyseer hoe jij scoort tegenover de norm.'
+         }},
+     'whackthebug': { title: 'Whack the bug', rules: 'Sla de bugs die opduiken met de grootste nauwkeurigheid.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Sla op de bugs die verschijnen. Wees snel en raak zoveel mogelijk! Pas op dat je niets verkeerd raakt.',
+             '11-13': 'Klik snel op bugs die willekeurig opduiken. Soms verschijnen er foute targets. Blijf scherp!',
+             '14-16': 'Hoge snelheid en misleidende targets maken dit uitdagend. Sla alleen de echte bugs. Precisie is key.'
+         }},
+     'printerslaatophol': { title: 'Printer Slaat Op Hol', rules: 'Los de printopdracht puzzels op zodat de printer stopt.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Zoek wat niet past op het papier. Klik de foutjes aan. Help de printer stoppen!',
+             '11-13': 'Vind subtiele verschillen in de prints. Kijk goed naar details. Elke fout telt!',
+             '14-16': 'Analyseer complexe patronen en vind afwijkingen. Details maken het verschil. Denk logisch en snel.'
+         }},
+     'printerkraken': { title: 'Printer Kraken', rules: 'Vind de juiste sequentie om de printer te herstellen.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Tel de juiste dingen en maak de code. Voer de code in om de printer te openen. Goed kijken is belangrijk!',
+             '11-13': 'Zoek en tel objecten in de ruimte. Gebruik de juiste aantallen als code. Let op verborgen details!',
+             '14-16': 'Analyseer de ruimte en vermijd afleidingen. Combineer aantallen tot de juiste code. Nauwkeurigheid is cruciaal.'
+         }},
+     'herstartdepc': { title: 'Herstart de PC', rules: 'Herstart en herstel de systemen in de juiste volgorde.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Zoek wat er mis is met de computer. Los het stap voor stap op. Dan werkt hij weer!',
+             '11-13': 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!',
+             '14-16': 'Analyseer meerdere problemen en los ze in de juiste volgorde op. Vermijd foute keuzes. Denk als een echte IT’er.'
+         }},
+     'slimmethermostaat': { title: 'Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Zet de juiste dingen bij elkaar zodat alles werkt. Gebruik simpele plaatjes. Maak de thermostaat slim!',
+             '11-13': 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!',
+             '14-16': 'Debug en verbeter foutieve logica. Werk met regels en voorwaarden. Begrijp hoe systemen beslissingen nemen.'
+         }},
+     'fightthebug': { title: 'Fight the bug', rules: 'Versla de grote bug door de juiste acties te kiezen.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+             '8-10': 'Versla de grote bug door juiste keuzes te maken. Kies het juiste antwoord. Red de dag!',
+             '11-13': 'Beantwoord vragen en voer acties uit om de bug te verslaan. Fouten kosten je punten. Blijf scherp!',
+             '14-16': 'Ga de strijd aan met complexe vragen en scenario’s. Denk snel en correct. Gebruik alles wat je geleerd hebt!'
+         }},
+   }
+
+  function normalizeKey(s: string){ return s.toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'') }
+  function openGameModal(label: string){
+    // if another game is running and it's not this one, prevent opening
+    if (isGameRunning && activeGame && activeGame !== label) {
+      // silently ignore clicks or optionally show an alert
+      window.alert(`Kan ${label} niet openen — ${activeGame} is momenteel actief.`)
+      return
+    }
+    setSelectedGame(label); setSelectedAges([])
+  }
+  function closeModal(){ setSelectedGame(null); setSelectedAges([]) }
+  // when the popup selects an age, sync it here as a single-selection
+  function handleSelectAgeFromPopup(a: string){ setSelectedAges([a]) }
+  function startGame(){
+    if (!selectedGame) return
+    setIsGameRunning(true)
+    setActiveGame(selectedGame)
+    // show alert with game name
+    try { window.alert(`${selectedGame} is gestart`) } catch { /* ignore if alert unavailable */ }
+    // keep the popup open so the organizer can stop the game from the popup
+    console.log('Starting', selectedGame, selectedAges)
+    // persist running game so other pages know a game is active
+    try {
+      // derive day key from the current path (e.g. /day/maandag)
+      const p = typeof window !== 'undefined' ? window.location.pathname : ''
+      const m = p.match(/\/day\/(\w+)/i)
+      const dayKeyForPersist = m && m[1] ? m[1].toLowerCase() : ''
+      localStorage.setItem('activeGameInfo', JSON.stringify({ game: selectedGame, day: dayKeyForPersist }))
+    } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
+  }
+  function stopGame(){
+    if (!selectedGame) return
+    setIsGameRunning(false)
+    // capture name before clearing
+    const name = selectedGame
+    setActiveGame(null)
+    try { window.alert(`${name} is gestopt`) } catch { /* ignore */ }
+    console.log('Stopping', name)
+    // close the modal after stopping
+    closeModal()
+    try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+  }
+
   // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
   const inferredDay = (() => {
     if (day && String(day).trim()) return String(day)
@@ -517,16 +663,27 @@ export default function DayDashboard(){
                     default: inlineSrc = undefined
                   }
                   const style = inlineSrc ? { backgroundImage: `url(${inlineSrc})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined
+                  const disabled = !!(isGameRunning && activeGame && activeGame !== label)
                   return (
-                    <button key={idx} className="game-card" aria-label={`GameBtn-${idx+1}`} data-img={imgKey}>
+                    <button
+                      key={idx}
+                      className="game-card"
+                      aria-label={`GameBtn-${idx+1}`}
+                      data-img={imgKey}
+                      onClick={() => openGameModal(label)}
+                      disabled={disabled}
+                      aria-disabled={disabled}
+                      title={disabled ? `${label} is niet beschikbaar terwijl ${activeGame} draait` : undefined}
+                      style={disabled ? { opacity: 0.5, pointerEvents: 'none' } : undefined}
+                    >
                       {inlineSrc ? (
                         <img className="game-img-element" src={inlineSrc} alt={label} />
                       ) : (
                         <div className="game-img" style={style} />
                       )}
-                       <div className="game-title">{label}</div>
-                     </button>
-                   )
+                      <div className="game-title">{label}</div>
+                    </button>
+                  )
                   })()
                  ))}
             </div>
@@ -578,6 +735,38 @@ export default function DayDashboard(){
         </>
         )}
       </div>
+
+      {/* Render the reusable MinigamePopup */}
+      <MinigamePopup
+         isOpen={!!selectedGame}
+         title={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.title ?? selectedGame) : ''}
+         rules={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.rules ?? 'Geen spelregels beschikbaar.') : ''}
+         image={selectedGame ? ((): string | undefined => {
+          const key = normalizeKey(selectedGame)
+          switch (key) {
+            case 'kraakhetwachtwoord': return KRAAK_IMG
+            case 'passwordzapper': return PASS_IMG
+            case 'bugcleanup': return BUG_IMG
+            case 'getalrace': return GETAL_IMG
+            case 'reactietijdtest': return REACTIE_IMG
+            case 'whackthebug': return WHACK_IMG
+            case 'printerslaatophol': return PRINTER_SLAAT_IMG
+            case 'printerkraken': return PRINTER_KRAKEN_IMG
+            case 'herstartdepc': return HERSTART_IMG
+            case 'slimmethermostaat': return THERMOSTAAT_IMG
+            case 'fightthebug': return FIGHT_IMG
+            default: return undefined
+          }
+        })() : undefined}
+        ages={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ages : undefined}
+        ageDescriptions={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ageDescriptions : undefined}
+        initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
+        onSelectAge={handleSelectAgeFromPopup}
+        onStart={startGame}
+        onStop={stopGame}
+        onClose={closeModal}
+        running={isGameRunning && activeGame === selectedGame}
+       />
     </main>
   )
 }
