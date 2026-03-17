@@ -1,10 +1,10 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import type { Mock } from 'vitest'
-import { render, screen, waitFor } from '../../test/renderWithProviders'
-import DayDashboard from './DayDashboard'
+import { render, screen, waitFor } from '../../../test/renderWithProviders.tsx'
+import DayDashboard from './DayDashboard.tsx'
 
-// Mock the api module used by DayDashboard
-vi.mock('../../api', async () => {
+// Mock the api module used by DayDashboard (same path the component imports)
+vi.mock('../../../api', async () => {
   return {
     // no-arg mocks to avoid unused parameter lint errors
     fetchPlayersForSession: vi.fn(async () => ({ players: [] })),
@@ -12,7 +12,7 @@ vi.mock('../../api', async () => {
   }
 })
 
-import { fetchPlayersForSession, fetchLeaderboard } from '../../api'
+import { fetchPlayersForSession, fetchLeaderboard } from '../../../api'
 
 beforeEach(() => {
   // ensure a clean localStorage for session id between tests
