@@ -329,6 +329,8 @@ export default function DayDashboard(){
   // sessionId logic unchanged
   const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
   const [players, setPlayers] = useState<Player[]>([])
+  // track which playerNumbers are currently online (synchronized via localStorage)
+  const [onlinePlayers, setOnlinePlayers] = useState<string[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -338,6 +340,35 @@ export default function DayDashboard(){
   // global running state for the day dashboard: which game is active
   const [isGameRunning, setIsGameRunning] = useState(false)
   const [activeGame, setActiveGame] = useState<string | null>(null)
+
+  // helper to read onlinePlayers from localStorage safely
+  function readOnlinePlayersFromStorage(): string[] {
+    try {
+      const raw = localStorage.getItem('onlinePlayers')
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v))
+      // back-compat: comma-separated
+      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean)
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  // initialize and subscribe to localStorage changes for onlinePlayers
+  useEffect(() => {
+    // initial read
+    setOnlinePlayers(readOnlinePlayersFromStorage())
+    // storage event listener to sync across tabs
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === 'onlinePlayers') {
+        setOnlinePlayers(readOnlinePlayersFromStorage())
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   // initialize running state from localStorage so it persists across navigation/tabs
   useEffect(() => {
@@ -570,6 +601,7 @@ export default function DayDashboard(){
         if (!mounted) return
         const pResp = (p as { players?: unknown } | null) ?? null
         const rawPlayers = Array.isArray(pResp?.players) ? pResp!.players as unknown[] : []
+        const currentOnline = new Set(readOnlinePlayersFromStorage())
         const parsedPlayers: Player[] = rawPlayers.map((it) => {
            const obj = (it ?? {}) as Record<string, unknown>
            const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
@@ -585,22 +617,8 @@ export default function DayDashboard(){
             : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
             : '-'
 
-          // status detection: boolean flags or string values
-          const rawStatus = obj.status ?? obj.online ?? obj.isOnline ?? obj.actief
-          // Priority rules:
-          // - If the player has NOT entered a playerNumber => Offline
-          // - Otherwise, if a boolean/string status exists, use it
-          // - If no explicit status but playerNumber exists => Online
-          let status: string
-          if (!playerNumberStr) {
-            status = 'Offline'
-          } else if (typeof rawStatus === 'boolean') {
-            status = rawStatus ? 'Online' : 'Offline'
-          } else if (typeof rawStatus === 'string') {
-            status = /off/i.test(rawStatus) ? 'Offline' : 'Online'
-          } else {
-            status = 'Offline'
-          }
+          // derive status from localStorage onlinePlayers set; if no playerNumber -> Offline
+          const status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
 
           return { playerNumber: playerNumberStr, name: String(name), score, category, status }
         })
@@ -612,6 +630,14 @@ export default function DayDashboard(){
     })()
     return () => { mounted = false }
   }, [sessionId])
+
+  // whenever onlinePlayers updates, refresh players' status in state
+  useEffect(() => {
+    if (!players || players.length === 0) return
+    const onlineSet = new Set(onlinePlayers.map(s => String(s)))
+    setPlayers(prev => prev.map(p => ({ ...p, status: p.playerNumber && onlineSet.has(p.playerNumber) ? 'Online' : 'Offline' })))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlinePlayers])
 
   return (
     <main className="day-dashboard">

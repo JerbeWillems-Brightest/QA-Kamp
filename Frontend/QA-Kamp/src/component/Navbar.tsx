@@ -9,9 +9,33 @@ export default function Navbar() {
 
   function handleLogout(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
+    // If a player is logged in via sessionStorage, clear player session
+    const playerNumber = sessionStorage.getItem('playerNumber')
+    if (playerNumber) {
+      try {
+        const raw = localStorage.getItem('onlinePlayers')
+        if (raw) {
+          const arr = JSON.parse(raw) as string[]
+          const filtered = arr.filter(n => n !== playerNumber)
+          localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+        }
+      } catch {
+        // ignore
+      }
+      try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch {
+          // ignore error
+      }
+      navigate('/')
+      return
+    }
+
+    // Otherwise assume organizer logout
     auth.logout()
     navigate('/organizer-login')
   }
+
+  // Show logout button when organizer logged in or player session present
+  const playerNumber = typeof window !== 'undefined' ? sessionStorage.getItem('playerNumber') : null
 
   return (
     <nav className="navbar" style={{ display: 'flex', alignItems: 'center', padding: '8px 16px' }}>
@@ -22,7 +46,7 @@ export default function Navbar() {
       </div>
 
       <div style={{ marginLeft: 'auto', paddingRight: 16 }}>
-        {auth.user ? (
+        {auth.user || playerNumber ? (
           <button
             onClick={handleLogout}
             className="logout-button"

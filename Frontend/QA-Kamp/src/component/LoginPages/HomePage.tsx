@@ -1,17 +1,20 @@
 import { useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import LineImg from '../../assets/Line.png';
 import CurveImg from '../../assets/curve.png';
 import ShapeImg from '../../assets/shape.png';
 import StarImg from '../../assets/Star.png';
 import RocketImg from '../../assets/Rocketship.png';
+import { fetchPlayersForSession } from '../../api'
+import type { ApiPlayer } from '../../api'
 
 function HomePage() {
   const [playerNumber, setPlayerNumber] = useState('');
   const rawInputRef = useRef('');
   const [numberError, setNumberError] = useState('');
+  const navigate = useNavigate()
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
     // prevent submitting while there is a known input-format error
@@ -46,7 +49,7 @@ function HomePage() {
     // check uniqueness against localStorage key 'onlinePlayers' (assumed to be an array of used numbers)
     try {
       const raw = localStorage.getItem('onlinePlayers');
-      const onlinePlayers: string[] = raw ? JSON.parse(raw) : [];
+      const onlinePlayers: string[] = raw ? (JSON.parse(raw) as string[]) : [];
       if (Array.isArray(onlinePlayers) && onlinePlayers.includes(playerNumber)) {
         setNumberError('Dit spelersnummer is al in gebruik');
         return;
@@ -55,8 +58,44 @@ function HomePage() {
       // if parsing fails, ignore and allow (or treat as empty)
     }
 
-    setNumberError('');
-    alert(`Spelersnummer: ${playerNumber}`);
+    setNumberError('')
+
+    // check there is an active session
+    const sessionId = localStorage.getItem('currentSessionId')
+    if (!sessionId) {
+      setNumberError('Geen actieve sessie gevonden. Probeer later opnieuw.')
+      return
+    }
+
+    try {
+      const res = await fetchPlayersForSession(sessionId)
+      const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
+      if (!found) {
+        setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
+        return
+      }
+
+      // prevent multiple logins with same number in this browser
+      try {
+        const raw = localStorage.getItem('onlinePlayers')
+        const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
+        if (online.includes(playerNumber)) {
+          setNumberError('Dit spelersnummer is al ingelogd in deze browser')
+          return
+        }
+        online.push(playerNumber)
+        localStorage.setItem('onlinePlayers', JSON.stringify(online))
+      } catch {
+        // ignore localStorage errors
+      }
+
+      // store join info for waiting room
+      try { sessionStorage.setItem('playerNumber', playerNumber); sessionStorage.setItem('playerSessionId', sessionId) } catch { /* ignore */ }
+      navigate('/player/waiting')
+    } catch (err) {
+      console.error('error checking players', err)
+      setNumberError('Er is een fout opgetreden bij het controleren van je spelersnummer')
+    }
   }
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
