@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useLocation } from 'react-router-dom'
 import Navbar from '../Navbar'
 import { useSession } from '../../context/SessionContext'
 import { fetchPlayersForSession, fetchLeaderboard } from '../../api'
@@ -323,15 +323,34 @@ type LeaderboardItem = {
 
 export default function DayDashboard(){
   const { day } = useParams<{ day: string }>()
+  const loc = useLocation()
   const { currentSession } = useSession()
+  // sessionId logic unchanged
   const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
   const [players, setPlayers] = useState<Player[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loading, setLoading] = useState(false)
+
+  // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
+  const inferredDay = (() => {
+    if (day && String(day).trim()) return String(day)
+    try {
+      // Prefer router location (works with MemoryRouter in tests)
+      const p = loc?.pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '')
+      // Expecting path like /day/maandag or /day/maandag/...
+      const m = p.match(/\/day\/(\w+)/i)
+      if (m && m[1]) return m[1]
+    } catch {
+      // ignore
+    }
+    return ''
+  })()
+
   // compute the display label for the day using explicit mapping
   const dayLabel = (() => {
-    if (!day) return 'Dag dashboard'
-    const key = String(day).toLowerCase()
+    const theDay = (inferredDay || day || '').toString()
+    if (!theDay) return 'Dag dashboard'
+    const key = theDay.toLowerCase()
     switch (key) {
       case 'maandag':
         return 'Maandag - Security'
@@ -344,12 +363,9 @@ export default function DayDashboard(){
       case 'vrijdag':
         return 'Vrijdag - Fight the bug'
       default:
-        // Fallback: capitalize first letter and append a generic suffix
-        return `${day.charAt(0).toUpperCase() + day.slice(1)} - Security`
+        return `${theDay.charAt(0).toUpperCase() + theDay.slice(1)} - Security`
     }
   })()
-
-  // KRAAK_IMG and PASS_IMG are imported above; bundler provides final URLs
 
   // mapping of games per day (labels only). Images remain the same for all buttons.
   const gamesByDay: Record<string, string[]> = {
@@ -360,7 +376,7 @@ export default function DayDashboard(){
     vrijdag: ['Fight the bug'],
   }
 
-  const currentDayKey = (day || '').toString().toLowerCase()
+  const currentDayKey = (inferredDay || day || '').toString().toLowerCase()
   const gamesForDay = gamesByDay[currentDayKey] ?? gamesByDay['maandag']
 
   useEffect(() => {
@@ -443,8 +459,8 @@ export default function DayDashboard(){
           return { playerNumber: playerNumberStr, name: String(name), score, category, status }
         })
         setPlayers(parsedPlayers)
-      } catch (err) {
-        console.warn('Failed to fetch players', err)
+      } catch {
+        console.warn('Failed to fetch players')
       }
       setLoading(false)
     })()
