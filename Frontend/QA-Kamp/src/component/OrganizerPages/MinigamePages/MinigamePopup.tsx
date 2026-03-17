@@ -56,20 +56,6 @@ export default function MinigamePopup({
     document.head.insertAdjacentHTML('beforeend', `<style id="minigame-popup-styles">${styles}</style>`)
   }, [])
 
-  // Toggle modal-open class on the .day-dashboard element so the page blurs while modal open
-  useEffect(() => {
-    if (typeof document === 'undefined') return
-    const root = document.querySelector('.day-dashboard')
-    if (!root) return
-    if (isOpen) {
-      root.classList.add('modal-open')
-    } else {
-      root.classList.remove('modal-open')
-    }
-    // cleanup on unmount
-    return () => { root.classList.remove('modal-open') }
-  }, [isOpen])
-
   // internal UI state: selected single age and running state
   const [selectedAge, setSelectedAge] = useState<string | null>(initialAge ?? (ages.length ? ages[0] : null))
   const [isRunning, setIsRunning] = useState<boolean>(!!running)
@@ -88,6 +74,27 @@ export default function MinigamePopup({
   useEffect(() => {
     setIsRunning(!!running)
   }, [running])
+
+  // Toggle modal-open class on the .day-dashboard element so the page blurs while modal open
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const root = document.querySelector('.day-dashboard')
+    if (!root) return
+    // keep the page in the disabled/blurred state while either the modal is open OR a game is running
+    if (isOpen || isRunning) {
+      root.classList.add('modal-open')
+    } else {
+      root.classList.remove('modal-open')
+    }
+    // cleanup: only remove the class if neither modal is open nor a game is running
+    return () => {
+      try {
+        if (!(isOpen || isRunning)) root.classList.remove('modal-open')
+      } catch {
+        // ignore if DOM gone
+      }
+    }
+  }, [isOpen, isRunning])
 
   function handleSelectAge(a: string){
     setSelectedAge(a)
@@ -110,13 +117,16 @@ export default function MinigamePopup({
   // description prefers age-specific, then generic rules
   const displayedRules = (selectedAge && ageDescriptions && ageDescriptions[selectedAge]) ? ageDescriptions[selectedAge] : rules
 
-  // Don't allow closing the modal by clicking the overlay or the close button while a game is running
+  // Don't allow closing the modal by clicking the overlay while a game is running.
+  // The close 'X' button is permitted to close the modal even while a game runs; the page will remain disabled/blurred
+  // as long as `isRunning` is true (we add the modal-open class when either isOpen OR isRunning).
   const overlayClick = () => { if (!isRunning) onClose() }
 
   return (
     <div className="minigame-modal-overlay" role="dialog" aria-modal="true" onClick={overlayClick}>
       <div className="minigame-modal" onClick={(e) => e.stopPropagation()}>
-        <button id="ExitPopUpbtn" className="minigame-modal-close" aria-label="Sluit" onClick={() => { if (!isRunning) onClose() }} disabled={isRunning} style={isRunning ? { opacity: 0.4, pointerEvents: 'none' } : undefined}>✕</button>
+        {/* Close button is always clickable; closing the modal does not re-enable the UI while a game is running */}
+        <button id="ExitPopUpbtn" className="minigame-modal-close" aria-label="Sluit" onClick={() => onClose()}>✕</button>
 
         {image && <img className="minigame-modal-image" src={image} alt={title} />}
 
