@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { fetchLeaderboard } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
@@ -13,6 +13,83 @@ export default function WaitingRoom() {
   const [message, setMessage] = useState('Wacht tot het spel start')
   const [started, setStarted] = useState(false)
   const navigate = useNavigate()
+
+  // helper to enter the game page when an activeGame is announced
+  const enterGame = useCallback((details: { sessionId?: string; gameName?: string; day?: string; category?: string } | null) => {
+    if (!details) return
+    // ensure this is for our session
+    if (details.sessionId && sessionId && details.sessionId !== sessionId) return
+    try {
+      sessionStorage.setItem('playerActiveGame', JSON.stringify(details))
+    } catch (err) { void err }
+    // navigate to a dedicated player game page (route should exist) or fallback to /player/game
+    try {
+      navigate('/player/game')
+    } catch (err) { void err }
+  }, [navigate, sessionId])
+
+  // on mount check if there's already an active game (player joining late)
+  useEffect(() => {
+    try {
+      // support both keys: older 'activeGame' and organizer's 'activeGameInfo'
+      const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
+      if (rawInfo) {
+        const parsed = JSON.parse(rawInfo)
+        // map organizer's { game, day } to a common shape
+        const mapped = (parsed && (parsed.game || parsed.gameName))
+          ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
+          : parsed
+        enterGame(mapped)
+      }
+    } catch (err) { void err }
+
+    // listen for storage events from organizer when they start a game
+    function onStorage(e: StorageEvent) {
+      if (!e.key) return
+      if (e.key === 'activeGame' || e.key === 'activeGameInfo') {
+        try {
+          // storage events set newValue === null when a key is removed
+          if (e.newValue === null) {
+            try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
+            try { navigate('/player/waiting') } catch (err) { void err }
+            return
+          }
+          const val = e.newValue ?? e.oldValue
+          if (!val) return
+          const parsed = JSON.parse(val as string)
+          const mapped = (parsed && (parsed.game || parsed.gameName))
+            ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
+            : parsed
+          enterGame(mapped)
+        } catch (err) { void err }
+      }
+    }
+
+    // same-tab fallback: some browsers don't fire storage events in same window
+    function onCustom(ev: Event) {
+      try {
+        const ce = ev as CustomEvent
+        const details = ce.detail
+        if (!details) {
+          // cleared
+          try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
+          try { navigate('/player/waiting') } catch (err) { void err }
+          return
+        }
+        const mapped = (details && (details.game || details.gameName))
+          ? { gameName: details.gameName ?? details.game, day: details.day, category: details.category, sessionId: details.sessionId }
+          : details
+        enterGame(mapped)
+      } catch (err) { void err }
+    }
+
+    window.addEventListener('storage', onStorage)
+    window.addEventListener('activeGameInfoChanged', onCustom)
+    return () => {
+      try { window.removeEventListener('storage', onStorage) } catch (err) { void err }
+      try { window.removeEventListener('activeGameInfoChanged', onCustom) } catch (err) { void err }
+    }
+  }, [enterGame, navigate])
 
   // CSS for animated stars
   const starStyles = `
@@ -57,8 +134,11 @@ export default function WaitingRoom() {
       } catch { /* ignore */ }
     }
 
+    // Remove player only when the browser/tab is closed (beforeunload).
+    // Do NOT remove the player on component unmount so the online status persists
+    // when the player navigates within the SPA (e.g. to /player/game).
     window.addEventListener('beforeunload', cleanup)
-    return () => { cleanup(); window.removeEventListener('beforeunload', cleanup) }
+    return () => { try { window.removeEventListener('beforeunload', cleanup) } catch { /* ignore */ } }
   }, [playerNumber])
 
   useEffect(() => {
@@ -73,6 +153,17 @@ export default function WaitingRoom() {
         if (list.length > 0) {
           setStarted(true)
           setMessage('Welkom in de sessie, wacht tot de begeleider het spel start')
+          // if organizer started a game and also wrote activeGame to localStorage, enter it
+          try {
+            const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
+            if (rawInfo) {
+              const parsed = JSON.parse(rawInfo)
+              const mapped = (parsed && (parsed.game || parsed.gameName))
+                ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
+                : parsed
+              enterGame(mapped)
+            }
+          } catch (err) { void err }
         } else {
           setStarted(false)
           setMessage('Wacht tot het spel start')
@@ -85,7 +176,7 @@ export default function WaitingRoom() {
     }
     poll()
     return () => { mounted = false; if (timer) clearTimeout(timer) }
-  }, [sessionId])
+  }, [sessionId, enterGame])
 
   if (!sessionId || !playerNumber) {
     return (

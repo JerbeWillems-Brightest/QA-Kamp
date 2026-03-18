@@ -322,7 +322,7 @@ type LeaderboardItem = {
   score?: number
 }
 
-export default function DayDashboard(){
+function DayDashboard(){
   const { day } = useParams<{ day: string }>()
   const loc = useLocation()
   const { currentSession } = useSession()
@@ -453,7 +453,7 @@ export default function DayDashboard(){
              '11-13': 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!',
              '14-16': 'Analyseer meerdere problemen en los ze in de juiste volgorde op. Vermijd foute keuzes. Denk als een echte IT’er.'
          }},
-     'slimmethermostaat': { title: 'Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+     'slimmethermostaat': { title: '(Niet zo) Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
              '8-10': 'Zet de juiste dingen bij elkaar zodat alles werkt. Gebruik simpele plaatjes. Maak de thermostaat slim!',
              '11-13': 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!',
              '14-16': 'Debug en verbeter foutieve logica. Werk met regels en voorwaarden. Begrijp hoe systemen beslissingen nemen.'
@@ -555,6 +555,26 @@ export default function DayDashboard(){
 
   const currentDayKey = (inferredDay || day || '').toString().toLowerCase()
   const gamesForDay = gamesByDay[currentDayKey] ?? gamesByDay['maandag']
+
+  // helper to find the gameDetails entry for a given label robustly. Handles labels like
+  // '(Niet zo) slimme thermostaat' which normalize to 'nietzoslimmethermostaat' while
+  // the gameDetails key may be 'slimmethermostaat'. We try exact normalized match, strip
+  // common prefixes like 'nietzo', and fall back to partial matches.
+  function findGameDetailsByLabel(label: string | null | undefined) {
+    if (!label) return undefined
+    const key = normalizeKey(label)
+    if (gameDetails[key]) return gameDetails[key]
+    // try stripping a leading 'nietzo' (handles '(Niet zo) slimme thermostaat')
+    if (key.startsWith('nietzo')) {
+      const alt = key.replace(/^nietzo/, '')
+      if (gameDetails[alt]) return gameDetails[alt]
+    }
+    // try fuzzy partial matches: either direction
+    for (const k of Object.keys(gameDetails)) {
+      if (k.includes(key) || key.includes(k)) return gameDetails[k]
+    }
+    return undefined
+  }
 
   useEffect(() => {
     // only run effect when we have a session id
@@ -763,36 +783,44 @@ export default function DayDashboard(){
       </div>
 
       {/* Render the reusable MinigamePopup */}
-      <MinigamePopup
-         isOpen={!!selectedGame}
-         title={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.title ?? selectedGame) : ''}
-         rules={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.rules ?? 'Geen spelregels beschikbaar.') : ''}
-         image={selectedGame ? ((): string | undefined => {
-          const key = normalizeKey(selectedGame)
-          switch (key) {
-            case 'kraakhetwachtwoord': return KRAAK_IMG
-            case 'passwordzapper': return PASS_IMG
-            case 'bugcleanup': return BUG_IMG
-            case 'getalrace': return GETAL_IMG
-            case 'reactietijdtest': return REACTIE_IMG
-            case 'whackthebug': return WHACK_IMG
-            case 'printerslaatophol': return PRINTER_SLAAT_IMG
-            case 'printerkraken': return PRINTER_KRAKEN_IMG
-            case 'herstartdepc': return HERSTART_IMG
-            case 'slimmethermostaat': return THERMOSTAAT_IMG
-            case 'fightthebug': return FIGHT_IMG
-            default: return undefined
-          }
-        })() : undefined}
-        ages={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ages : undefined}
-        ageDescriptions={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ageDescriptions : undefined}
-        initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
-        onSelectAge={handleSelectAgeFromPopup}
-        onStart={startGame}
-        onStop={stopGame}
-        onClose={closeModal}
-        running={isGameRunning && activeGame === selectedGame}
-       />
-    </main>
-  )
-}
+      {(() => {
+        const details = findGameDetailsByLabel(selectedGame)
+        const selectedKey = selectedGame ? normalizeKey(selectedGame) : ''
+        return (
+          <MinigamePopup
+            isOpen={!!selectedGame}
+            title={selectedGame ? (details?.title ?? selectedGame) : ''}
+            rules={selectedGame ? (details?.rules ?? 'Geen spelregels beschikbaar.') : ''}
+            image={selectedGame ? ((): string | undefined => {
+              switch (selectedKey) {
+                 case 'kraakhetwachtwoord': return KRAAK_IMG
+                 case 'passwordzapper': return PASS_IMG
+                 case 'bugcleanup': return BUG_IMG
+                 case 'getalrace': return GETAL_IMG
+                 case 'reactietijdtest': return REACTIE_IMG
+                 case 'whackthebug': return WHACK_IMG
+                 case 'printerslaatophol': return PRINTER_SLAAT_IMG
+                 case 'printerkraken': return PRINTER_KRAKEN_IMG
+                 case 'herstartdepc': return HERSTART_IMG
+                 case 'slimmethermostaat': return THERMOSTAAT_IMG
+                 case 'nietzoslimmethermostaat': return THERMOSTAAT_IMG
+                 case 'fightthebug': return FIGHT_IMG
+                 default: return undefined
+               }
+             })() : undefined}
+            ages={details?.ages}
+             ageDescriptions={details?.ageDescriptions}
+             initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
+             onSelectAge={handleSelectAgeFromPopup}
+             onStart={startGame}
+             onStop={stopGame}
+             onClose={closeModal}
+             running={isGameRunning && activeGame === selectedGame}
+           />
+         )
+       })()}
+     </main>
+   )
+ }
+
+export default DayDashboard
