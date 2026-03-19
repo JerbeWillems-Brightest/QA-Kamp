@@ -1,7 +1,32 @@
 // Base URL from environment, strip trailing /api if present
 let API_URL = import.meta.env.VITE_API_URL || ''
-if (API_URL.endsWith('/api')) {
-  API_URL = API_URL.slice(0, -4)
+const API_URL_DEV = import.meta.env.VITE_API_URL_DEV || ''
+const FRONTEND_DEV_RAW = import.meta.env.VITE_FRONTEND_DEV || ''
+
+// If no explicit API_URL is set, allow using a dev API URL when the frontend is
+// running from a known development preview origin (or when running Vite dev mode).
+try {
+  // normalize API_URL and API_URL_DEV
+  if (API_URL.endsWith('/api')) API_URL = API_URL.slice(0, -4)
+  if (API_URL_DEV.endsWith('/api')) {
+    // remove trailing /api
+    // eslint-disable-next-line prefer-const
+    API_URL = API_URL || API_URL_DEV.slice(0, -4)
+  }
+} catch {
+  // ignore
+}
+
+// If API_URL is empty and API_URL_DEV is provided, decide whether to use it.
+if (!API_URL && API_URL_DEV) {
+  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
+  const devFrontends = FRONTEND_DEV_RAW.split(',').map((s: string) => s.trim()).filter(Boolean)
+  const isDevFrontend = devFrontends.length > 0 ? devFrontends.some((d: string) => currentOrigin.includes(d)) : false
+  // import.meta.env.DEV is true when running with Vite in dev mode; allow that too.
+  if (isDevFrontend || import.meta.env.DEV) {
+    API_URL = API_URL_DEV
+    if (API_URL.endsWith('/api')) API_URL = API_URL.slice(0, -4)
+  }
 }
 
 export interface LoginResponse {
