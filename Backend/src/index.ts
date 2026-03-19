@@ -49,8 +49,13 @@ const corsOptions = {
 }
 
 app.use(cors(corsOptions))
-// also ensure preflight requests are answered
-app.options('*', cors(corsOptions))
+// Handle preflight (OPTIONS) requests for any path using the same CORS options
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') {
+    return cors(corsOptions)(req as any, res as any, next as any)
+  }
+  next()
+})
 
 app.use(express.json())
 
