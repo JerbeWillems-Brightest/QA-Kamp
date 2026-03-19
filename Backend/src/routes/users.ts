@@ -1,72 +1,72 @@
 import { Router } from 'express'
 import type { Request, Response } from 'express'
-import { Item } from '../models/Item'
+import { Organizer } from '../models/Organizer'
 
 const router = Router()
 
-// GET all items
+// GET all organizers
 router.get('/', async (_req: Request, res: Response) => {
   try {
-    const items = await Item.find().sort({ createdAt: -1 })
-    res.json(items)
+    const users = await Organizer.find().sort({ createdAt: -1 })
+    res.json(users)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
 
-// GET single item
+// GET single organizer
 router.get('/:id', async (req: Request, res: Response) => {
   try {
-    const item = await Item.findById(req.params.id)
-    if (!item) {
-      res.status(404).json({ error: 'Item not found' })
+    const user = await Organizer.findById(req.params.id)
+    if (!user) {
+      res.status(404).json({ error: 'Organizer not found' })
       return
     }
-    res.json(item)
+    res.json(user)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
 })
 
-// POST create item
+// POST create organizer
 router.post('/', async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body
-    const item = await Item.create({ name, description })
-    res.status(201).json(item)
+    const { email, password, name } = req.body
+    const user = await Organizer.create({ email, password, name })
+    res.status(201).json(user)
   } catch (err) {
     res.status(400).json({ error: String(err) })
   }
 })
 
-// PUT update item
+// PUT update organizer
 router.put('/:id', async (req: Request, res: Response) => {
   try {
-    const { name, description } = req.body
-    const item = await Item.findByIdAndUpdate(
+    const { email, password, name } = req.body
+    const user = await Organizer.findByIdAndUpdate(
       req.params.id,
-      { name, description },
+      { email, password, name },
       { new: true, runValidators: true }
     )
-    if (!item) {
-      res.status(404).json({ error: 'Item not found' })
+    if (!user) {
+      res.status(404).json({ error: 'Organizer not found' })
       return
     }
-    res.json(item)
+    res.json(user)
   } catch (err) {
     res.status(400).json({ error: String(err) })
   }
 })
 
-// DELETE item
+// DELETE organizer
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
-    const item = await Item.findByIdAndDelete(req.params.id)
-    if (!item) {
-      res.status(404).json({ error: 'Item not found' })
+    const user = await Organizer.findByIdAndDelete(req.params.id)
+    if (!user) {
+      res.status(404).json({ error: 'Organizer not found' })
       return
     }
-    res.json({ message: 'Item deleted' })
+    res.json({ message: 'Organizer deleted' })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
