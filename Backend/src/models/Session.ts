@@ -7,6 +7,7 @@ export interface ISession extends Document {
   code: string
   active: boolean
   createdAt: Date
+  activeGameInfo?: any
 }
 
 const SessionSchema = new Schema<ISession>(
@@ -18,6 +19,8 @@ const SessionSchema = new Schema<ISession>(
     code: { type: String, required: true, unique: true, index: true },
     active: { type: Boolean, default: true },
     createdAt: { type: Date, default: () => new Date() },
+    // optional object describing the currently active game (persisted so remote clients can poll)
+    activeGameInfo: { type: Schema.Types.Mixed, default: null },
   }
   // no timestamps — createdAt handled explicitly
 )

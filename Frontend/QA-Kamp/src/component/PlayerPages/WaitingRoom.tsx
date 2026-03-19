@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -171,6 +171,21 @@ export default function WaitingRoom() {
                 ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
                 : parsed
               enterGame(mapped)
+            } else {
+              // no local activeGameInfo persisted (e.g. different device). Ask server for authoritative activeGameInfo
+              try {
+                const sid = sessionId
+                if (sid) {
+                  const serverResp = await getActiveGameInfo(sid)
+                  if (serverResp && serverResp.activeGameInfo) {
+                    const info = serverResp.activeGameInfo as any
+                    try { localStorage.setItem('activeGameInfo', JSON.stringify(info)) } catch (err) { void err }
+                    try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
+                    const mapped = (info && (info.game || info.gameName)) ? { gameName: info.gameName ?? info.game, day: info.day, category: info.category, sessionId: info.sessionId } : info
+                    enterGame(mapped)
+                  }
+                }
+              } catch (err) { void err }
             }
           } catch (err) { void err }
         } else {

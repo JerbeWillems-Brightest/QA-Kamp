@@ -478,7 +478,7 @@ function DayDashboard(){
   function closeModal(){ setSelectedGame(null); setSelectedAges([]) }
   // when the popup selects an age, sync it here as a single-selection
   function handleSelectAgeFromPopup(a: string){ setSelectedAges([a]) }
-  function startGame(){
+  async function startGame(){
     if (!selectedGame) return
     setIsGameRunning(true)
     setActiveGame(selectedGame)
@@ -492,7 +492,19 @@ function DayDashboard(){
       const p = typeof window !== 'undefined' ? window.location.pathname : ''
       const m = p.match(/\/day\/(\w+)/i)
       const dayKeyForPersist = m && m[1] ? m[1].toLowerCase() : ''
-      localStorage.setItem('activeGameInfo', JSON.stringify({ game: selectedGame, day: dayKeyForPersist }))
+      const info = { game: selectedGame, day: dayKeyForPersist }
+      localStorage.setItem('activeGameInfo', JSON.stringify(info))
+      // dispatch custom event for same-tab listeners
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
+      // also persist to server so remote clients can poll
+      try {
+        const sid = localStorage.getItem('currentSessionId')
+        if (sid) {
+          // import API lazily to avoid circular imports
+          const api = await import('../../../api')
+          try { await api.setActiveGameInfo(sid, info) } catch (err) { console.warn('Failed to set activeGameInfo on server', err) }
+        }
+      } catch (err) { console.warn('Failed to notify server of activeGameInfo', err) }
     } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
   }
   function stopGame(){

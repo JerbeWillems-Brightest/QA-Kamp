@@ -433,4 +433,35 @@ router.get('/:id/leaderboard', async (req, res) => {
   }
 })
 
+// Set activeGameInfo for a session (organizer action)
+router.post('/:id/active-game', async (req, res) => {
+  try {
+    const { id } = req.params
+    const payload = req.body || null
+    // ensure session exists
+    const session = await Session.findById(id)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+    // persist activeGameInfo as provided (or null to clear)
+    session.activeGameInfo = payload
+    await session.save()
+    return res.json({ success: true, activeGameInfo: session.activeGameInfo })
+  } catch (err) {
+    console.error('Set activeGameInfo error:', err)
+    return res.status(500).json({ error: 'Failed to set active game info' })
+  }
+})
+
+// Get activeGameInfo for a session
+router.get('/:id/active-game', async (req, res) => {
+  try {
+    const { id } = req.params
+    const session = await Session.findById(id).select('activeGameInfo')
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+    return res.json({ activeGameInfo: session.activeGameInfo || null })
+  } catch (err) {
+    console.error('Get activeGameInfo error:', err)
+    return res.status(500).json({ error: 'Failed to get active game info' })
+  }
+})
+
 export default router

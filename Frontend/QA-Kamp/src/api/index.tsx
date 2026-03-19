@@ -282,4 +282,24 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
   return { leaderboard: list }
 }
 
+export async function setActiveGameInfo(sessionId: string, info: Record<string, unknown> | null): Promise<{ success?: boolean; activeGameInfo?: unknown }> {
+  const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(info) })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function getActiveGameInfo(sessionId: string): Promise<{ activeGameInfo?: unknown }> {
+  const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
 // heartbeat endpoint is intentionally not exported for now; if needed implement and enable.
