@@ -18,12 +18,39 @@ const FRONTEND_ORIGIN_RAW = process.env.FRONTEND_ORIGIN || '*'
 // support comma-separated origins in env: "http://localhost:5173,https://app.vercel.app"
 const FRONTEND_ORIGINS = FRONTEND_ORIGIN_RAW.split(',').map((s) => s.trim()).filter(Boolean)
 
+// Build a robust CORS config: accept the origin if it matches the configured list,
+// otherwise reject. This allows multiple origins (localhost + Vercel) and provides
+// useful logs when an origin is blocked.
+// Also support a FRONTEND_DEV env var (single or comma-separated) that will be
+// automatically appended to the allowed origins at runtime when present.
+const allowedOrigins = [...FRONTEND_ORIGINS]
+const frontendDevRaw = process.env.FRONTEND_DEV || ''
+if (frontendDevRaw) {
+  const devOrigins = frontendDevRaw.split(',').map((s) => s.trim()).filter(Boolean)
+  for (const o of devOrigins) {
+    if (!allowedOrigins.includes(o)) allowedOrigins.push(o)
+  }
+}
+
 const corsOptions = {
-  origin: FRONTEND_ORIGINS.length === 1 ? FRONTEND_ORIGINS[0] : FRONTEND_ORIGINS,
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // If no origin (e.g. server-to-server or same-origin), allow
+    if (!origin) return callback(null, true)
+    // If wildcard present, allow everything
+    if (allowedOrigins.includes('*')) return callback(null, true)
+    if (allowedOrigins.includes(origin)) return callback(null, true)
+    console.warn(`CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(',')}`)
+    return callback(new Error('Not allowed by CORS'))
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+  optionsSuccessStatus: 204,
 }
 
 app.use(cors(corsOptions))
+// also ensure preflight requests are answered
+app.options('*', cors(corsOptions))
 
 app.use(express.json())
 
