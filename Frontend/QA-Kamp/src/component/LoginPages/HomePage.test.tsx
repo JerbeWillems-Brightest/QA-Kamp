@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import HomePage from './HomePage'
+import * as api from '../../api'
 import { BrowserRouter } from 'react-router-dom'
 
 describe('HomePage (merged tests)', () => {
@@ -57,8 +58,11 @@ describe('HomePage (merged tests)', () => {
     spy.mockRestore()
   })
 
-  it('unique spelersnummer is accepted (calls alert)', () => {
-    const spy = vi.spyOn(window, 'alert').mockImplementation(() => {})
+  it('unique spelersnummer is accepted (stores player in sessionStorage and navigates waiting)', async () => {
+    // mock an active session and API response
+    localStorage.setItem('currentSessionId', 'sess-1')
+    const fetchMock = vi.spyOn(api, 'fetchPlayersForSession').mockResolvedValue({ players: [{ playerNumber: '123', name: 'Test', age: 12, category: '11-13' }] })
+
     render(
       <BrowserRouter>
         <HomePage />
@@ -67,8 +71,14 @@ describe('HomePage (merged tests)', () => {
     const input = screen.getByPlaceholderText(/Voer spelersnummer in/i)
     fireEvent.change(input, { target: { value: '123' } })
     fireEvent.click(screen.getByRole('button', { name: /Speel mee/i }))
-    expect(spy).toHaveBeenCalledWith('Spelersnummer: 123')
-    spy.mockRestore()
+
+    // wait for async navigation side-effects
+    await screen.findByRole('button', { name: /Speel mee/i })
+
+    expect(sessionStorage.getItem('playerNumber')).toBe('123')
+    expect(sessionStorage.getItem('playerSessionId')).toBe('sess-1')
+
+    fetchMock.mockRestore()
   })
 
   it('more than 3 digits is not ok (shows error and blocks submit)', async () => {

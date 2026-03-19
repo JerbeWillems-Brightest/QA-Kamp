@@ -152,7 +152,6 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
 
 /* Main content: make main fill available viewport height (minus navbar/footer) so grid can occupy it */
 .main {
-    padding: 8px;
     min-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height));
     box-sizing: border-box;
     display: flex;
@@ -245,7 +244,6 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
 /* Main content: limit height so footer + bottom bar remain visible; allow internal scrolling if content overflows */
 .main {
     flex: 1 1 auto;
-    padding: 8px; /* smaller */
     text-align: center;
     box-sizing: border-box;
     max-height: calc(100vh - var(--nav-height) - var(--footer-height) - var(--bottombar-height));
@@ -440,7 +438,7 @@ hr { margin: 6px 0; border: none; border-top: 1px solid rgba(0,0,0,0.06); }
     margin: 0 auto; /* center the grid */
     grid-template-columns: repeat(3, 1fr);
     grid-template-rows: 1fr 1fr;
-    gap: 18px; /* small gutter between columns */
+    gap: 10px; /* small gutter between columns */
     width: 100%;
     align-items: stretch; /* let cells stretch vertically */
     justify-items: center;

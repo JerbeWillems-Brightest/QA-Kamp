@@ -322,13 +322,15 @@ type LeaderboardItem = {
   score?: number
 }
 
-export default function DayDashboard(){
+function DayDashboard(){
   const { day } = useParams<{ day: string }>()
   const loc = useLocation()
   const { currentSession } = useSession()
   // sessionId logic unchanged
   const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
   const [players, setPlayers] = useState<Player[]>([])
+  // track which playerNumbers are currently online (synchronized via localStorage)
+  const [onlinePlayers, setOnlinePlayers] = useState<string[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -338,6 +340,35 @@ export default function DayDashboard(){
   // global running state for the day dashboard: which game is active
   const [isGameRunning, setIsGameRunning] = useState(false)
   const [activeGame, setActiveGame] = useState<string | null>(null)
+
+  // helper to read onlinePlayers from localStorage safely
+  function readOnlinePlayersFromStorage(): string[] {
+    try {
+      const raw = localStorage.getItem('onlinePlayers')
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v))
+      // back-compat: comma-separated
+      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean)
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  // initialize and subscribe to localStorage changes for onlinePlayers
+  useEffect(() => {
+    // initial read
+    setOnlinePlayers(readOnlinePlayersFromStorage())
+    // storage event listener to sync across tabs
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === 'onlinePlayers') {
+        setOnlinePlayers(readOnlinePlayersFromStorage())
+      }
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+  }, [])
 
   // initialize running state from localStorage so it persists across navigation/tabs
   useEffect(() => {
@@ -422,7 +453,7 @@ export default function DayDashboard(){
              '11-13': 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!',
              '14-16': 'Analyseer meerdere problemen en los ze in de juiste volgorde op. Vermijd foute keuzes. Denk als een echte IT’er.'
          }},
-     'slimmethermostaat': { title: 'Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
+     'slimmethermostaat': { title: '(Niet zo) Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
              '8-10': 'Zet de juiste dingen bij elkaar zodat alles werkt. Gebruik simpele plaatjes. Maak de thermostaat slim!',
              '11-13': 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!',
              '14-16': 'Debug en verbeter foutieve logica. Werk met regels en voorwaarden. Begrijp hoe systemen beslissingen nemen.'
@@ -525,6 +556,26 @@ export default function DayDashboard(){
   const currentDayKey = (inferredDay || day || '').toString().toLowerCase()
   const gamesForDay = gamesByDay[currentDayKey] ?? gamesByDay['maandag']
 
+  // helper to find the gameDetails entry for a given label robustly. Handles labels like
+  // '(Niet zo) slimme thermostaat' which normalize to 'nietzoslimmethermostaat' while
+  // the gameDetails key may be 'slimmethermostaat'. We try exact normalized match, strip
+  // common prefixes like 'nietzo', and fall back to partial matches.
+  function findGameDetailsByLabel(label: string | null | undefined) {
+    if (!label) return undefined
+    const key = normalizeKey(label)
+    if (gameDetails[key]) return gameDetails[key]
+    // try stripping a leading 'nietzo' (handles '(Niet zo) slimme thermostaat')
+    if (key.startsWith('nietzo')) {
+      const alt = key.replace(/^nietzo/, '')
+      if (gameDetails[alt]) return gameDetails[alt]
+    }
+    // try fuzzy partial matches: either direction
+    for (const k of Object.keys(gameDetails)) {
+      if (k.includes(key) || key.includes(k)) return gameDetails[k]
+    }
+    return undefined
+  }
+
   useEffect(() => {
     // only run effect when we have a session id
     if (!sessionId) {
@@ -570,6 +621,7 @@ export default function DayDashboard(){
         if (!mounted) return
         const pResp = (p as { players?: unknown } | null) ?? null
         const rawPlayers = Array.isArray(pResp?.players) ? pResp!.players as unknown[] : []
+        const currentOnline = new Set(readOnlinePlayersFromStorage())
         const parsedPlayers: Player[] = rawPlayers.map((it) => {
            const obj = (it ?? {}) as Record<string, unknown>
            const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
@@ -585,22 +637,8 @@ export default function DayDashboard(){
             : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
             : '-'
 
-          // status detection: boolean flags or string values
-          const rawStatus = obj.status ?? obj.online ?? obj.isOnline ?? obj.actief
-          // Priority rules:
-          // - If the player has NOT entered a playerNumber => Offline
-          // - Otherwise, if a boolean/string status exists, use it
-          // - If no explicit status but playerNumber exists => Online
-          let status: string
-          if (!playerNumberStr) {
-            status = 'Offline'
-          } else if (typeof rawStatus === 'boolean') {
-            status = rawStatus ? 'Online' : 'Offline'
-          } else if (typeof rawStatus === 'string') {
-            status = /off/i.test(rawStatus) ? 'Offline' : 'Online'
-          } else {
-            status = 'Offline'
-          }
+          // derive status from localStorage onlinePlayers set; if no playerNumber -> Offline
+          const status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
 
           return { playerNumber: playerNumberStr, name: String(name), score, category, status }
         })
@@ -612,6 +650,14 @@ export default function DayDashboard(){
     })()
     return () => { mounted = false }
   }, [sessionId])
+
+  // whenever onlinePlayers updates, refresh players' status in state
+  useEffect(() => {
+    if (!players || players.length === 0) return
+    const onlineSet = new Set(onlinePlayers.map(s => String(s)))
+    setPlayers(prev => prev.map(p => ({ ...p, status: p.playerNumber && onlineSet.has(p.playerNumber) ? 'Online' : 'Offline' })))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlinePlayers])
 
   return (
     <main className="day-dashboard">
@@ -737,36 +783,44 @@ export default function DayDashboard(){
       </div>
 
       {/* Render the reusable MinigamePopup */}
-      <MinigamePopup
-         isOpen={!!selectedGame}
-         title={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.title ?? selectedGame) : ''}
-         rules={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.rules ?? 'Geen spelregels beschikbaar.') : ''}
-         image={selectedGame ? ((): string | undefined => {
-          const key = normalizeKey(selectedGame)
-          switch (key) {
-            case 'kraakhetwachtwoord': return KRAAK_IMG
-            case 'passwordzapper': return PASS_IMG
-            case 'bugcleanup': return BUG_IMG
-            case 'getalrace': return GETAL_IMG
-            case 'reactietijdtest': return REACTIE_IMG
-            case 'whackthebug': return WHACK_IMG
-            case 'printerslaatophol': return PRINTER_SLAAT_IMG
-            case 'printerkraken': return PRINTER_KRAKEN_IMG
-            case 'herstartdepc': return HERSTART_IMG
-            case 'slimmethermostaat': return THERMOSTAAT_IMG
-            case 'fightthebug': return FIGHT_IMG
-            default: return undefined
-          }
-        })() : undefined}
-        ages={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ages : undefined}
-        ageDescriptions={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ageDescriptions : undefined}
-        initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
-        onSelectAge={handleSelectAgeFromPopup}
-        onStart={startGame}
-        onStop={stopGame}
-        onClose={closeModal}
-        running={isGameRunning && activeGame === selectedGame}
-       />
-    </main>
-  )
-}
+      {(() => {
+        const details = findGameDetailsByLabel(selectedGame)
+        const selectedKey = selectedGame ? normalizeKey(selectedGame) : ''
+        return (
+          <MinigamePopup
+            isOpen={!!selectedGame}
+            title={selectedGame ? (details?.title ?? selectedGame) : ''}
+            rules={selectedGame ? (details?.rules ?? 'Geen spelregels beschikbaar.') : ''}
+            image={selectedGame ? ((): string | undefined => {
+              switch (selectedKey) {
+                 case 'kraakhetwachtwoord': return KRAAK_IMG
+                 case 'passwordzapper': return PASS_IMG
+                 case 'bugcleanup': return BUG_IMG
+                 case 'getalrace': return GETAL_IMG
+                 case 'reactietijdtest': return REACTIE_IMG
+                 case 'whackthebug': return WHACK_IMG
+                 case 'printerslaatophol': return PRINTER_SLAAT_IMG
+                 case 'printerkraken': return PRINTER_KRAKEN_IMG
+                 case 'herstartdepc': return HERSTART_IMG
+                 case 'slimmethermostaat': return THERMOSTAAT_IMG
+                 case 'nietzoslimmethermostaat': return THERMOSTAAT_IMG
+                 case 'fightthebug': return FIGHT_IMG
+                 default: return undefined
+               }
+             })() : undefined}
+            ages={details?.ages}
+             ageDescriptions={details?.ageDescriptions}
+             initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
+             onSelectAge={handleSelectAgeFromPopup}
+             onStart={startGame}
+             onStop={stopGame}
+             onClose={closeModal}
+             running={isGameRunning && activeGame === selectedGame}
+           />
+         )
+       })()}
+     </main>
+   )
+ }
+
+export default DayDashboard

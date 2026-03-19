@@ -11,6 +11,8 @@ import BrightestLogo from './assets/BrightestLogo.png'
 import { AuthProvider } from './context/AuthContext'
 import { SessionProvider } from './context/SessionContext'
 import Navbar from './component/Navbar'
+import WaitingRoom from './component/PlayerPages/WaitingRoom'
+import PlayerGame from './component/PlayerPages/PlayerGame'
 
 function App() {
     return (
@@ -29,6 +31,8 @@ function App() {
               <Route path="/start-session" element={<StartSession />} />
               <Route path="/day-overview" element={<DayOverview />} />
               <Route path="/day/:day" element={<DayDashboard />} />
+              <Route path="/player/waiting" element={<WaitingRoom />} />
+              <Route path="/player/game" element={<PlayerGame />} />
               <Route path="/manage-players" element={<ManagePlayers />} />
               <Route path="/scoreboard" element={<Scoreboard />} />
             </Routes>
