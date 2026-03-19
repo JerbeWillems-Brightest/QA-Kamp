@@ -347,9 +347,9 @@ function DayDashboard(){
       const raw = localStorage.getItem('onlinePlayers')
       if (!raw) return []
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed.map((v) => String(v))
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v).padStart(3,'0'))
       // back-compat: comma-separated
-      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean)
+      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean).map(s => String(s).padStart(3,'0'))
       return []
     } catch {
       return []
@@ -507,7 +507,7 @@ function DayDashboard(){
       } catch (err) { console.warn('Failed to notify server of activeGameInfo', err) }
     } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
   }
-  function stopGame(){
+  async function stopGame(){
     if (!selectedGame) return
     setIsGameRunning(false)
     // capture name before clearing
@@ -517,7 +517,23 @@ function DayDashboard(){
     console.log('Stopping', name)
     // close the modal after stopping
     closeModal()
-    try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+    // Clear localStorage + notify same-tab and other tabs
+    try {
+      try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+      // same-tab listeners: dispatch custom event with null detail so onCustom handler treats it as cleared
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
+      // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
+      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
+    } catch (e) { console.warn('Failed to notify clients of stop', e) }
+
+    // Also clear server-side persisted activeGameInfo so remote devices polling the server know it's cleared
+    try {
+      const sid = localStorage.getItem('currentSessionId')
+      if (sid) {
+        const api = await import('../../../api')
+        try { await api.setActiveGameInfo(sid, null) } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
+      }
+    } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
   }
 
   // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
@@ -637,7 +653,8 @@ function DayDashboard(){
         const parsedPlayers: Player[] = rawPlayers.map((it) => {
            const obj = (it ?? {}) as Record<string, unknown>
            const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
-           const playerNumberStr = String(playerNumber ?? '').trim()
+           // normalize playerNumber to 3-digit string so it matches onlinePlayers format
+           const playerNumberStr = String(playerNumber ?? '').trim().padStart(3,'0')
            const name = typeof obj.name === 'string' ? obj.name : (typeof obj.naam === 'string' ? obj.naam : '')
            const scoreVal = obj.score ?? obj.points ?? obj.punten
            const score = typeof scoreVal === 'number' ? scoreVal : Number(scoreVal ?? 0) || 0

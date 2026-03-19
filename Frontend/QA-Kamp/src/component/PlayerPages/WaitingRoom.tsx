@@ -7,6 +7,28 @@ import ShapeImg from '../../assets/shape.png'
 import CurveImg from '../../assets/curve.png'
 import StarImg from '../../assets/Star.png'
 
+// Helper: safely map unknown activeGame payloads to a typed shape
+function mapActiveInfo(v: unknown): { gameName?: string; day?: string; category?: string; sessionId?: string } | null {
+  if (!v) return null
+  if (typeof v === 'string') {
+    try {
+      const parsed = JSON.parse(v)
+      return mapActiveInfo(parsed)
+    } catch {
+      return null
+    }
+  }
+  if (typeof v !== 'object') return null
+  const rec = v as Record<string, unknown>
+  const gameName = typeof rec['gameName'] === 'string' ? rec['gameName'] as string : (typeof rec['game'] === 'string' ? rec['game'] as string : undefined)
+  const day = typeof rec['day'] === 'string' ? rec['day'] as string : undefined
+  const category = typeof rec['category'] === 'string' ? rec['category'] as string : undefined
+  const sessionId = typeof rec['sessionId'] === 'string' ? rec['sessionId'] as string : (rec['_id'] ? String(rec['_id']) : undefined)
+  // if we have at least one relevant field return mapped object, otherwise return null
+  if (gameName || day || category || sessionId) return { gameName, day, category, sessionId }
+  return null
+}
+
 export default function WaitingRoom() {
   const playerNumber = sessionStorage.getItem('playerNumber') || ''
   // prefer sessionStorage (set during login), but fall back to localStorage.currentSessionId
@@ -43,12 +65,8 @@ export default function WaitingRoom() {
       // support both keys: older 'activeGame' and organizer's 'activeGameInfo'
       const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
       if (rawInfo) {
-        const parsed = JSON.parse(rawInfo)
-        // map organizer's { game, day } to a common shape
-        const mapped = (parsed && (parsed.game || parsed.gameName))
-          ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
-          : parsed
-        enterGame(mapped)
+        const mapped = mapActiveInfo(rawInfo)
+        if (mapped) enterGame(mapped)
       }
     } catch (err) { void err }
 
@@ -65,11 +83,8 @@ export default function WaitingRoom() {
           }
           const val = e.newValue ?? e.oldValue
           if (!val) return
-          const parsed = JSON.parse(val as string)
-          const mapped = (parsed && (parsed.game || parsed.gameName))
-            ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
-            : parsed
-          enterGame(mapped)
+          const mapped = mapActiveInfo(val)
+          if (mapped) enterGame(mapped)
         } catch (err) { void err }
       }
     }
@@ -85,10 +100,8 @@ export default function WaitingRoom() {
           try { navigate('/player/waiting') } catch (err) { void err }
           return
         }
-        const mapped = (details && (details.game || details.gameName))
-          ? { gameName: details.gameName ?? details.game, day: details.day, category: details.category, sessionId: details.sessionId }
-          : details
-        enterGame(mapped)
+        const mapped = mapActiveInfo(details)
+        if (mapped) enterGame(mapped)
       } catch (err) { void err }
     }
 
@@ -120,11 +133,16 @@ export default function WaitingRoom() {
   useEffect(() => {
     if (!playerNumber) return
     try {
+      // keep the stored representation as the plain playerNumber (matches tests)
+      const storedVal = String(playerNumber)
+      const padded = String(playerNumber).padStart(3, '0')
       const raw = localStorage.getItem('onlinePlayers')
       const parsed = raw ? JSON.parse(raw) as unknown : []
       const arr = Array.isArray(parsed) ? parsed as string[] : []
-      if (!arr.includes(String(playerNumber))) {
-        const next = [...arr, String(playerNumber)]
+      // if neither the stored form nor padded form exists, add the stored form
+      const hasStored = arr.includes(storedVal) || arr.includes(padded)
+      if (!hasStored) {
+        const next = [...arr, storedVal]
         localStorage.setItem('onlinePlayers', JSON.stringify(next))
         // notify other tabs
         window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) }))
@@ -137,7 +155,9 @@ export default function WaitingRoom() {
       try {
         const raw2 = localStorage.getItem('onlinePlayers')
         const arr2 = raw2 ? JSON.parse(raw2) as string[] : []
-        const filtered = Array.isArray(arr2) ? arr2.filter(x => x !== String(playerNumber)) : []
+        const plain = String(playerNumber)
+        const padded = String(playerNumber).padStart(3,'0')
+        const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
         window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
       } catch { /* ignore */ }
@@ -166,11 +186,8 @@ export default function WaitingRoom() {
           try {
             const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
             if (rawInfo) {
-              const parsed = JSON.parse(rawInfo)
-              const mapped = (parsed && (parsed.game || parsed.gameName))
-                ? { gameName: parsed.gameName ?? parsed.game, day: parsed.day, category: parsed.category, sessionId: parsed.sessionId }
-                : parsed
-              enterGame(mapped)
+              const mapped = mapActiveInfo(rawInfo)
+              if (mapped) enterGame(mapped)
             } else {
               // no local activeGameInfo persisted (e.g. different device). Ask server for authoritative activeGameInfo
               try {
@@ -178,11 +195,11 @@ export default function WaitingRoom() {
                 if (sid) {
                   const serverResp = await getActiveGameInfo(sid)
                   if (serverResp && serverResp.activeGameInfo) {
-                    const info = serverResp.activeGameInfo as any
+                    const info = serverResp.activeGameInfo
                     try { localStorage.setItem('activeGameInfo', JSON.stringify(info)) } catch (err) { void err }
                     try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
-                    const mapped = (info && (info.game || info.gameName)) ? { gameName: info.gameName ?? info.game, day: info.day, category: info.category, sessionId: info.sessionId } : info
-                    enterGame(mapped)
+                    const mapped = mapActiveInfo(info)
+                    if (mapped) enterGame(mapped)
                   }
                 }
               } catch (err) { void err }
