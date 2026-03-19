@@ -5,24 +5,37 @@
   "main": "index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
-    "build": "tsc -p .",
+    "seed": "ts-node src/seed.ts",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/src/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "npm run build && mocha --reporter spec test-js --exit"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.3.1",
     "cors": "^2.8.5",
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "mongoose": "^9.2.4"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/bcryptjs": "^2.4.2",
     "@types/node": "^25.3.3",
     "concurrently": "^9.2.1",
     "ts-node-dev": "^2.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "mocha": "^10.2.0",
+    "ts-node": "^10.9.1",
+    "supertest": "^6.3.3",
+    "@types/supertest": "^2.0.12",
+    "mongodb-memory-server": "^8.11.0",
+    "@types/mocha": "^10.0.1",
+    "chai": "^4.3.7",
+    "@types/chai": "^4.3.4"
   }
 }

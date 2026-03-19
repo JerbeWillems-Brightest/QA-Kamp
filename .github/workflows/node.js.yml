@@ -1,0 +1,85 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  frontendEnBackend:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [22.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: List package files (debug)
+        run: |
+          echo "Repository top-level files:"
+          ls -la || true
+          echo "Searching for package-lock.json files (no depth limit):"
+          find . -type f -name 'package-lock.json' -print || true
+          echo "Searching for package.json files (no depth limit):"
+          find . -type f -name 'package.json' -print || true
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          # candidate dependency files: prefer package-lock, but fall back to package.json in each project
+          cache-dependency-path: |
+            Frontend/QA-Kamp/package-lock.json
+            Frontend/package-lock.json
+            Backend/package-lock.json
+            Frontend/QA-Kamp/package.json
+            Frontend/package.json
+            Backend/package.json
+
+
+      - name: Install dependencies
+        working-directory: Frontend/QA-Kamp
+        run: |
+          # use npm ci when a lockfile exists, otherwise fall back to npm install
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "Lockfile found — running npm ci"
+            npm ci
+          else
+            echo "No lockfile — running npm install"
+            npm install
+          fi
+
+      - name: Build
+        working-directory: Frontend/QA-Kamp
+        run: npm run build --if-present
+
+      - name: Run tests
+        working-directory: Frontend/QA-Kamp
+        run: npm test
+
+      # Also run backend tests on the same runner to avoid job scheduling delays
+      - name: Install backend dependencies
+        working-directory: Backend
+        run: |
+          # use npm ci when a lockfile exists, otherwise fall back to npm install
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            echo "Lockfile found — running npm ci"
+            npm ci
+          else
+            echo "No lockfile — running npm install"
+            npm install
+          fi
+
+      - name: Run backend tests inside Node Docker (avoids libssl host issues)
+        if: runner.os == 'Linux'
+        run: |
+          echo "Running backend tests inside node:18-bullseye container"
+          docker run --rm \
+            -v "${{ github.workspace }}:/work" \
+            -w /work/Backend \
+            node:18-bullseye \
+            bash -lc "set -e; if [ -f package-lock.json ]; then npm ci; else npm install; fi; npm test"
