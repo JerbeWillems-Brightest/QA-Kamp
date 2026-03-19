@@ -13,6 +13,7 @@ describe('OrganizerLogin (merged tests)', () => {
     localStorage.clear()
   })
 
+  // Test: controleert dat het loginformulier de verwachte invoervelden en knop rendert
   it('renders form fields', () => {
     render(
       <BrowserRouter>
@@ -26,6 +27,7 @@ describe('OrganizerLogin (merged tests)', () => {
     expect(screen.getByRole('button', { name: /inloggen|login|starten/i })).toBeDefined()
   })
 
+  // Test: valideert onjuist e-mail-formaat en toont een foutmelding
   it('shows invalid email format error', async () => {
     render(
       <BrowserRouter>
@@ -42,6 +44,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/Ongeldig emailadres/i)
   })
 
+  // Test: als het e-mailveld leeg is wordt de juiste validatiefout getoond
   it('empty email shows validation error', async () => {
     render(
       <BrowserRouter>
@@ -56,6 +59,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/Vul je emailadres in/i)
   })
 
+  // Test: als het wachtwoordveld leeg is wordt de juiste validatiefout getoond
   it('empty password shows validation error', async () => {
     render(
       <BrowserRouter>
@@ -70,6 +74,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/Vul je wachtwoord in/i)
   })
 
+  // Test: succesvolle login roept de API aan en zorgt dat de call wordt uitgevoerd
   it('successful login calls api and navigates', async () => {
     mockLogin.mockResolvedValue({ user: { id: 'u1', email: 'u@x.com' } })
 
@@ -88,6 +93,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await waitFor(() => expect(mockLogin).toHaveBeenCalled())
   })
 
+  // Test: wanneer backend een bericht teruggeeft (bijv. user not found), wordt die boodschap getoond
   it('non-existing email shows backend message as general error', async () => {
     mockLogin.mockResolvedValue({ message: 'User not found' })
     render(
@@ -104,6 +110,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/User not found/i)
   })
 
+  // Test: bij fout (rejected promise) van API tonen we de algemene foutmelding voor ongeldige inloggegevens
   it('invalid credentials show general error', async () => {
     mockLogin.mockRejectedValue(new Error('Invalid credentials'))
     render(
@@ -120,6 +127,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/Foute Inloggegevens/i)
   })
 
+  // Test: als backend een field-specifieke error retourneert, wordt deze onder het veld getoond
   it('backend returns field error shows under field', async () => {
     mockLogin.mockRejectedValue(JSON.stringify({ field: 'email', error: 'Invalid' }))
     render(
@@ -136,6 +144,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await screen.findByText(/Invalid/i)
   })
 
+  // Test: controleert dat de "Terug naar home" link aanwezig is en een aria-label heeft
   it('pressing back link navigates to home', () => {
     render(
       <BrowserRouter>

@@ -9,6 +9,7 @@ describe('HomePage (merged tests)', () => {
     localStorage.clear()
   })
 
+  // Test: controleert dat het invoerveld, de speel-knop en de organizer-login link gerenderd worden
   it('renders input and play button', () => {
     render(
       <BrowserRouter>
@@ -21,6 +22,7 @@ describe('HomePage (merged tests)', () => {
     expect(screen.getByText(/Log hier in als organisator/i)).toBeDefined()
   })
 
+  // Test: controleert dat letters invoer (non-digit) geweigerd wordt en een format-foutmelding toont
   it('rejects non-digit input (shows format error)', () => {
     render(
       <BrowserRouter>
@@ -32,6 +34,7 @@ describe('HomePage (merged tests)', () => {
     expect(screen.getByText(/Geen letters of speciale tekens toegestaan/i)).toBeDefined()
   })
 
+  // Test: accepteert alleen cijfers en zorgt dat invoer tot 3 cijfers wordt afgekapt
   it('accepts digits only and truncates to 3', () => {
     render(
       <BrowserRouter>
@@ -43,6 +46,7 @@ describe('HomePage (merged tests)', () => {
     expect((input as HTMLInputElement).value).toBe('123')
   })
 
+  // Test: submit met leeg veld toont validatiefout en roept geen alert aan
   it('submitting empty shows error and does not alert', async () => {
     const spy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     const { container } = render(
@@ -58,6 +62,7 @@ describe('HomePage (merged tests)', () => {
     spy.mockRestore()
   })
 
+  // Test: wanneer het spelersnummer uniek is wordt het in sessionStorage gezet en op correcte sessie genavigeerd
   it('unique spelersnummer is accepted (stores player in sessionStorage and navigates waiting)', async () => {
     // mock an active session and API response
     localStorage.setItem('currentSessionId', 'sess-1')
@@ -81,6 +86,7 @@ describe('HomePage (merged tests)', () => {
     fetchMock.mockRestore()
   })
 
+  // Test: invoer langer dan 3 cijfers wordt afgekapt, toont foutmelding en verhindert submit
   it('more than 3 digits is not ok (shows error and blocks submit)', async () => {
     const spy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     render(
@@ -99,6 +105,7 @@ describe('HomePage (merged tests)', () => {
     spy.mockRestore()
   })
 
+  // Test: invoer korter dan 3 cijfers toont foutmelding en voorkomt submit
   it('less than 3 digits is not ok (shows error and blocks submit)', async () => {
     const spy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     render(
@@ -114,6 +121,7 @@ describe('HomePage (merged tests)', () => {
     spy.mockRestore()
   })
 
+  // Test: gebruikt spelersnummer (in localStorage.onlinePlayers) wordt geweigerd en toont foutmelding
   it('already used spelersnummer is not ok (shows error and blocks submit)', async () => {
     const spy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     // mark '321' as already used
@@ -132,6 +140,7 @@ describe('HomePage (merged tests)', () => {
     spy.mockRestore()
   })
 
+  // Test: letters of speciale tekens in invoer tonen format-fout en blokkeren submit
   it('letters or special chars used => spelersnummer not ok (blocks submit)', async () => {
     const spy = vi.spyOn(window, 'alert').mockImplementation(() => {})
     render(
@@ -147,6 +156,7 @@ describe('HomePage (merged tests)', () => {
     spy.mockRestore()
   })
 
+  // Test: controleert dat de rocket-afbeelding aanwezig is en dat het input-veld de juiste attributen heeft
   it('rocket img exists and attributes present', () => {
     render(
       <BrowserRouter>
