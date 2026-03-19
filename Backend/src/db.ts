@@ -64,10 +64,29 @@ export async function seedOrganizers() {
     const count = await Organizer.countDocuments()
     if (count === 0) {
       console.log('Seeding default organizer...')
-      // Use the organizer credentials requested by the user for easy testing
-      await Organizer.create({ email: 'organizer@qa-kamp.be', password: 'Organizer123!', name: 'Organizer' })
-      await Organizer.create({ email: 'organizer@test.be', password: 'Test123!', name: 'Organizer' })
-      console.log('Default organizer created: organizer@qa-kamp.be / Organizer123!')
+
+      // Read credentials from environment variables to avoid committing plaintext passwords
+      const o1Email = process.env.ORGANIZER1_EMAIL
+      const o1Password = process.env.ORGANIZER1_PASSWORD
+      const o2Email = process.env.ORGANIZER2_EMAIL
+      const o2Password = process.env.ORGANIZER2_PASSWORD
+
+      let created = 0
+      if (o1Email && o1Password) {
+        await Organizer.create({ email: o1Email, password: o1Password, name: 'Organizer' })
+        console.log(`Created organizer: ${o1Email}`)
+        created++
+      }
+      if (o2Email && o2Password) {
+        await Organizer.create({ email: o2Email, password: o2Password, name: 'Organizer' })
+        console.log(`Created organizer: ${o2Email}`)
+        created++
+      }
+
+      if (created === 0) {
+        console.warn('No ORGANIZERx_EMAIL/PASSWORD env vars found — skipping seeding of default organizers.')
+        console.warn('To seed organizers, set ORGANIZER1_EMAIL, ORGANIZER1_PASSWORD (and optionally ORGANIZER2_...) in your .env file.')
+      }
     } else {
       console.log('Organizers already exist, skipping seed')
     }
