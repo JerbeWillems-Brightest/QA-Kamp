@@ -4,16 +4,63 @@ import { Player } from '../models/Player'
 
 const router = express.Router()
 
-// Create a session
+// Helper: generate short unique alphanumeric code (default 6 chars)
+function generateCode(length = 6) {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // exclude ambiguous 0,O,1,I
+  let out = ''
+  for (let i = 0; i < length; i++) out += chars.charAt(Math.floor(Math.random() * chars.length))
+  return out
+}
+
+// Create a session (start session)
 router.post('/', async (req, res) => {
   try {
     const { organizerId, name } = req.body
     if (!organizerId) return res.status(400).json({ error: 'organizerId is required' })
-    const session = await Session.create({ organizerId, name })
-    return res.status(201).json({ session })
+
+    // create session with unique code; retry on duplicate code collisions
+    const MAX_ATTEMPTS = 10
+    let attempt = 0
+    let createdSession = null
+    while (attempt < MAX_ATTEMPTS && !createdSession) {
+      const code = generateCode(6)
+      try {
+        createdSession = await Session.create({ organizerId, name, code, active: true })
+      } catch (err: any) {
+        const dup = err && (err.code === 11000 || (err.codeName && err.codeName === 'DuplicateKey'))
+        if (dup) {
+          attempt++
+          continue
+        }
+        console.error('Create session DB error:', err)
+        return res.status(500).json({ error: 'Failed to create session' })
+      }
+    }
+
+    if (!createdSession) return res.status(500).json({ error: 'Could not generate unique session code, please retry' })
+    return res.status(201).json({ session: createdSession })
   } catch (err) {
     console.error('Create session error:', err)
     return res.status(500).json({ error: 'Failed to create session' })
+  }
+})
+
+// Join a session by code
+router.post('/join', async (req, res) => {
+  try {
+    const { code } = req.body
+    if (!code) return res.status(400).json({ error: 'code is required' })
+    const codeClean = String(code).trim().toUpperCase()
+
+    const session = await Session.findOne({ code: codeClean })
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+    if (!session.active) return res.status(400).json({ error: 'Session is not active' })
+
+    // return session id and basic info for the client to join
+    return res.json({ session: { id: session._id, organizerId: session.organizerId, name: session.name, code: session.code } })
+  } catch (err) {
+    console.error('Join session error:', err)
+    return res.status(500).json({ error: 'Failed to join session' })
   }
 })
 
