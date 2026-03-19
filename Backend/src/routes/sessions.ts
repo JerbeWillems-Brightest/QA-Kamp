@@ -109,6 +109,9 @@ router.get('/', async (req, res) => {
 // Create multiple players for a session
 router.post('/:id/players', async (req, res) => {
   try {
+    // dynamic endpoint - ensure responses are not cached at the edge
+    res.set('Cache-Control', 'no-store')
+    res.set('Vary', 'Origin')
     const { id } = req.params
     // Accept both formats: raw array body OR { players: [...] }
     // Some clients send the array as the root body (req.body = [ ... ]) while
@@ -284,6 +287,9 @@ router.post('/:id/players', async (req, res) => {
  // List players for a session
  router.get('/:id/players', async (req, res) => {
   try {
+    // dynamic endpoint - prevent edge caching and vary by Origin
+    res.set('Cache-Control', 'no-store')
+    res.set('Vary', 'Origin')
     const { id } = req.params
     const players = await Player.find({ sessionId: id }).sort({ playerNumber: 1 })
     return res.json({ players })
@@ -342,6 +348,9 @@ router.delete('/:id/players/:playerNumber', async (req, res) => {
 // Heartbeat: update lastSeen for a player in session (used by player clients)
 router.post('/:id/players/:playerNumber/heartbeat', async (req, res) => {
   try {
+    // dynamic endpoint - don't cache
+    res.set('Cache-Control', 'no-store')
+    res.set('Vary', 'Origin')
     const { id, playerNumber } = req.params
     const now = new Date()
     const updated = await Player.findOneAndUpdate(
@@ -360,6 +369,8 @@ router.post('/:id/players/:playerNumber/heartbeat', async (req, res) => {
 // Leaderboard: players sorted by score descending
 router.get('/:id/leaderboard', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store')
+    res.set('Vary', 'Origin')
     const { id } = req.params
     // return players with name, playerNumber, category, score sorted by score desc
     const list = await Player.find({ sessionId: id }).select('name playerNumber category score').sort({ score: -1 })
