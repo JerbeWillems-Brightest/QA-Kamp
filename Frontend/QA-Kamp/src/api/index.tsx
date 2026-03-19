@@ -84,6 +84,17 @@ export async function getActiveSession(): Promise<{ session?: { id: string; orga
   })
 }
 
+// Join the currently active session using only the player's number.
+// Returns { session, player } on success.
+export async function joinActiveSession(playerNumber: string): Promise<{ session?: { id: string; code?: string; name?: string }, player?: any }> {
+  const url = `${API_URL}/api/sessions/active/join`
+  return safeFetch<{ session?: { id: string; code?: string; name?: string }, player?: any }>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ playerNumber }),
+  })
+}
+
 export interface SessionResponse {
   session?: { id: string; organizerId?: string; startedAt: string; name?: string };
   success?: boolean;

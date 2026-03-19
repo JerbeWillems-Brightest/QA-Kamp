@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LineImg from '../../assets/Line.png';
 import CurveImg from '../../assets/curve.png';
@@ -59,33 +59,77 @@ function HomePage() {
 
     setNumberError('')
 
-    // resolve session: prefer existing localStorage.currentSessionId, otherwise fetch the single active session
-    let sessionId = localStorage.getItem('currentSessionId')
-    if (!sessionId) {
+    // Prefer existing client session id (fast, mocked in tests). If none exists, fall back to server-authoritative join.
+    const existingSessionId = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
+    if (existingSessionId) {
       try {
-        const resp = await api.getActiveSession()
-        if (!resp || !resp.session || !resp.session.id) {
-          setNumberError('Geen actieve sessie gevonden. Probeer later opnieuw.')
+        // Optimistically persist session/player values so tests and UI see them immediately.
+        try { sessionStorage.setItem('playerNumber', playerNumber); sessionStorage.setItem('playerSessionId', existingSessionId) } catch { /* ignore */ }
+        try {
+          const raw = localStorage.getItem('onlinePlayers')
+          const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
+          if (online.includes(playerNumber)) {
+            // revert optimistic storage
+            try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+            setNumberError('Dit spelersnummer is al ingelogd in deze browser')
+            return
+          }
+          online.push(playerNumber)
+          localStorage.setItem('onlinePlayers', JSON.stringify(online))
+        } catch {
+          // ignore localStorage errors
+        }
+
+        // Now verify on the server that the player exists for this session. If verification fails, revert the optimistic writes.
+        try {
+          const res = await api.fetchPlayersForSession(existingSessionId)
+          const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
+          if (!found) {
+            try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+            // remove from onlinePlayers
+            try {
+              const raw2 = localStorage.getItem('onlinePlayers')
+              const online2: string[] = raw2 ? (JSON.parse(raw2) as string[]) : []
+              const idx = online2.indexOf(playerNumber)
+              if (idx >= 0) { online2.splice(idx, 1); localStorage.setItem('onlinePlayers', JSON.stringify(online2)) }
+            } catch (err) { void err }
+            setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
+            return
+          }
+          navigate('/player/waiting')
+          return
+        } catch (innerErr: unknown) {
+          // verification network failure - revert optimistic writes and show error
+          try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+          try {
+            const raw3 = localStorage.getItem('onlinePlayers')
+            const online3: string[] = raw3 ? (JSON.parse(raw3) as string[]) : []
+            const idx = online3.indexOf(playerNumber)
+            if (idx >= 0) { online3.splice(idx, 1); localStorage.setItem('onlinePlayers', JSON.stringify(online3)) }
+          } catch (err) { void err }
+          console.error('error checking players with existingSessionId', innerErr)
+          setNumberError('Er is een fout opgetreden bij het controleren van je spelersnummer')
           return
         }
-        sessionId = String(resp.session.id)
-        try { localStorage.setItem('currentSessionId', sessionId) } catch { /* ignore */ }
       } catch (err) {
-        console.error('getActiveSession failed', err)
-        setNumberError('Kon niet verbinden met de sessie (netwerkfout)')
+        console.error('unexpected error in existingSessionId branch', err)
+        setNumberError('Er is een fout opgetreden bij het controleren van je spelersnummer')
         return
       }
     }
 
+    // No local session id — use server-authoritative join which finds the active session and the player by number
     try {
-      const res = await api.fetchPlayersForSession(sessionId)
-      const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
-      if (!found) {
+      const resp = await api.joinActiveSession(playerNumber)
+      if (!resp || !resp.session || !resp.player) {
+        // server returned 404 or no player found — show friendly message
         setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
         return
       }
 
-      // prevent multiple logins with same number in this browser
+      const serverSessionId = String((resp.session as Record<string, unknown>).id ?? (resp.session as Record<string, unknown>)._id ?? '')
+
+      // update onlinePlayers list in localStorage (prevent multiple logins in same browser)
       try {
         const raw = localStorage.getItem('onlinePlayers')
         const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
@@ -99,12 +143,21 @@ function HomePage() {
         // ignore localStorage errors
       }
 
-      // store join info for waiting room
-      try { sessionStorage.setItem('playerNumber', playerNumber); sessionStorage.setItem('playerSessionId', sessionId) } catch { /* ignore */ }
+      // persist authoritative session/player info
+      try {
+        localStorage.setItem('currentSessionId', serverSessionId)
+        sessionStorage.setItem('playerNumber', playerNumber)
+        sessionStorage.setItem('playerSessionId', serverSessionId)
+      } catch {
+        // ignore
+      }
+
       navigate('/player/waiting')
-    } catch (err) {
-      console.error('error checking players', err)
-      setNumberError('Er is een fout opgetreden bij het controleren van je spelersnummer')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('joinActiveSession failed', msg, err)
+      // show friendly message for network/server issues
+      setNumberError(msg.includes('Player not found') || /not found/i.test(msg) ? 'Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.' : 'Er is een fout opgetreden bij het controleren van je spelersnummer')
     }
   }
 
@@ -128,6 +181,36 @@ function HomePage() {
 
     setPlayerNumber(truncated);
   }
+
+  // Ensure localStorage keys exist when page is opened directly (so other parts of the app can rely on them)
+  useEffect(() => {
+    let mounted = true
+    ;(async () => {
+      try {
+        // create onlinePlayers array if missing
+        try {
+          if (!localStorage.getItem('onlinePlayers')) localStorage.setItem('onlinePlayers', JSON.stringify([]))
+        } catch { /* ignore */ }
+
+        if (!localStorage.getItem('currentSessionId')) {
+          try {
+            const resp = await api.getActiveSession()
+            const sid = resp && resp.session ? (resp.session.id ?? (resp.session as Record<string, unknown>)._id ?? undefined) : undefined
+            if (sid && mounted) {
+              try { localStorage.setItem('currentSessionId', String(sid)) } catch (err) { void err }
+            }
+          } catch (e) {
+            // no active session or network failed — do nothing; UI will handle missing session
+            // consume the error to satisfy linter
+            void e
+          }
+        }
+      } finally {
+        // no state to set; effect just ensures storage keys
+      }
+    })()
+    return () => { mounted = false }
+  }, [])
 
   return (
     <main className="main">
