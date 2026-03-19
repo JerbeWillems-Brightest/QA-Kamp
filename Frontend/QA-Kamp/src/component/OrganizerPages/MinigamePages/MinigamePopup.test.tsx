@@ -14,6 +14,8 @@ describe('MinigamePopup (checklist tests)', () => {
     '14-16 jaar': 'Regels voor 14-16',
   }
 
+  // Test: controleert dat de sluitknop (X), startknop, titel, algemene regels
+  // en de leeftijdspillen correct gerenderd worden.
   it('renders the close X button, start button, title, rules and age pills', () => {
     const onClose = vi.fn()
     const onStart = vi.fn()
@@ -44,6 +46,9 @@ describe('MinigamePopup (checklist tests)', () => {
     ages.forEach(a => expect(screen.getByRole('button', { name: a })).toBeDefined())
   })
 
+  // Test: start het spel en controleer dat onStart wordt aangeroepen,
+  // dat daarna de stopknop zichtbaar is en dat onStop het spel stopt en
+  // de startknop weer zichtbaar maakt.
   it('shows stop button after starting the game and calls onStart', async () => {
     const onClose = vi.fn()
     const onStart = vi.fn()
@@ -77,6 +82,8 @@ describe('MinigamePopup (checklist tests)', () => {
     expect(screen.getByRole('button', { name: /spel starten/i })).toBeDefined()
   })
 
+  // Test: controleert dat bij selectie van een leeftijd de juiste
+  // leeftijdsspecifieke regels worden getoond en dat onSelectAge wordt aangeroepen.
   it('shows the correct age-specific rules when selecting an age', () => {
     const onClose = vi.fn()
     const onSelectAge = vi.fn()

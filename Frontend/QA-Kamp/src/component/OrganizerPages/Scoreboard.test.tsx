@@ -22,6 +22,8 @@ describe('Scoreboard checklist tests', () => {
     localStorage.clear()
   })
 
+  // Test: controleert dat de scoreboard pagina een lijst met spelers toont,
+  // inclusief spelernummer, naam en score voor elk item.
   it('shows a list of players (playerNumber, name, score) on the scoreboard page', async () => {
     // seed a logged-in organizer so SessionProvider will call getSessions
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
@@ -55,6 +57,8 @@ describe('Scoreboard checklist tests', () => {
     })
   })
 
+  // Test: controleert dat de weergegeven lijst gesorteerd is op score aflopend
+  // en bij gelijke score op naam oplopend.
   it('list is sorted by highest score first and then by name', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 'org2', email: 'o2@x' }))
     localStorage.setItem('currentSessionId', 's-score-2')
@@ -103,6 +107,7 @@ describe('Scoreboard checklist tests', () => {
     }
   })
 
+  // Test: controleert dat de "Terug" knop aanwezig is op de scoreboard pagina
   it('back button is present on the page', () => {
     // no session needed for back button presence
     render(
@@ -119,6 +124,7 @@ describe('Scoreboard checklist tests', () => {
     expect(screen.getByText(/Terug/i)).toBeDefined()
   })
 
+  // Test: controleert dat de uitlog-knop in de header zichtbaar is wanneer een gebruiker is ingelogd
   it('logout button is present on the scoreboard page', async () => {
     // seed a logged-in user so Navbar shows logout
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))

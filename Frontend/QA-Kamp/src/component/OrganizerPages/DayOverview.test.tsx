@@ -16,6 +16,7 @@ describe('DayOverview (merged tests)', () => {
     localStorage.clear()
   })
 
+  // Test: rendert de hoofdtitel en minimaal één dagknop (bijv. Maandag)
   it('renders title and day buttons', () => {
     render(
       <MemoryRouter>
@@ -37,6 +38,7 @@ describe('DayOverview (merged tests)', () => {
     expect(screen.getByRole('button', { name: /Maandag/i })).toBeDefined()
   })
 
+  // Test: toont expliciet de QA kalender titel op de pagina
   it('renders QA kalender title', () => {
     render(
       <MemoryRouter>
@@ -50,6 +52,7 @@ describe('DayOverview (merged tests)', () => {
     expect(screen.getByText(/kalender/i)).toBeDefined()
   })
 
+  // Test: standaard geselecteerde dag is afgeleid van de huidige datum (aria-pressed=true)
   it('default selected day is based on current date', () => {
     render(
       <MemoryRouter>
@@ -66,6 +69,7 @@ describe('DayOverview (merged tests)', () => {
     expect(pressed).toBeDefined()
   })
 
+  // Test: klikken op een uitgeschakelde dag doet niets en veroorzaakt geen fout
   it('clicking a disabled day does nothing', () => {
     // we can't easily simulate date; assert disabled buttons have not-allowed cursor
     render(
@@ -86,6 +90,7 @@ describe('DayOverview (merged tests)', () => {
     expect(true).toBeTruthy()
   })
 
+  // Test: controleert aanwezigheid van de drie hoofdactieknoppen (Scorebord, Spelers beheren, QA stoppen)
   it('has three main action buttons', () => {
     render(
       <MemoryRouter>
@@ -101,7 +106,7 @@ describe('DayOverview (merged tests)', () => {
     expect(screen.getByText(/QA kamp stoppen/i)).toBeDefined()
   })
 
-  // Checklist test: logout button present in header when user logged in
+  // Test: header toont uitlog-knop wanneer er een ingelogde gebruiker in localStorage staat
   it('shows logout button in header when user is logged in', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'u@x' }))
     render(
@@ -118,7 +123,7 @@ describe('DayOverview (merged tests)', () => {
     await waitFor(() => expect(screen.getByLabelText(/Uitloggen|uitloggen|logout|log out/i)).toBeDefined())
   })
 
-  // Checklist test: all weekdays present (Maandag - Vrijdag)
+  // Test: controleert dat alle weekdagen (Maandag t/m Vrijdag) aanwezig zijn als knoppen
   it('renders all weekdays (maandag t/m vrijdag)', () => {
     render(
       <MemoryRouter>
@@ -136,6 +141,7 @@ describe('DayOverview (merged tests)', () => {
     })
   })
 
+  // Test: klikken op een dag navigeert naar de Day-dashboard route (/day/:day)
   it('clicking day navigates to the day dashboard', async () => {
     // ensure auth present so component doesn't redirect
     localStorage.setItem('user', JSON.stringify({ id: 'u-nav', email: 'nav@x' }))
@@ -159,7 +165,7 @@ describe('DayOverview (merged tests)', () => {
     await waitFor(() => expect(screen.getByTestId('day-page')).toBeDefined())
   })
 
-  // Checklist test: all day buttons are clickable (if not disabled)
+  // Test: alle dagknoppen zijn klikbaar (indien niet disabled) en navigeren naar hun dashboard
   it('all day buttons are clickable (when enabled) - each navigates to its dashboard', async () => {
     const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
 
@@ -192,6 +198,7 @@ describe('DayOverview (merged tests)', () => {
     }
   })
 
+  // Test: de stop-knop roept de API deleteSession aan en verwerkt het resultaat
   it('stop button calls deleteSession and navigates', async () => {
     localStorage.setItem('currentSessionId', 'stop-me')
     mockDelete.mockResolvedValue({ success: true })
@@ -209,6 +216,7 @@ describe('DayOverview (merged tests)', () => {
     await waitFor(() => expect(mockDelete).toHaveBeenCalled())
   })
 
+  // Test: component reageert op window resize events zonder fouten (schaling)
   it('scale responds to window resizing', () => {
     render(
       <MemoryRouter>
@@ -237,6 +245,7 @@ describe('DayOverview (merged tests)', () => {
     expect(true).toBeTruthy()
   })
 
+  // Test: het 'Spelers beheren' modal wordt geopend bij het klikken op de knop
   it('shows manage players modal when clicked', async () => {
     render(
       <MemoryRouter>
@@ -252,6 +261,7 @@ describe('DayOverview (merged tests)', () => {
     await screen.findByRole('dialog')
   })
 
+  // Test: modal sluit wanneer er buiten het overlay-gebied wordt geklikt
   it('modal closes when clicking outside (overlay)', async () => {
     render(
       <MemoryRouter>

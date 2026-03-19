@@ -1,7 +1,10 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import type { Mock } from 'vitest'
-import { render, screen, waitFor } from '../../../test/renderWithProviders.tsx'
+import { render, screen, waitFor } from '@testing-library/react'
+import { MemoryRouter } from 'react-router-dom'
 import DayDashboard from './DayDashboard.tsx'
+import { AuthProvider } from '../../../context/AuthContext'
+import { SessionProvider } from '../../../context/SessionContext'
 
 // Mock the api module used by DayDashboard (same path the component imports)
 vi.mock('../../../api', async () => {
@@ -21,12 +24,22 @@ beforeEach(() => {
 })
 
 describe('DayDashboard', () => {
+  // Test: controleert dat alle beschikbare spellen voor de geselecteerde dag (Dinsdag)
+  // op de pagina worden weergegeven (titels van de minigames worden getoond).
   it('renders all games for the selected day (Dinsdag)', async () => {
     // ensure a session is present so the component shows games
     localStorage.setItem('currentSessionId', 'sess-1')
 
     // render with route that sets useParams day to "dinsdag"
-    render(<DayDashboard />, { route: '/day/dinsdag' })
+    render(
+      <MemoryRouter initialEntries={["/day/dinsdag"]}>
+        <AuthProvider>
+          <SessionProvider>
+            <DayDashboard />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
 
     // Expected games for dinsdag
     const expected = [
@@ -42,6 +55,8 @@ describe('DayDashboard', () => {
     }
   })
 
+  // Test: controleert dat de spelerslijst correct wordt geladen en weergegeven,
+  // inclusief spelernummer, naam, leeftijdscategorie en online/offline status.
   it('shows players list with spelernummer, naam, leeftijdscategorie and status', async () => {
     // Prepare mock players returned from API
     const mockPlayers = [
@@ -59,7 +74,15 @@ describe('DayDashboard', () => {
     // set a session id so DayDashboard will attempt to load players
     localStorage.setItem('currentSessionId', 'sess-test')
 
-    render(<DayDashboard />, { route: '/day/maandag' })
+    render(
+      <MemoryRouter initialEntries={["/day/maandag"]}>
+        <AuthProvider>
+          <SessionProvider>
+            <DayDashboard />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
 
     // Wait for players to be rendered
     await waitFor(() => {
@@ -84,6 +107,8 @@ describe('DayDashboard', () => {
     expect(statusCells.length).toBeGreaterThanOrEqual(1)
   })
 
+  // Test: controleert dat het leaderboard correct wordt gesorteerd op score (aflopend)
+  // en bij gelijke scores als tiebreaker op naam (alfabetisch oplopend).
   it('displays leaderboard sorted by score desc then name asc', async () => {
     // Unsorted input: two players with same score but names out of order
     const unsorted = [
@@ -98,7 +123,15 @@ describe('DayDashboard', () => {
     lbMock2.mockImplementationOnce(async () => ({ leaderboard: unsorted }))
 
     localStorage.setItem('currentSessionId', 'sess-test-2')
-    render(<DayDashboard />, { route: '/day/maandag' })
+    render(
+      <MemoryRouter initialEntries={["/day/maandag"]}>
+        <AuthProvider>
+          <SessionProvider>
+            <DayDashboard />
+          </SessionProvider>
+        </AuthProvider>
+      </MemoryRouter>
+    )
 
     // Wait for leaderboard items to appear
     await waitFor(() => {

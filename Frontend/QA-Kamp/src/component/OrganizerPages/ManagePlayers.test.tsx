@@ -23,6 +23,7 @@ describe('ManagePlayers (merged tests)', () => {
     localStorage.clear()
   })
 
+  // Test: controleert dat de pagina header en de actieknoppen rendert
   it('renders header and action buttons', () => {
     render(
       <MemoryRouter>
@@ -40,6 +41,7 @@ describe('ManagePlayers (merged tests)', () => {
     expect(screen.getByText(/Spelers importeren/i)).toBeDefined()
   })
 
+  // Test: toont boodschap en import-knop wanneer er geen spelers zijn
   it('shows message when no players and shows import button', () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     render(
@@ -56,6 +58,7 @@ describe('ManagePlayers (merged tests)', () => {
     expect(screen.getByText(/Spelers importeren/i)).toBeDefined()
   })
 
+  // Test: verbergt de import-knop wanneer er reeds spelers bestaan
   it('hides import button when players exist', async () => {
     const players = [{ playerNumber: '101', name: 'alice', age: 10 }]
     mockFetchPlayers.mockResolvedValue({ players })
@@ -75,6 +78,7 @@ describe('ManagePlayers (merged tests)', () => {
     expect(screen.getByText(/Spelers toevoegen/i)).toBeDefined()
   })
 
+  // Test: rendert rijen in de tabel voor geladen spelers uit de API
   it('renders table rows for loaded players', async () => {
     const players = [{ playerNumber: '201', name: 'bob', age: 12, category: '11-13' }]
     mockFetchPlayers.mockResolvedValue({ players })
@@ -95,6 +99,7 @@ describe('ManagePlayers (merged tests)', () => {
     expect(screen.getByText(/11-13/)).toBeDefined()
   })
 
+  // Test: validatie bij toevoegen - laat foutmelding zien wanneer naam ontbreekt/ongevalideerde leeftijd
   it('validation: adding player with invalid age shows error', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 's3')
@@ -127,6 +132,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Naam is verplicht/i)).toBeDefined())
   })
 
+  // Test: submitPlayer zonder actieve sessie toont foutmelding
   it('submitPlayer without session shows error', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     render(
@@ -153,6 +159,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Geen actieve sessie gevonden/i)).toBeDefined())
   })
 
+  // Test: toevoegen van een speler roept addPlayersToSession aan en toont succesmelding
   it('adding a player calls addPlayersToSession and shows success', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sadd')
@@ -182,6 +189,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Speler toegevoegd|Speler bijgewerkt/i)).toBeDefined())
   })
 
+  // Test: edit flow - start bewerken en submit roept updatePlayerInSession aan
   it('edit flow: startEdit then submit updates via updatePlayerInSession', async () => {
     const players = [{ playerNumber: '777', name: 'editme', age: 11 }]
     mockFetchPlayers.mockResolvedValue({ players })
@@ -209,6 +217,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Speler bijgewerkt/i)).toBeDefined())
   })
 
+  // Test: verwijderen van speler roept API aan en verwijdert de rij uit de lijst
   it('delete player calls API and removes from list', async () => {
     const players = [{ playerNumber: '888', name: 'todelete', age: 13 }]
     mockFetchPlayers.mockResolvedValue({ players })
@@ -231,6 +240,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Speler verwijderd/i)).toBeDefined())
   })
 
+  // Test: accepteert naam bestaande uit alleen letters
   it('valid name with only letters is accepted', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'valid-session')
@@ -261,6 +271,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Speler toegevoegd|Speler bijgewerkt/i)).toBeDefined())
   })
 
+  // Test: naam met spaties wordt afgewezen
   it('invalid name with spaces is rejected', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-spaces')
@@ -288,6 +299,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Naam mag geen spaties bevatten/i)).toBeDefined())
   })
 
+  // Test: naam langer dan 25 tekens wordt afgewezen
   it('invalid name longer than 25 chars is rejected', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-long')
@@ -316,6 +328,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Naam mag maximaal 25 tekens bevatten/i)).toBeDefined())
   })
 
+  // Test: naam met cijfers wordt afgewezen
   it('invalid name with numeric characters is rejected', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-num')
@@ -343,6 +356,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Naam mag geen cijfers bevatten/i)).toBeDefined())
   })
 
+  // Test: naam met speciale tekens wordt afgewezen
   it('invalid name with special characters is rejected', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-special')
@@ -370,6 +384,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Geen speciale tekens toegestaan in naam/i)).toBeDefined())
   })
 
+  // Test: lege category wordt afgewezen
   it('invalid empty category is rejected', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-cat')
@@ -398,6 +413,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Ongeldige leeftijdscategorie/i)).toBeDefined())
   })
 
+  // Test: accepteert naam met 24 letters en geldige category
   it('accepts name with 24 letters and valid category', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-24')
@@ -428,6 +444,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Speler toegevoegd|Speler bijgewerkt/i)).toBeDefined())
   })
 
+  // Test: weigert naam >25 tekens wanneer category leeg is
   it('rejects name >25 chars when category is empty', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sess-26-emptycat')
@@ -458,6 +475,7 @@ describe('ManagePlayers (merged tests)', () => {
     await waitFor(() => expect(screen.getByText(/Naam mag maximaal 25 tekens bevatten/i)).toBeDefined())
   })
 
+  // Test: rendert sluit-knop wanneer onClose prop is meegegeven
   it('renders close (X) button when onClose prop provided', () => {
     render(
       <MemoryRouter>
@@ -472,6 +490,7 @@ describe('ManagePlayers (merged tests)', () => {
     expect(screen.getByLabelText(/Sluit/i)).toBeDefined()
   })
 
+  // Test: toont verwijder-knop naast een speler in de tabel
   it('shows delete button next to a player in the table', async () => {
     const players = [{ playerNumber: '999', name: 'delme', age: 10 }]
     mockFetchPlayers.mockResolvedValue({ players })
@@ -492,6 +511,7 @@ describe('ManagePlayers (merged tests)', () => {
     expect(screen.getAllByTitle(/Verwijder/i)[0]).toBeDefined()
   })
 
+  // Test: naam en categorie velden zijn bewerkbaar in het toevoeg-formulier
   it('name and category fields are editable in the add form', async () => {
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sedit-presence')
