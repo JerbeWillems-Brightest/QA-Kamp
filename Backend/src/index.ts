@@ -32,7 +32,8 @@ const corsOptions = {
     return callback(new Error('Not allowed by CORS'))
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // Allow common headers plus the custom x-confirm-delete header used by the frontend
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-confirm-delete'],
   credentials: true,
   optionsSuccessStatus: 204,
 }
