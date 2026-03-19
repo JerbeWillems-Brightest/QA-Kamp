@@ -18,12 +18,8 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
 const FRONTEND_ORIGIN_RAW = process.env.FRONTEND_ORIGIN || '*'
 const FRONTEND_ORIGINS = FRONTEND_ORIGIN_RAW.split(',').map((s) => s.trim()).filter(Boolean)
 
-// Optional: FRONTEND_DEV can contain a preview URL (or comma-separated previews)
-const FRONTEND_DEV_RAW = process.env.FRONTEND_DEV || ''
-const FRONTEND_DEV_ORIGINS = FRONTEND_DEV_RAW.split(',').map((s) => s.trim()).filter(Boolean)
-
 // Combine and deduplicate allowed origins
-const allowedOrigins = Array.from(new Set([...FRONTEND_ORIGINS, ...FRONTEND_DEV_ORIGINS]))
+const allowedOrigins = Array.from(new Set([...FRONTEND_ORIGINS]))
 
 const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
