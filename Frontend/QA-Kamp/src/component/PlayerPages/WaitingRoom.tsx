@@ -9,7 +9,16 @@ import StarImg from '../../assets/Star.png'
 
 export default function WaitingRoom() {
   const playerNumber = sessionStorage.getItem('playerNumber') || ''
-  const sessionId = sessionStorage.getItem('playerSessionId') || ''
+  // prefer sessionStorage (set during login), but fall back to localStorage.currentSessionId
+  // to handle cases where a player opened the frontend in another tab or has stale storage
+  const sessionStorageId = sessionStorage.getItem('playerSessionId')
+  const localStorageId = localStorage.getItem('currentSessionId')
+  const sessionId = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
+  // Debug: if both exist but differ, sync sessionStorage to localStorage (prefer localStorage)
+  if (sessionStorageId && localStorageId && sessionStorageId !== localStorageId) {
+    try { sessionStorage.setItem('playerSessionId', localStorageId as string) } catch { /* ignore */ }
+    console.debug('WaitingRoom: synced sessionStorage.playerSessionId to localStorage.currentSessionId', { sessionStorageId, localStorageId })
+  }
   const [message, setMessage] = useState('Wacht tot het spel start')
   const [started, setStarted] = useState(false)
   const navigate = useNavigate()

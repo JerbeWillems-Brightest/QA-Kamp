@@ -5,13 +5,15 @@ import CurveImg from '../../assets/curve.png';
 import ShapeImg from '../../assets/shape.png';
 import StarImg from '../../assets/Star.png';
 import RocketImg from '../../assets/Rocketship.png';
-import { fetchPlayersForSession } from '../../api'
+import { fetchPlayersForSession, joinSession } from '../../api'
 import type { ApiPlayer } from '../../api'
 
 function HomePage() {
   const [playerNumber, setPlayerNumber] = useState('');
   const rawInputRef = useRef('');
   const [numberError, setNumberError] = useState('');
+  const [sessionCode, setSessionCode] = useState('');
+  const [sessionCodeError, setSessionCodeError] = useState('');
   const navigate = useNavigate()
 
   async function handleSubmit(e: React.FormEvent) {
@@ -60,8 +62,26 @@ function HomePage() {
 
     setNumberError('')
 
-    // check there is an active session
-    const sessionId = localStorage.getItem('currentSessionId')
+    // resolve session: if a sessionCode is provided, always use it (override any stale localStorage)
+    let sessionId = localStorage.getItem('currentSessionId')
+    if (sessionCode) {
+      setSessionCodeError('')
+      try {
+        const resp = await joinSession(sessionCode)
+        if (!resp || !resp.session || !resp.session.id) {
+          setNumberError('Ongeldige sessiecode of sessie niet gevonden')
+          return
+        }
+        sessionId = String(resp.session.id)
+        // persist for others in this browser
+        try { localStorage.setItem('currentSessionId', sessionId) } catch { /* ignore */ }
+      } catch (err) {
+        console.error('joinSession failed', err)
+        setNumberError('Kon niet verbinden met de sessie (ongeldige code of netwerkfout)')
+        return
+      }
+    }
+    // If no sessionId could be resolved, prompt the user
     if (!sessionId) {
       setNumberError('Geen actieve sessie gevonden. Probeer later opnieuw.')
       return
@@ -120,6 +140,11 @@ function HomePage() {
     setPlayerNumber(truncated);
   }
 
+  function handleSessionCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
+    setSessionCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))
+    setSessionCodeError('')
+  }
+
   return (
     <main className="main">
       <div className="body-grid three-col">
@@ -144,6 +169,18 @@ function HomePage() {
             <h1 style={{ padding: 25 }}>Voer je spelersnummer in</h1>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: 15}}>
+              <input
+                type="text"
+                placeholder="Sessiecode (bv. ABC123)"
+                value={sessionCode}
+                onChange={handleSessionCodeChange}
+                maxLength={10}
+                style={{ padding: '10px', width: '220px', borderRadius: '6px', border: sessionCodeError ? '1px solid #e74c3c' : '1px solid #ccc' }}
+              />
+              {sessionCodeError && (
+                <div style={{ color: '#e74c3c', fontSize: 13 }}>{sessionCodeError}</div>
+              )}
+
               <input
                 type="text"
                 inputMode="numeric"

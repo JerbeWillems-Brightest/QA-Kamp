@@ -67,6 +67,15 @@ export async function loginOrganizer(email: string, password: string): Promise<L
   })
 }
 
+export async function joinSession(code: string): Promise<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }> {
+  const url = `${API_URL}/api/sessions/join`
+  return safeFetch<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+}
+
 export interface SessionResponse {
   session?: { id: string; organizerId?: string; startedAt: string; name?: string };
   success?: boolean;
