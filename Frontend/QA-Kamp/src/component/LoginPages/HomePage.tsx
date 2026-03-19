@@ -5,15 +5,13 @@ import CurveImg from '../../assets/curve.png';
 import ShapeImg from '../../assets/shape.png';
 import StarImg from '../../assets/Star.png';
 import RocketImg from '../../assets/Rocketship.png';
-import { fetchPlayersForSession, joinSession } from '../../api'
+import * as api from '../../api'
 import type { ApiPlayer } from '../../api'
 
 function HomePage() {
   const [playerNumber, setPlayerNumber] = useState('');
-  const rawInputRef = useRef('');
   const [numberError, setNumberError] = useState('');
-  const [sessionCode, setSessionCode] = useState('');
-  const [sessionCodeError, setSessionCodeError] = useState('');
+  const inputRef = useRef<HTMLInputElement | null>(null)
   const navigate = useNavigate()
 
   async function handleSubmit(e: React.FormEvent) {
@@ -24,9 +22,8 @@ function HomePage() {
       return;
     }
 
-    // Use rawInputRef for format checks to avoid race conditions between change and submit
-    const rawInput = rawInputRef.current;
-
+    // Read the live input value to avoid a race with the controlled state in tests
+    const rawInput = (inputRef.current && inputRef.current.value) ? inputRef.current.value : playerNumber
     if (!rawInput) {
       setNumberError('Vul je spelersnummer in');
       return;
@@ -62,33 +59,26 @@ function HomePage() {
 
     setNumberError('')
 
-    // resolve session: if a sessionCode is provided, always use it (override any stale localStorage)
+    // resolve session: prefer existing localStorage.currentSessionId, otherwise fetch the single active session
     let sessionId = localStorage.getItem('currentSessionId')
-    if (sessionCode) {
-      setSessionCodeError('')
+    if (!sessionId) {
       try {
-        const resp = await joinSession(sessionCode)
+        const resp = await api.getActiveSession()
         if (!resp || !resp.session || !resp.session.id) {
-          setNumberError('Ongeldige sessiecode of sessie niet gevonden')
+          setNumberError('Geen actieve sessie gevonden. Probeer later opnieuw.')
           return
         }
         sessionId = String(resp.session.id)
-        // persist for others in this browser
         try { localStorage.setItem('currentSessionId', sessionId) } catch { /* ignore */ }
       } catch (err) {
-        console.error('joinSession failed', err)
-        setNumberError('Kon niet verbinden met de sessie (ongeldige code of netwerkfout)')
+        console.error('getActiveSession failed', err)
+        setNumberError('Kon niet verbinden met de sessie (netwerkfout)')
         return
       }
     }
-    // If no sessionId could be resolved, prompt the user
-    if (!sessionId) {
-      setNumberError('Geen actieve sessie gevonden. Probeer later opnieuw.')
-      return
-    }
 
     try {
-      const res = await fetchPlayersForSession(sessionId)
+      const res = await api.fetchPlayersForSession(sessionId)
       const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
       if (!found) {
         setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
@@ -120,7 +110,6 @@ function HomePage() {
 
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
-    rawInputRef.current = raw;
 
     // remove any non-digit characters so letters/specials are not allowed
     const cleaned = raw.replace(/\D/g, '');
@@ -138,11 +127,6 @@ function HomePage() {
     }
 
     setPlayerNumber(truncated);
-  }
-
-  function handleSessionCodeChange(e: React.ChangeEvent<HTMLInputElement>) {
-    setSessionCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))
-    setSessionCodeError('')
   }
 
   return (
@@ -169,45 +153,34 @@ function HomePage() {
             <h1 style={{ padding: 25 }}>Voer je spelersnummer in</h1>
 
             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '10px', padding: 15}}>
-              <input
-                type="text"
-                placeholder="Sessiecode (bv. ABC123)"
-                value={sessionCode}
-                onChange={handleSessionCodeChange}
-                maxLength={10}
-                style={{ padding: '10px', width: '220px', borderRadius: '6px', border: sessionCodeError ? '1px solid #e74c3c' : '1px solid #ccc' }}
-              />
-              {sessionCodeError && (
-                <div style={{ color: '#e74c3c', fontSize: 13 }}>{sessionCodeError}</div>
-              )}
+               <input
+                 ref={inputRef}
+                 type="text"
+                 inputMode="numeric"
+                 pattern="\d*"
+                 placeholder="Voer spelersnummer in"
+                 required
+                 value={playerNumber}
+                 onChange={handleChange}
+                 maxLength={3}
+                 style={{ padding: '10px', width: '220px', borderRadius: '6px', border: numberError ? '1px solid #e74c3c' : '1px solid #ccc' }}
+               />
 
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="\d*"
-                placeholder="Voer spelersnummer in"
-                required
-                value={playerNumber}
-                onChange={handleChange}
-                maxLength={3}
-                style={{ padding: '10px', width: '220px', borderRadius: '6px', border: numberError ? '1px solid #e74c3c' : '1px solid #ccc' }}
-              />
+               {numberError && (
+                 <div style={{ color: '#e74c3c', fontSize: 13 }}>{numberError}</div>
+               )}
 
-              {numberError && (
-                <div style={{ color: '#e74c3c', fontSize: 13 }}>{numberError}</div>
-              )}
+               <button
+                 type="submit"
+                 className="cta"
+                 style={{height: 40 , width: '220px' , padding: '6px 12px', backgroundColor: '#f4b400', border: 'none', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '18px' }}
+               >
+                 Speel mee
+               </button>
 
-              <button
-                type="submit"
-                className="cta"
-                style={{height: 40 , width: '220px' , padding: '6px 12px', backgroundColor: '#f4b400', border: 'none', borderRadius: '6px', color: 'white', fontWeight: 'bold', cursor: 'pointer', fontSize: '18px' }}
-              >
-                Speel mee
-              </button>
-
-              <Link to="/organizer-login" style={{ padding: 10, fontSize: '12px', color: '#3a78d0'}}>
-                Log hier in als organisator
-              </Link>
+               <Link to="/organizer-login" style={{ padding: 10, fontSize: '12px', color: '#3a78d0'}}>
+                 Log hier in als organisator
+               </Link>
              </form>
            </div>
          </div>

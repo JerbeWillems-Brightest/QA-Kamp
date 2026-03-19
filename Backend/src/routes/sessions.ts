@@ -18,6 +18,16 @@ router.post('/', async (req, res) => {
     const { organizerId, name } = req.body
     if (!organizerId) return res.status(400).json({ error: 'organizerId is required' })
 
+    // Enforce: only one active session per organizer. If one exists, return it.
+    try {
+      const existing = await Session.findOne({ organizerId, active: true }).sort({ createdAt: -1 })
+      if (existing) {
+        return res.status(200).json({ session: existing })
+      }
+    } catch (err) {
+      console.warn('Error checking existing active session:', err)
+    }
+
     // create session with unique code; retry on duplicate code collisions
     const MAX_ATTEMPTS = 10
     let attempt = 0
@@ -42,6 +52,18 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('Create session error:', err)
     return res.status(500).json({ error: 'Failed to create session' })
+  }
+})
+
+// Get the current active session (global latest active). Useful for players to auto-join.
+router.get('/active', async (_req, res) => {
+  try {
+    const active = await Session.findOne({ active: true }).sort({ createdAt: -1 })
+    if (!active) return res.status(404).json({ error: 'No active session' })
+    return res.json({ session: active })
+  } catch (err) {
+    console.error('Get active session error:', err)
+    return res.status(500).json({ error: 'Failed to get active session' })
   }
 })
 
