@@ -86,6 +86,36 @@ router.post('/join', async (req, res) => {
   }
 })
 
+// Join the current active session by playerNumber (player supplies only their number)
+router.post('/active/join', async (req, res) => {
+  try {
+    const { playerNumber } = req.body || {}
+    if (!playerNumber) return res.status(400).json({ error: 'playerNumber is required' })
+
+    // normalize incoming player number to digits-only and pad to 3
+    const normalizeNumber = (v: unknown) => {
+      const s = String(v ?? '')
+      const digits = s.replace(/\D/g, '')
+      return digits ? digits.padStart(3, '0') : ''
+    }
+    const normalized = normalizeNumber(playerNumber)
+    if (!normalized) return res.status(400).json({ error: 'Invalid playerNumber' })
+
+    // find latest active session
+    const session = await Session.findOne({ active: true }).sort({ createdAt: -1 })
+    if (!session) return res.status(404).json({ error: 'No active session' })
+
+    // find player in that session
+    const player = await Player.findOne({ sessionId: session._id, playerNumber: normalized })
+    if (!player) return res.status(404).json({ error: 'Player not found in active session' })
+
+    return res.json({ session: { id: session._id, code: session.code, name: session.name }, player })
+  } catch (err) {
+    console.error('Active join error:', err)
+    return res.status(500).json({ error: 'Failed to join active session' })
+  }
+})
+
 // Delete a session by id
 router.delete('/:id', async (req, res) => {
   try {
