@@ -71,15 +71,29 @@ export async function seedOrganizers() {
       const o2Email = process.env.ORGANIZER2_EMAIL
       const o2Password = process.env.ORGANIZER2_PASSWORD
 
+      // If no env vars provided, allow fallback for test/CI/local environments so unit tests can seed
+      const runningInTestOrCi = (process.env.NODE_ENV === 'test') || (process.env.CI === 'true') || (process.env.GITHUB_ACTIONS === 'true')
+      const mongoUri = process.env.MONGO_URI || ''
+      const runningOnLocalMongo = /127\.0\.0\.1|localhost/.test(mongoUri)
+
+      const shouldUseFallback = !o1Email && !o2Email && (runningInTestOrCi || runningOnLocalMongo)
+      if (shouldUseFallback) {
+        console.log('No ORGANIZER env vars found — using test fallback credentials for seeding (test/CI/local)')
+      }
+
       let created = 0
-      if (o1Email && o1Password) {
-        await Organizer.create({ email: o1Email, password: o1Password, name: 'Organizer' })
-        console.log(`Created organizer: ${o1Email}`)
+      if ((o1Email && o1Password) || shouldUseFallback) {
+        const email = (o1Email && o1Password) ? o1Email : 'organizer@qa-kamp.be'
+        const password = (o1Email && o1Password) ? o1Password : 'Organizer123!'
+        await Organizer.create({ email, password, name: 'Organizer' })
+        console.log(`Created organizer: ${email}`)
         created++
       }
-      if (o2Email && o2Password) {
-        await Organizer.create({ email: o2Email, password: o2Password, name: 'Organizer' })
-        console.log(`Created organizer: ${o2Email}`)
+      if ((o2Email && o2Password) || shouldUseFallback) {
+        const email = (o2Email && o2Password) ? o2Email : 'organizer@test.be'
+        const password = (o2Email && o2Password) ? o2Password : 'Test123!'
+        await Organizer.create({ email, password, name: 'Organizer' })
+        console.log(`Created organizer: ${email}`)
         created++
       }
 
