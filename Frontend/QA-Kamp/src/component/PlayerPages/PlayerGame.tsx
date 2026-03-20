@@ -5,7 +5,7 @@ import CurveImg from '../../assets/curve.png'
 import StarImg from '../../assets/Star.png'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchPlayersForSession } from '../../api'
+import { fetchPlayersForSession, getActiveGameInfo } from '../../api'
 
 const gameDescriptions: Record<string, Record<string, string>> = {
   'kraakhetwachtwoord': {
@@ -269,6 +269,22 @@ export default function PlayerGame() {
 
   useEffect(() => {
     function handleOnlinePlayersChange(e: StorageEvent) {
+       // explicit kick handling
+      try {
+        if (e.key && typeof e.key === 'string' && e.key.startsWith('kick_')) {
+          const kicked = e.key.slice(5)
+          const plain = String(playerNumber || '')
+          const padded = plain.padStart(3,'0')
+          if (kicked === plain || kicked === padded) {
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+            return
+          }
+        }
+      } catch { /* ignore */ }
       if (e.key !== 'onlinePlayers') return
       try {
         const raw = e.newValue ?? localStorage.getItem('onlinePlayers')
@@ -289,6 +305,37 @@ export default function PlayerGame() {
     window.addEventListener('storage', handleOnlinePlayersChange)
     return () => window.removeEventListener('storage', handleOnlinePlayersChange)
   }, [playerNumber, navigate])
+
+  // Poll the server for authoritative activeGameInfo so players already inside a game
+  // get informed when the organizer stops the game (server clears activeGameInfo).
+  useEffect(() => {
+    if (!sessionId) return
+    let mounted = true
+    let timer: number | undefined
+    async function checkActiveInfo() {
+      try {
+        const resp = await getActiveGameInfo(sessionId)
+        if (!mounted) return
+        if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
+          // server cleared the active game -> ensure client clears and navigates back to waiting
+          try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch { /* ignore */ }
+          try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+        }
+      } catch {
+        // network errors are fine; we'll retry
+      } finally {
+        timer = window.setTimeout(checkActiveInfo, 5000)
+      }
+    }
+    checkActiveInfo()
+    return () => { mounted = false; if (timer) clearTimeout(timer) }
+  }, [sessionId, navigate])
 
   return (
     <main className="main">

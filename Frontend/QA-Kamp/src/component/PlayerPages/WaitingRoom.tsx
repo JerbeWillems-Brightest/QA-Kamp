@@ -72,6 +72,24 @@ export default function WaitingRoom() {
 
     // listen for storage events from organizer when they start a game
     function onStorage(e: StorageEvent) {
+      // handle explicit kick keys like 'kick_123' or 'kick_001'
+      try {
+        if (e.key && typeof e.key === 'string' && e.key.startsWith('kick_')) {
+          const kicked = e.key.slice(5) // the player number part
+          const plain = String(playerNumber)
+          const padded = String(playerNumber).padStart(3,'0')
+          if (kicked === plain || kicked === padded) {
+            // organizer explicitly kicked this player
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+            return
+          }
+        }
+      } catch { /* ignore */ }
+
       if (e.key === 'onlinePlayers') {
         try {
           const raw = e.newValue ?? localStorage.getItem('onlinePlayers')
