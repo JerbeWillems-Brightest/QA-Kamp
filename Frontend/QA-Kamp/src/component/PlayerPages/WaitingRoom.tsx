@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard, getActiveGameInfo } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -300,8 +300,54 @@ export default function WaitingRoom() {
             }
           } catch (err) { void err }
         } else {
-          setStarted(false)
-          setMessage('Wacht tot het spel start')
+          // No leaderboard entries — server may have removed players or session ended.
+          // Perform a server-side membership check: if this player no longer exists, force logout.
+          try {
+            const playersResp = await fetchPlayersForSession(sessionId)
+            const playersList = (playersResp && (playersResp as { players?: unknown[] }).players) || []
+            const plain = String(playerNumber)
+            const padded = plain.padStart(3, '0')
+            const exists = Array.isArray(playersList) && playersList.some((p: unknown) => {
+              const rec = p as Record<string, unknown>
+              const pn = rec['playerNumber'] ?? rec['nummer'] ?? ''
+              const s = String(pn)
+              return s === plain || s === padded || s.padStart(3,'0') === padded
+            })
+            if (!exists) {
+              // player not found on server -> force logout (removed from session or session ended)
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+              try { navigate('/') } catch { /* ignore */ }
+            } else {
+              // Per request: when we would show the waiting message, instead log the player out
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+                try {
+                    localStorage.removeItem('onlinePlayers')
+                }
+                catch {
+                    /* ignore */
+                }
+              try { navigate('/') } catch { /* ignore */ }
+            }
+          } catch {
+            // if membership check fails, log out as a conservative fallback
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+              try {
+                  localStorage.removeItem('onlinePlayers')
+              }
+              catch {
+                  /* ignore */
+              }
+            try { navigate('/') } catch { /* ignore */ }
+          }
         }
       } catch (err) {
         console.warn('polling leaderboard failed', err)
