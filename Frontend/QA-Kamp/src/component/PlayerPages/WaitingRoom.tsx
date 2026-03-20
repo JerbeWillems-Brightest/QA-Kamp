@@ -190,31 +190,31 @@ export default function WaitingRoom() {
   useEffect(() => {
     if (!playerNumber) return
     try {
-      // store the playerNumber as a 3-digit padded string for consistency
-      const padded = String(playerNumber).padStart(3, '0')
+      // store the playerNumber as the plain string (tests expect e.g. '42')
+      const storedVal = String(playerNumber)
+      const padded = storedVal.padStart(3, '0')
       const raw = localStorage.getItem('onlinePlayers')
       const parsed = raw ? JSON.parse(raw) as unknown : []
       const arr = Array.isArray(parsed) ? parsed as string[] : []
-      // normalize existing entries to padded form to avoid duplicates and mismatches
-      const normalized = arr.map(x => String(x).padStart(3, '0'))
-      const hasStored = normalized.includes(padded)
+      // check if either plain or padded representation already exists
+      const hasStored = arr.includes(storedVal) || arr.includes(padded)
       if (!hasStored) {
-        const next = [...normalized, padded]
+        const next = [...arr.filter(Boolean), storedVal]
         localStorage.setItem('onlinePlayers', JSON.stringify(next))
         // notify other tabs (some browsers don't fire storage for same-tab writes)
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) })) } catch { /* ignore */ }
       }
     } catch {
-      try { localStorage.setItem('onlinePlayers', JSON.stringify([String(playerNumber).padStart(3,'0')])) } catch { /* ignore */ }
+      try { localStorage.setItem('onlinePlayers', JSON.stringify([String(playerNumber)])) } catch { /* ignore */ }
     }
 
     const cleanup = () => {
       try {
         const raw2 = localStorage.getItem('onlinePlayers')
         const arr2 = raw2 ? JSON.parse(raw2) as string[] : []
-        const padded = String(playerNumber).padStart(3,'0')
-        const normalized2 = arr2.map(x => String(x).padStart(3,'0'))
-        const filtered = Array.isArray(normalized2) ? normalized2.filter(x => (String(x) !== padded)) : []
+        const plain = String(playerNumber)
+        const padded = plain.padStart(3,'0')
+        const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
       } catch { /* ignore */ }
