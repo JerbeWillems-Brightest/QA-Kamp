@@ -441,9 +441,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const padded = plain.padStart(3, '0')
         const filtered = Array.isArray(arr) ? arr.filter(n => String(n) !== plain && String(n) !== padded) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
-        try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
-        try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers_last_update', newValue: String(Date.now()) })) } catch { /* ignore */ }
         // Signal the deleted player(s) explicitly so their client can force logout.
         try {
           const kickPlain = `kick_${plain}`
