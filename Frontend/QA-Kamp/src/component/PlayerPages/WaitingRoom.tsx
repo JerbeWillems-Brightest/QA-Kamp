@@ -73,6 +73,28 @@ export default function WaitingRoom() {
     // listen for storage events from organizer when they start a game
     function onStorage(e: StorageEvent) {
       if (!e.key) return
+      // If the organizer removed the currentSessionId, force logout and navigate home
+      if (e.key === 'currentSessionId') {
+        // session ended/cleared by organizer on another tab
+        if (e.newValue === null) {
+          try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerNumber') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+          // remove this player from onlinePlayers
+          try {
+            const raw = localStorage.getItem('onlinePlayers')
+            const arr = raw ? JSON.parse(raw) as string[] : []
+            const plain = String(playerNumber || '')
+            const padded = String(playerNumber || '').padStart(3, '0')
+            const filtered = Array.isArray(arr) ? arr.filter(x => (String(x) !== plain && String(x) !== padded)) : []
+            localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+            // notify other tabs about the change
+            window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
+          } catch { /* ignore */ }
+          try { navigate('/') } catch (err) { void err }
+        }
+        return
+      }
       if (e.key === 'activeGame' || e.key === 'activeGameInfo') {
         try {
           // storage events set newValue === null when a key is removed
@@ -111,7 +133,7 @@ export default function WaitingRoom() {
       try { window.removeEventListener('storage', onStorage) } catch (err) { void err }
       try { window.removeEventListener('activeGameInfoChanged', onCustom) } catch (err) { void err }
     }
-  }, [enterGame, navigate])
+  }, [enterGame, navigate, playerNumber])
 
   // CSS for animated stars
   const starStyles = `

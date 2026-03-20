@@ -184,7 +184,6 @@ function HomePage() {
 
   // Ensure localStorage keys exist when page is opened directly (so other parts of the app can rely on them)
   useEffect(() => {
-    let mounted = true
     ;(async () => {
       try {
         // create onlinePlayers array if missing
@@ -192,24 +191,17 @@ function HomePage() {
           if (!localStorage.getItem('onlinePlayers')) localStorage.setItem('onlinePlayers', JSON.stringify([]))
         } catch { /* ignore */ }
 
-        if (!localStorage.getItem('currentSessionId')) {
-          try {
-            const resp = await api.getActiveSession()
-            const sid = resp && resp.session ? (resp.session.id ?? (resp.session as Record<string, unknown>)._id ?? undefined) : undefined
-            if (sid && mounted) {
-              try { localStorage.setItem('currentSessionId', String(sid)) } catch (err) { void err }
-            }
-          } catch (e) {
-            // no active session or network failed — do nothing; UI will handle missing session
-            // consume the error to satisfy linter
-            void e
-          }
-        }
+        // IMPORTANT: do NOT set `currentSessionId` here on page load. We want the player to only receive
+        // a `currentSessionId` when they explicitly join (press "Speel mee"). Setting it on load causes
+        // other users to see a wrong session id when they first open the app.
+        // If you need an authoritative active-session lookup for other UI, do it on-demand from components
+        // that require it (e.g. when the player tries to join or when organizer actions need it).
+
       } finally {
         // no state to set; effect just ensures storage keys
       }
     })()
-    return () => { mounted = false }
+    return () => { /* cleanup not needed */ }
   }, [])
 
   return (
