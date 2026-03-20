@@ -72,8 +72,23 @@ export default function WaitingRoom() {
 
     // listen for storage events from organizer when they start a game
     function onStorage(e: StorageEvent) {
-      if (!e.key) return
-      // If the organizer removed the currentSessionId, force logout and navigate home
+      if (e.key === 'onlinePlayers') {
+        try {
+          const raw = e.newValue ?? localStorage.getItem('onlinePlayers')
+          const arr = raw ? JSON.parse(String(raw)) as string[] : []
+          const padded = String(playerNumber).padStart(3,'0')
+          const plain = String(playerNumber)
+          const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded))
+          if (!exists) {
+            // player was removed by organizer; force logout
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }
       if (e.key === 'currentSessionId') {
         // session ended/cleared by organizer on another tab
         if (e.newValue === null) {

@@ -16,8 +16,12 @@ export default function Navbar() {
         const raw = localStorage.getItem('onlinePlayers')
         if (raw) {
           const arr = JSON.parse(raw) as string[]
-          const filtered = arr.filter(n => n !== playerNumber)
+          // remove both plain and padded forms
+          const plain = String(playerNumber)
+          const padded = plain.padStart(3, '0')
+          const filtered = arr.filter(n => String(n) !== plain && String(n) !== padded)
           localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+          try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
         }
       } catch {
         // ignore
@@ -25,13 +29,15 @@ export default function Navbar() {
       try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch {
           // ignore error
       }
+      // Also remove the currentsessionid so a subsequent login will re-fetch the active session
+      try { localStorage.removeItem('currentSessionId'); try { window.dispatchEvent(new StorageEvent('storage', { key: 'currentSessionId', newValue: null })) } catch { /* ignore */ } } catch { /* ignore */ }
       navigate('/')
       return
     }
 
     // Otherwise assume organizer logout
     auth.logout()
-    navigate('/organizer-login')
+    navigate('/')
   }
 
   // Show logout button when organizer logged in or player session present

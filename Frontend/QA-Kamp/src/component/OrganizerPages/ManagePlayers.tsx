@@ -432,6 +432,17 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       await deletePlayerFromSession(sess, playerNumberToDelete)
       setPlayers((prev) => prev.filter((p) => p.playerNumber !== playerNumberToDelete))
       setSuccessMsg('Speler verwijderd')
+      // Also remove the player from localStorage.onlinePlayers so other tabs (organizer/player)
+      // are notified that this player is no longer online / present.
+      try {
+        const raw = localStorage.getItem('onlinePlayers')
+        const arr = raw ? JSON.parse(raw) as string[] : []
+        const plain = String(playerNumberToDelete)
+        const padded = plain.padStart(3, '0')
+        const filtered = Array.isArray(arr) ? arr.filter(n => String(n) !== plain && String(n) !== padded) : []
+        localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+        try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
+      } catch { /* ignore */ }
     } catch (err: unknown) {
       console.error('Network error deleting player', err)
       setErrors([toErrorMessage(err) || 'Netwerkfout bij verwijderen speler'])

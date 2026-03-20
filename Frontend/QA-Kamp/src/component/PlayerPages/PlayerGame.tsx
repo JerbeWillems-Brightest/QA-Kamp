@@ -267,6 +267,29 @@ export default function PlayerGame() {
     }
   }, [navigate])
 
+  useEffect(() => {
+    function handleOnlinePlayersChange(e: StorageEvent) {
+      if (e.key !== 'onlinePlayers') return
+      try {
+        const raw = e.newValue ?? localStorage.getItem('onlinePlayers')
+        const arr = raw ? JSON.parse(String(raw)) as string[] : []
+        const plain = String(playerNumber || '')
+        const padded = plain.padStart(3,'0')
+        const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded))
+        if (!exists) {
+          // logged out/deleted by organizer
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('storage', handleOnlinePlayersChange)
+    return () => window.removeEventListener('storage', handleOnlinePlayersChange)
+  }, [playerNumber, navigate])
+
   return (
     <main className="main">
       <div className="body-grid three-col">
