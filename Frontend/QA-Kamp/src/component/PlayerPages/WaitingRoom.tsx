@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard, getActiveGameInfo, postPlayerHeartbeat } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -74,7 +74,7 @@ export default function WaitingRoom() {
     function onStorage(e: StorageEvent) {
       // handle explicit kick keys like 'kick_123' or 'kick_001'
       try {
-        if (e.key && typeof e.key === 'string' && e.key.startsWith('kick_')) {
+        if (e.key && e.key.startsWith('kick_')) {
           const kicked = e.key.slice(5) // the player number part
           const plain = String(playerNumber)
           const padded = String(playerNumber).padStart(3,'0')
@@ -90,9 +90,11 @@ export default function WaitingRoom() {
         }
       } catch { /* ignore */ }
 
-      if (e.key === 'onlinePlayers') {
+      if (e.key === 'onlinePlayers' || e.key === 'onlinePlayers_last_update') {
         try {
-          const raw = e.newValue ?? localStorage.getItem('onlinePlayers')
+          // when the transient timestamp key is written, e.newValue will be a timestamp string;
+          // in that case read the canonical onlinePlayers value from localStorage. Otherwise use newValue.
+          const raw = (e.key === 'onlinePlayers') ? (e.newValue ?? localStorage.getItem('onlinePlayers')) : localStorage.getItem('onlinePlayers')
           const arr = raw ? JSON.parse(String(raw)) as string[] : []
           const padded = String(playerNumber).padStart(3,'0')
           const plain = String(playerNumber)
@@ -188,32 +190,31 @@ export default function WaitingRoom() {
   useEffect(() => {
     if (!playerNumber) return
     try {
-      // keep the stored representation as the plain playerNumber (matches tests)
-      const storedVal = String(playerNumber)
+      // store the playerNumber as a 3-digit padded string for consistency
       const padded = String(playerNumber).padStart(3, '0')
       const raw = localStorage.getItem('onlinePlayers')
       const parsed = raw ? JSON.parse(raw) as unknown : []
       const arr = Array.isArray(parsed) ? parsed as string[] : []
-      // if neither the stored form nor padded form exists, add the stored form
-      const hasStored = arr.includes(storedVal) || arr.includes(padded)
+      // normalize existing entries to padded form to avoid duplicates and mismatches
+      const normalized = arr.map(x => String(x).padStart(3, '0'))
+      const hasStored = normalized.includes(padded)
       if (!hasStored) {
-        const next = [...arr, storedVal]
+        const next = [...normalized, padded]
         localStorage.setItem('onlinePlayers', JSON.stringify(next))
-        // notify other tabs
-        // rely on native storage event to notify other windows; keep a manual dispatch for same-tab fallback
+        // notify other tabs (some browsers don't fire storage for same-tab writes)
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) })) } catch { /* ignore */ }
       }
     } catch {
-      try { localStorage.setItem('onlinePlayers', JSON.stringify([String(playerNumber)])) } catch { /* ignore */ }
+      try { localStorage.setItem('onlinePlayers', JSON.stringify([String(playerNumber).padStart(3,'0')])) } catch { /* ignore */ }
     }
 
     const cleanup = () => {
       try {
         const raw2 = localStorage.getItem('onlinePlayers')
         const arr2 = raw2 ? JSON.parse(raw2) as string[] : []
-        const plain = String(playerNumber)
         const padded = String(playerNumber).padStart(3,'0')
-        const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
+        const normalized2 = arr2.map(x => String(x).padStart(3,'0'))
+        const filtered = Array.isArray(normalized2) ? normalized2.filter(x => (String(x) !== padded)) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
       } catch { /* ignore */ }
@@ -226,20 +227,35 @@ export default function WaitingRoom() {
     return () => { try { window.removeEventListener('beforeunload', cleanup) } catch { /* ignore */ } }
   }, [playerNumber])
 
-  // heartbeat: tell server this player is present so organizers can see online status even
-  // when localStorage sync doesn't arrive. Send immediately and then periodically.
+  // Periodically re-check localStorage.onlinePlayers so the waiting-room tab reacts
+  // immediately when the organizer removes the player (even if a storage event
+  // didn't arrive). This avoids requiring a manual refresh.
   useEffect(() => {
-    if (!playerNumber || !sessionId) return
-    let mounted = true
-    const timer = window.setInterval(() => {
-      if (mounted) void (async () => {
-        try { await postPlayerHeartbeat(sessionId, String(playerNumber).padStart(3,'0')) } catch { /* ignore */ }
-      })()
-    }, 7000)
-    // send initial heartbeat immediately (don't block rendering)
-    void (async () => { try { await postPlayerHeartbeat(sessionId, String(playerNumber).padStart(3,'0')) } catch { /* ignore */ } })()
-    return () => { mounted = false; clearInterval(timer) }
-  }, [playerNumber, sessionId])
+    if (!playerNumber) return
+    const intervalMs = 2000 // check every 2s
+    const check = () => {
+      try {
+        const raw = localStorage.getItem('onlinePlayers')
+        const arr = raw ? JSON.parse(raw) as string[] : []
+        const padded = String(playerNumber).padStart(3, '0')
+        const plain = String(playerNumber)
+        // consider existence if either plain or padded present, or after normalizing entries
+        const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded) || arr.map(x => String(x).padStart(3,'0')).includes(padded))
+        if (!exists) {
+          // force logout locally
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch { /* ignore parse errors */ }
+    }
+    const id = window.setInterval(check, intervalMs)
+    // run immediate check once (don't wait interval)
+    check()
+    return () => clearInterval(id)
+  }, [playerNumber, navigate])
 
   useEffect(() => {
     let mounted = true
@@ -295,7 +311,7 @@ export default function WaitingRoom() {
     }
     poll()
     return () => { mounted = false; if (timer) clearTimeout(timer) }
-  }, [sessionId, enterGame])
+  }, [sessionId, enterGame, navigate])
 
   if (!sessionId || !playerNumber) {
     return (
