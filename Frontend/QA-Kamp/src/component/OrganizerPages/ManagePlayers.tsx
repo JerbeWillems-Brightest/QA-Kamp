@@ -442,6 +442,23 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const filtered = Array.isArray(arr) ? arr.filter(n => String(n) !== plain && String(n) !== padded) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
+        // Signal the deleted player(s) explicitly so their client can force logout.
+        try {
+          const kickPlain = `kick_${plain}`
+          const kickPadded = `kick_${padded}`
+          const now = String(Date.now())
+          try { localStorage.setItem(kickPlain, now) } catch { /* ignore */ }
+          try { localStorage.setItem(kickPadded, now) } catch { /* ignore */ }
+          try { window.dispatchEvent(new StorageEvent('storage', { key: kickPlain, newValue: now })) } catch { /* ignore */ }
+          try { window.dispatchEvent(new StorageEvent('storage', { key: kickPadded, newValue: now })) } catch { /* ignore */ }
+          // cleanup the ephemeral keys after a short delay so storage doesn't remain polluted
+          setTimeout(() => {
+            try { localStorage.removeItem(kickPlain) } catch { /* ignore */ }
+            try { localStorage.removeItem(kickPadded) } catch { /* ignore */ }
+            try { window.dispatchEvent(new StorageEvent('storage', { key: kickPlain, newValue: null })) } catch { /* ignore */ }
+            try { window.dispatchEvent(new StorageEvent('storage', { key: kickPadded, newValue: null })) } catch { /* ignore */ }
+          }, 5000)
+        } catch { /* ignore */ }
       } catch { /* ignore */ }
     } catch (err: unknown) {
       console.error('Network error deleting player', err)
