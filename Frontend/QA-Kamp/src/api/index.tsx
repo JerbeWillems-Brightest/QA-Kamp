@@ -86,9 +86,9 @@ export async function getActiveSession(): Promise<{ session?: { id: string; orga
 
 // Join the currently active session using only the player's number.
 // Returns { session, player } on success.
-export async function joinActiveSession(playerNumber: string): Promise<{ session?: { id: string; code?: string; name?: string }, player?: any }> {
+export async function joinActiveSession(playerNumber: string): Promise<{ session?: { id: string; code?: string; name?: string }, player?: ApiPlayer | unknown }> {
   const url = `${API_URL}/api/sessions/active/join`
-  return safeFetch<{ session?: { id: string; code?: string; name?: string }, player?: any }>(url, {
+  return safeFetch<{ session?: { id: string; code?: string; name?: string }, player?: ApiPlayer | unknown }>(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ playerNumber }),
@@ -284,7 +284,16 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
 
 export async function setActiveGameInfo(sessionId: string, info: Record<string, unknown> | null): Promise<{ success?: boolean; activeGameInfo?: unknown }> {
   const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(info) })
+  // Avoid sending the literal JSON "null" (JSON.stringify(null) -> "null") because
+  // body-parser in strict mode rejects non-object/array JSON (it treats "null" as invalid).
+  // If info is null we'll omit the body so the server sees no body and we can interpret
+  // that as a request to clear the activeGameInfo (the backend code uses `req.body || null`).
+  const opts: RequestInit = { method: 'POST' }
+  if (info !== null && typeof info !== 'undefined') {
+    opts.headers = { 'Content-Type': 'application/json' }
+    opts.body = JSON.stringify(info)
+  }
+  const res = await fetch(url, opts)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
     throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
