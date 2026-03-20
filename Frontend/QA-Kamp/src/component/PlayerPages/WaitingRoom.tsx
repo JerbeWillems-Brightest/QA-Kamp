@@ -238,6 +238,13 @@ export default function WaitingRoom() {
                     try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
                     const mapped = mapActiveInfo(info)
                     if (mapped) enterGame(mapped)
+                  } else if (serverResp && (serverResp.activeGameInfo === null || typeof serverResp.activeGameInfo === 'undefined')) {
+                    // server explicitly cleared the active game; ensure local clients remove it too
+                    try { localStorage.removeItem('activeGameInfo') } catch (err) { void err }
+                    try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
+                    try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch { /* ignore */ }
+                    try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
+                    try { navigate('/player/waiting') } catch (err) { void err }
                   }
                 }
               } catch (err) { void err }
