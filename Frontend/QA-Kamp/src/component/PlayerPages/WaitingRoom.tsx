@@ -257,55 +257,6 @@ export default function WaitingRoom() {
     return () => clearInterval(id)
   }, [playerNumber, navigate])
 
-  // --- Server sync: poll server periodically for recent lastSeen and update localStorage.onlinePlayers
-  useEffect(() => {
-    if (!sessionId) return
-    let mounted = true
-    const INTERVAL = 5000 // ms
-    const RECENT_MS = 15000 // treat lastSeen within 15s as online
-
-    async function syncFromServer() {
-      try {
-        const resp = await fetchPlayersForSession(sessionId)
-        if (!mounted) return
-        const players = (resp && (resp as { players?: unknown[] }).players) || []
-        const now = Date.now()
-        const onlineNums: string[] = []
-        for (const p of players) {
-          try {
-            const rec = p as Record<string, unknown>
-            const pn = String(rec['playerNumber'] ?? rec['nummer'] ?? '')
-            if (!pn) continue
-            const last = (rec['lastSeen'] ?? rec['last_seen'] ?? rec['lastseen']) as string | undefined
-            if (!last) continue
-            const lastMs = new Date(String(last)).getTime() || 0
-            if (lastMs && (now - lastMs) <= RECENT_MS) onlineNums.push(pn)
-          } catch { /* ignore per-player parse errors */ }
-        }
-        const dedup = Array.from(new Set(onlineNums))
-        // compare with localStorage and update if different
-        try {
-          const rawLocal = localStorage.getItem('onlinePlayers')
-          const localArr = rawLocal ? JSON.parse(rawLocal) as string[] : []
-          const same = dedup.length === localArr.length && dedup.every(v => localArr.includes(v))
-          if (!same) {
-            localStorage.setItem('onlinePlayers', JSON.stringify(dedup))
-            try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
-            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(dedup) })) } catch { /* ignore */ }
-            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers_last_update', newValue: String(Date.now()) })) } catch { /* ignore */ }
-          }
-        } catch { /* ignore localStorage write errors */ }
-      } catch {
-        // network/server error - ignore and retry next interval
-      }
-    }
-
-    // run immediately then at interval
-    syncFromServer()
-    const id = window.setInterval(syncFromServer, INTERVAL)
-    return () => { mounted = false; clearInterval(id) }
-  }, [sessionId])
-
   useEffect(() => {
     let mounted = true
     let timer: number | undefined
