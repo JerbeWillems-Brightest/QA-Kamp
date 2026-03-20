@@ -318,11 +318,14 @@ export default function PlayerGame() {
         if (!mounted) return
         if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
           // server cleared the active game -> ensure client clears and navigates back to waiting
+          // Important: do NOT remove currentSessionId or the player's session info here.
+          // These identify the player's membership in the session and should only be removed
+          // on explicit session deletion or when the organizer kicks the player.
           try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          // NOTE: keep sessionStorage.playerNumber and playerSessionId intact here so the
+          // player remains logged in and can re-enter games for the same session.
+          // Do NOT remove localStorage.currentSessionId here.
           try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch { /* ignore */ }
           try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch { /* ignore */ }
           try { navigate('/player/waiting') } catch { /* ignore */ }
