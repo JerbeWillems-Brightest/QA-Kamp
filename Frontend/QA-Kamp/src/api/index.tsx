@@ -311,4 +311,15 @@ export async function getActiveGameInfo(sessionId: string): Promise<{ activeGame
   return res.json()
 }
 
+export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
 // heartbeat endpoint is intentionally not exported for now; if needed implement and enable.

@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard, getActiveGameInfo } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo, postPlayerHeartbeat } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -167,7 +167,8 @@ export default function WaitingRoom() {
         const next = [...arr, storedVal]
         localStorage.setItem('onlinePlayers', JSON.stringify(next))
         // notify other tabs
-        window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) }))
+        // rely on native storage event to notify other windows; keep a manual dispatch for same-tab fallback
+        try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) })) } catch { /* ignore */ }
       }
     } catch {
       try { localStorage.setItem('onlinePlayers', JSON.stringify([String(playerNumber)])) } catch { /* ignore */ }
@@ -181,7 +182,7 @@ export default function WaitingRoom() {
         const padded = String(playerNumber).padStart(3,'0')
         const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
-        window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
+        try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
       } catch { /* ignore */ }
     }
 
@@ -191,6 +192,21 @@ export default function WaitingRoom() {
     window.addEventListener('beforeunload', cleanup)
     return () => { try { window.removeEventListener('beforeunload', cleanup) } catch { /* ignore */ } }
   }, [playerNumber])
+
+  // heartbeat: tell server this player is present so organizers can see online status even
+  // when localStorage sync doesn't arrive. Send immediately and then periodically.
+  useEffect(() => {
+    if (!playerNumber || !sessionId) return
+    let mounted = true
+    const timer = window.setInterval(() => {
+      if (mounted) void (async () => {
+        try { await postPlayerHeartbeat(sessionId, String(playerNumber).padStart(3,'0')) } catch { /* ignore */ }
+      })()
+    }, 7000)
+    // send initial heartbeat immediately (don't block rendering)
+    void (async () => { try { await postPlayerHeartbeat(sessionId, String(playerNumber).padStart(3,'0')) } catch { /* ignore */ } })()
+    return () => { mounted = false; clearInterval(timer) }
+  }, [playerNumber, sessionId])
 
   useEffect(() => {
     let mounted = true

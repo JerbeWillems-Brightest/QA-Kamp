@@ -659,19 +659,29 @@ function DayDashboard(){
            const scoreVal = obj.score ?? obj.points ?? obj.punten
            const score = typeof scoreVal === 'number' ? scoreVal : Number(scoreVal ?? 0) || 0
           // try several possible fields for the age/category column coming from different backends
-          const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
-            : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
-            : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
-            : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
-            : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
-            : '-'
+           const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
+             : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
+             : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
+             : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
+             : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
+             : '-'
 
-          // derive status from localStorage onlinePlayers set; if no playerNumber -> Offline
-          const status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
+          // derive status from localStorage onlinePlayers set OR server lastSeen timestamp
+          let status = 'Offline'
+          try {
+            const now = Date.now()
+            const lastSeenRaw = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
+            const lastSeenMs = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0
+            const RECENT_MS = 15000 // consider recent within 15s as online (matches heartbeat interval)
+            const seenRecently = lastSeenMs && (now - lastSeenMs) <= RECENT_MS
+            if (playerNumberStr && (currentOnline.has(playerNumberStr) || seenRecently)) status = 'Online'
+          } catch {
+            status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
+          }
 
           return { playerNumber: playerNumberStr, name: String(name), score, category, status }
-        })
-        setPlayers(parsedPlayers)
+         })
+         setPlayers(parsedPlayers)
       } catch {
         console.warn('Failed to fetch players')
       }
