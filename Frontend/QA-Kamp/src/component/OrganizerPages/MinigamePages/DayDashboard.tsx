@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import Navbar from '../../Navbar.tsx'
 import { useSession } from '../../../context/SessionContext.tsx'
-import { fetchPlayersForSession, fetchLeaderboard } from '../../../api'
+import { fetchPlayersForSession, fetchLeaderboard, fetchOnlinePlayers } from '../../../api'
 import { useState } from 'react'
 // import images so the bundler (Vite) resolves their URLs
 import KRAAK_IMG from '../../../assets/KraakHetWachtwoord.png'
@@ -347,9 +347,9 @@ function DayDashboard(){
       const raw = localStorage.getItem('onlinePlayers')
       if (!raw) return []
       const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) return parsed.map((v) => String(v))
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v).padStart(3,'0'))
       // back-compat: comma-separated
-      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean)
+      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean).map(s => String(s).padStart(3,'0'))
       return []
     } catch {
       return []
@@ -367,7 +367,45 @@ function DayDashboard(){
       }
     }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+
+    // Poll server for authoritative onlinePlayers every 5s while this component is mounted
+    let cancelled = false
+    let timer: number | null = null
+    async function pollOnline() {
+      if (cancelled) return
+      try {
+        const sessId = sessionId
+        if (!sessId) return
+        const resp = await fetchOnlinePlayers(sessId, 15000)
+        const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3,'0'))
+        // update localStorage only if changed (helps avoid redundant storage events)
+        try {
+          const raw = localStorage.getItem('onlinePlayers')
+          const cur = raw ? (JSON.parse(raw) as string[]) : []
+          const same = Array.isArray(cur) && cur.length === list.length && cur.every((v, i) => String(v) === String(list[i]))
+          if (!same) {
+            localStorage.setItem('onlinePlayers', JSON.stringify(list))
+            // transient key to ensure same-tab listeners also react
+            try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
+            // notify other tabs explicitly in case some browsers don't fire storage for same-tab writes
+            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(list) })) } catch { /* ignore */ }
+          }
+          setOnlinePlayers(list)
+        } catch { /* ignore localStorage errors */ }
+      } catch {
+        // ignore polling errors; will retry
+      } finally {
+        if (!cancelled) timer = window.setTimeout(pollOnline, 5000)
+      }
+    }
+    // start polling
+    pollOnline().catch(() => {})
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [])
 
   // initialize running state from localStorage so it persists across navigation/tabs
@@ -478,7 +516,7 @@ function DayDashboard(){
   function closeModal(){ setSelectedGame(null); setSelectedAges([]) }
   // when the popup selects an age, sync it here as a single-selection
   function handleSelectAgeFromPopup(a: string){ setSelectedAges([a]) }
-  function startGame(){
+  async function startGame(){
     if (!selectedGame) return
     setIsGameRunning(true)
     setActiveGame(selectedGame)
@@ -492,10 +530,22 @@ function DayDashboard(){
       const p = typeof window !== 'undefined' ? window.location.pathname : ''
       const m = p.match(/\/day\/(\w+)/i)
       const dayKeyForPersist = m && m[1] ? m[1].toLowerCase() : ''
-      localStorage.setItem('activeGameInfo', JSON.stringify({ game: selectedGame, day: dayKeyForPersist }))
+      const info = { game: selectedGame, day: dayKeyForPersist }
+      localStorage.setItem('activeGameInfo', JSON.stringify(info))
+      // dispatch custom event for same-tab listeners
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
+      // also persist to server so remote clients can poll
+      try {
+        const sid = sessionId
+        if (sid) {
+          // import API lazily to avoid circular imports
+          const api = await import('../../../api')
+          try { await api.setActiveGameInfo(sid, info) } catch (err) { console.warn('Failed to set activeGameInfo on server', err) }
+        }
+      } catch (err) { console.warn('Failed to notify server of activeGameInfo', err) }
     } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
   }
-  function stopGame(){
+  async function stopGame(){
     if (!selectedGame) return
     setIsGameRunning(false)
     // capture name before clearing
@@ -505,7 +555,23 @@ function DayDashboard(){
     console.log('Stopping', name)
     // close the modal after stopping
     closeModal()
-    try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+    // Clear localStorage + notify same-tab and other tabs
+    try {
+      try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+      // same-tab listeners: dispatch custom event with null detail so onCustom handler treats it as cleared
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
+      // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
+      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
+    } catch (e) { console.warn('Failed to notify clients of stop', e) }
+
+    // Also clear server-side persisted activeGameInfo so remote devices polling the server know it's cleared
+    try {
+      const sid = sessionId
+      if (sid) {
+        const api = await import('../../../api')
+        try { await api.setActiveGameInfo(sid, null) } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
+      }
+    } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
   }
 
   // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
@@ -625,24 +691,35 @@ function DayDashboard(){
         const parsedPlayers: Player[] = rawPlayers.map((it) => {
            const obj = (it ?? {}) as Record<string, unknown>
            const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
-           const playerNumberStr = String(playerNumber ?? '').trim()
+           // normalize playerNumber to 3-digit string so it matches onlinePlayers format
+           const playerNumberStr = String(playerNumber ?? '').trim().padStart(3,'0')
            const name = typeof obj.name === 'string' ? obj.name : (typeof obj.naam === 'string' ? obj.naam : '')
            const scoreVal = obj.score ?? obj.points ?? obj.punten
            const score = typeof scoreVal === 'number' ? scoreVal : Number(scoreVal ?? 0) || 0
           // try several possible fields for the age/category column coming from different backends
-          const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
-            : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
-            : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
-            : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
-            : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
-            : '-'
+           const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
+             : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
+             : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
+             : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
+             : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
+             : '-'
 
-          // derive status from localStorage onlinePlayers set; if no playerNumber -> Offline
-          const status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
+          // derive status from localStorage onlinePlayers set OR server lastSeen timestamp
+          let status = 'Offline'
+          try {
+            const now = Date.now()
+            const lastSeenRaw = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
+            const lastSeenMs = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0
+            const RECENT_MS = 15000 // consider recent within 15s as online (matches heartbeat interval)
+            const seenRecently = lastSeenMs && (now - lastSeenMs) <= RECENT_MS
+            if (playerNumberStr && (currentOnline.has(playerNumberStr) || seenRecently)) status = 'Online'
+          } catch {
+            status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
+          }
 
           return { playerNumber: playerNumberStr, name: String(name), score, category, status }
-        })
-        setPlayers(parsedPlayers)
+         })
+         setPlayers(parsedPlayers)
       } catch {
         console.warn('Failed to fetch players')
       }

@@ -67,6 +67,34 @@ export async function loginOrganizer(email: string, password: string): Promise<L
   })
 }
 
+export async function joinSession(code: string): Promise<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }> {
+  const url = `${API_URL}/api/sessions/join`
+  return safeFetch<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+}
+
+export async function getActiveSession(): Promise<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }> {
+  const url = `${API_URL}/api/sessions/active`
+  return safeFetch<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }>(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+// Join the currently active session using only the player's number.
+// Returns { session, player } on success.
+export async function joinActiveSession(playerNumber: string): Promise<{ session?: { id: string; code?: string; name?: string }, player?: ApiPlayer | unknown }> {
+  const url = `${API_URL}/api/sessions/active/join`
+  return safeFetch<{ session?: { id: string; code?: string; name?: string }, player?: ApiPlayer | unknown }>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ playerNumber }),
+  })
+}
+
 export interface SessionResponse {
   session?: { id: string; organizerId?: string; startedAt: string; name?: string };
   success?: boolean;
@@ -196,6 +224,19 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
   return { players }
 }
 
+// Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
+export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/online-players?cutoffMs=${encodeURIComponent(String(cutoffMs))}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  const list = (json.onlinePlayers || []).map((p: any) => ({ playerNumber: String(p.playerNumber ?? '').padStart(3, '0'), lastSeen: p.lastSeen ?? null }))
+  return { onlinePlayers: list }
+}
+
 export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] }> {
   const q = overwrite ? '?overwrite=true' : ''
   const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players${q}`, {
@@ -254,4 +295,63 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
   return { leaderboard: list }
 }
 
-// heartbeat endpoint is intentionally not exported for now; if needed implement and enable.
+export async function setActiveGameInfo(sessionId: string, info: Record<string, unknown> | null): Promise<{ success?: boolean; activeGameInfo?: unknown }> {
+  const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
+  // Avoid sending the literal JSON "null" (JSON.stringify(null) -> "null") because
+  // body-parser in strict mode rejects non-object/array JSON (it treats "null" as invalid).
+  // If info is null we'll omit the body so the server sees no body and we can interpret
+  // that as a request to clear the activeGameInfo (the backend code uses `req.body || null`).
+  const opts: RequestInit = { method: 'POST' }
+  if (info !== null && typeof info !== 'undefined') {
+    opts.headers = { 'Content-Type': 'application/json' }
+    opts.body = JSON.stringify(info)
+  }
+  const res = await fetch(url, opts)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function getActiveGameInfo(sessionId: string): Promise<{ activeGameInfo?: unknown }> {
+  const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+// Explicit online/offline controls
+export async function setPlayerOnline(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/online`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function setPlayerOffline(sessionId: string, playerNumber: string): Promise<{ success?: boolean }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/offline`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}

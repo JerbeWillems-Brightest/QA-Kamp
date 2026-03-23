@@ -66,6 +66,9 @@ describe('HomePage (merged tests)', () => {
   it('unique spelersnummer is accepted (stores player in sessionStorage and navigates waiting)', async () => {
     // mock an active session and API response
     localStorage.setItem('currentSessionId', 'sess-1')
+    const fetchOnlinePlayersSpy = vi.spyOn(api, 'fetchOnlinePlayers').mockResolvedValue({ onlinePlayers: [] })
+    const setPlayerOnlineSpy = vi.spyOn(api, 'setPlayerOnline').mockResolvedValue({ success: true })
+    const setPlayerOfflineSpy = vi.spyOn(api, 'setPlayerOffline').mockResolvedValue({ success: true })
     const fetchMock = vi.spyOn(api, 'fetchPlayersForSession').mockResolvedValue({ players: [{ playerNumber: '123', name: 'Test', age: 12, category: '11-13' }] })
 
     render(
@@ -84,6 +87,9 @@ describe('HomePage (merged tests)', () => {
     expect(sessionStorage.getItem('playerSessionId')).toBe('sess-1')
 
     fetchMock.mockRestore()
+    fetchOnlinePlayersSpy.mockRestore()
+    setPlayerOnlineSpy.mockRestore()
+    setPlayerOfflineSpy.mockRestore()
   })
 
   // Test: invoer langer dan 3 cijfers wordt afgekapt, toont foutmelding en verhindert submit

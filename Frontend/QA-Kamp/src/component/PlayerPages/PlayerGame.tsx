@@ -5,7 +5,7 @@ import CurveImg from '../../assets/curve.png'
 import StarImg from '../../assets/Star.png'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchPlayersForSession } from '../../api'
+import { fetchPlayersForSession, getActiveGameInfo, postPlayerHeartbeat } from '../../api'
 
 const gameDescriptions: Record<string, Record<string, string>> = {
   'kraakhetwachtwoord': {
@@ -173,6 +173,40 @@ export default function PlayerGame() {
     return () => { mounted = false }
   }, [sessionId, playerNumber, categoryFromActive])
 
+  // Keep the player online while they're in the active game page.
+  // Organizer/player pages rely on server `lastSeen` to keep them in online lists.
+  useEffect(() => {
+    if (!sessionId || !playerNumber) return
+    let cancelled = false
+    const intervalMs = 5000
+    const tick = () => {
+      if (cancelled) return
+      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        // If the organizer removed/deleted the player, backend responds 404.
+        // Stop polling to avoid console spam.
+        if (/player not found/i.test(msg) || /session not found/i.test(msg) || /not found/i.test(msg)) {
+          cancelled = true
+          // Ensure the player is kicked back to home immediately even if
+          // localStorage "onlinePlayers" updates/events are delayed.
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      })
+    }
+
+    tick()
+    const id = window.setInterval(tick, intervalMs)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [sessionId, playerNumber])
+
   // derive description with useMemo
   function resolveDescriptionFor(tableSection: Record<string, string>, cat: string) {
     const norm = String(cat || '').toLowerCase().replace(/\s+/g, '')
@@ -202,6 +236,26 @@ export default function PlayerGame() {
   useEffect(() => {
     function handleStorage(e: StorageEvent) {
       if (!e.key) return
+      if (e.key === 'currentSessionId') {
+        if (e.newValue === null) {
+          try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerNumber') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+          // remove this player from onlinePlayers
+          try {
+            const raw = localStorage.getItem('onlinePlayers')
+            const arr = raw ? JSON.parse(raw) as string[] : []
+            const plain = String(playerNumber || '')
+            const padded = String(playerNumber || '').padStart(3,'0')
+            const filtered = Array.isArray(arr) ? arr.filter(x => (String(x) !== plain && String(x) !== padded)) : []
+            localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+            window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
+          } catch { /* ignore */ }
+          try { navigate('/') } catch (err) { void err }
+        }
+        return
+      }
       if (e.key === 'activeGame' || e.key === 'activeGameInfo') {
         try {
           // storage events set newValue === null when a key is removed
@@ -247,6 +301,132 @@ export default function PlayerGame() {
       try { window.removeEventListener('activeGameInfoChanged', handleCustom) } catch (err) { void err }
     }
   }, [navigate])
+
+  useEffect(() => {
+    function handleOnlinePlayersChange(e: StorageEvent) {
+       // explicit kick handling
+      try {
+        if (e.key && typeof e.key === 'string' && e.key.startsWith('kick_')) {
+          const kicked = e.key.slice(5)
+          const plain = String(playerNumber || '')
+          const padded = plain.padStart(3,'0')
+          if (kicked === plain || kicked === padded) {
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+            return
+          }
+        }
+      } catch { /* ignore */ }
+      if (e.key !== 'onlinePlayers') return
+      try {
+        const raw = e.newValue ?? localStorage.getItem('onlinePlayers')
+        const arr = raw ? JSON.parse(String(raw)) as string[] : []
+        const plain = String(playerNumber || '')
+        const padded = plain.padStart(3,'0')
+        const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded))
+        if (!exists) {
+          // logged out/deleted by organizer
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('storage', handleOnlinePlayersChange)
+    return () => window.removeEventListener('storage', handleOnlinePlayersChange)
+  }, [playerNumber, navigate])
+
+  // Ensure kick/removal is noticed even if `storage` events aren't delivered
+  // (some browsers/SPA situations can miss them). We fall back to polling the
+  // canonical `localStorage.onlinePlayers` array like WaitingRoom does.
+  useEffect(() => {
+    // Do not enforce while the key is missing (e.g. in unit tests / edge cases).
+    const raw = (() => {
+      try { return localStorage.getItem('onlinePlayers') } catch { return null }
+    })()
+    if (!raw) return
+    if (!playerNumber) return
+
+    let done = false
+    const intervalMs = 2000
+
+    const check = () => {
+      if (done) return
+      try {
+        const rawOnline = localStorage.getItem('onlinePlayers')
+        if (!rawOnline) return
+        const arr = JSON.parse(String(rawOnline)) as string[] | unknown
+        const list = Array.isArray(arr) ? arr : []
+
+        const plain = String(playerNumber)
+        const padded = plain.padStart(3, '0')
+        const exists = list.includes(plain) || list.includes(padded)
+
+        if (!exists) {
+          done = true
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    check()
+    const id = window.setInterval(check, intervalMs)
+    return () => window.clearInterval(id)
+  }, [playerNumber, navigate])
+
+  // Poll the server for authoritative activeGameInfo so players already inside a game
+  // get informed when the organizer stops the game (server clears activeGameInfo).
+  useEffect(() => {
+    if (!sessionId) return
+    let mounted = true
+    let timer: number | undefined
+    async function checkActiveInfo() {
+      try {
+        const resp = await getActiveGameInfo(sessionId)
+        if (!mounted) return
+        if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
+          // server cleared the active game -> ensure client clears and navigates back to waiting
+          // Important: do NOT remove currentSessionId or the player's session info here.
+          // These identify the player's membership in the session and should only be removed
+          // on explicit session deletion or when the organizer kicks the player.
+          try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          // NOTE: keep sessionStorage.playerNumber and playerSessionId intact here so the
+          // player remains logged in and can re-enter games for the same session.
+          // Do NOT remove localStorage.currentSessionId here.
+          try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch { /* ignore */ }
+          try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+        }
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        // If session was deleted, stop polling.
+        if (/session not found/i.test(msg)) {
+          mounted = false
+          return
+        }
+        // network errors are fine; we'll retry
+      } finally {
+        timer = window.setTimeout(checkActiveInfo, 5000)
+      }
+    }
+    checkActiveInfo()
+    return () => { mounted = false; if (timer) clearTimeout(timer) }
+  }, [sessionId, navigate])
 
   return (
     <main className="main">

@@ -18,21 +18,33 @@ const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
 const FRONTEND_ORIGIN_RAW = process.env.FRONTEND_ORIGIN || '*'
 const FRONTEND_ORIGINS = FRONTEND_ORIGIN_RAW.split(',').map((s) => s.trim()).filter(Boolean)
 
-// Combine and deduplicate allowed origins
-const allowedOrigins = Array.from(new Set([...FRONTEND_ORIGINS]))
+// Combine and deduplicate allowed origins (normalize by removing trailing slash and lowercasing)
+function normalizeOrigin(o: string) {
+  if (!o) return ''
+  return o.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+const allowedOrigins = Array.from(
+  new Set([
+    ...FRONTEND_ORIGINS.map(normalizeOrigin).filter(Boolean),
+  ])
+)
 
 const corsOptions = {
   origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
     // No origin (curl, server-to-server) => allow
     if (!origin) return callback(null, true)
+    // normalize incoming origin for robust matching
+    const incoming = normalizeOrigin(origin)
     // Wildcard configured => allow everything
     if (allowedOrigins.includes('*')) return callback(null, true)
-    if (allowedOrigins.includes(origin)) return callback(null, true)
+    if (allowedOrigins.includes(incoming)) return callback(null, true)
     console.warn(`CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(',')}`)
     return callback(new Error('Not allowed by CORS'))
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  // Allow common headers plus the custom x-confirm-delete header used by the frontend
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-confirm-delete'],
   credentials: true,
   optionsSuccessStatus: 204,
 }
