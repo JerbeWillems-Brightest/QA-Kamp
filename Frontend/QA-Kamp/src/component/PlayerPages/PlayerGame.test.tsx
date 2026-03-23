@@ -14,7 +14,8 @@ import { fetchPlayersForSession } from '../../api'
 
 // mock api module
 vi.mock('../../api', () => ({
-  fetchPlayersForSession: vi.fn(() => Promise.resolve({ players: [] }))
+  fetchPlayersForSession: vi.fn(() => Promise.resolve({ players: [] })),
+  postPlayerHeartbeat: vi.fn(() => Promise.resolve({ success: true })),
 }))
 
 describe('PlayerGame', () => {

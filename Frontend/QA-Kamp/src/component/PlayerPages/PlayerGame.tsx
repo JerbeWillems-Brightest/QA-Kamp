@@ -5,7 +5,7 @@ import CurveImg from '../../assets/curve.png'
 import StarImg from '../../assets/Star.png'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchPlayersForSession, getActiveGameInfo } from '../../api'
+import { fetchPlayersForSession, getActiveGameInfo, postPlayerHeartbeat } from '../../api'
 
 const gameDescriptions: Record<string, Record<string, string>> = {
   'kraakhetwachtwoord': {
@@ -172,6 +172,25 @@ export default function PlayerGame() {
     loadPlayer()
     return () => { mounted = false }
   }, [sessionId, playerNumber, categoryFromActive])
+
+  // Keep the player online while they're in the active game page.
+  // Organizer/player pages rely on server `lastSeen` to keep them in online lists.
+  useEffect(() => {
+    if (!sessionId || !playerNumber) return
+    let cancelled = false
+    const intervalMs = 5000
+    const tick = () => {
+      if (cancelled) return
+      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch(() => {})
+    }
+
+    tick()
+    const id = window.setInterval(tick, intervalMs)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [sessionId, playerNumber])
 
   // derive description with useMemo
   function resolveDescriptionFor(tableSection: Record<string, string>, cat: string) {
