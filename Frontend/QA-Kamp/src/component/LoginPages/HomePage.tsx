@@ -171,20 +171,6 @@ function HomePage() {
 
       const serverSessionId = String((resp.session as Record<string, unknown>).id ?? (resp.session as Record<string, unknown>)._id ?? '')
 
-      // Ask server to mark player online explicitly (server authoritative). Only persist locally on success.
-      try {
-        await api.setPlayerOnline(serverSessionId, playerNumber)
-      } catch (setErr: unknown) {
-        const msg = setErr instanceof Error ? setErr.message : String(setErr)
-        if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
-          setNumberError('Dit spelersnummer is al ingelogd op een ander apparaat')
-          return
-        }
-        console.error('Failed to set player online after joinActiveSession', setErr)
-        setNumberError('Er is een fout opgetreden bij het inloggen. Probeer het opnieuw.')
-        return
-      }
-
       // update onlinePlayers list in localStorage (prevent multiple logins in same browser)
       try {
         const raw = localStorage.getItem('onlinePlayers')
