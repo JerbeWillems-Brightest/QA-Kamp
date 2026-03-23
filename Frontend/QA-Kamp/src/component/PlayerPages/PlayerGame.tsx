@@ -328,6 +328,51 @@ export default function PlayerGame() {
     return () => window.removeEventListener('storage', handleOnlinePlayersChange)
   }, [playerNumber, navigate])
 
+  // Ensure kick/removal is noticed even if `storage` events aren't delivered
+  // (some browsers/SPA situations can miss them). We fall back to polling the
+  // canonical `localStorage.onlinePlayers` array like WaitingRoom does.
+  useEffect(() => {
+    // Do not enforce while the key is missing (e.g. in unit tests / edge cases).
+    const raw = (() => {
+      try { return localStorage.getItem('onlinePlayers') } catch { return null }
+    })()
+    if (!raw) return
+    if (!playerNumber) return
+
+    let done = false
+    const intervalMs = 2000
+
+    const check = () => {
+      if (done) return
+      try {
+        const rawOnline = localStorage.getItem('onlinePlayers')
+        if (!rawOnline) return
+        const arr = JSON.parse(String(rawOnline)) as string[] | unknown
+        const list = Array.isArray(arr) ? arr : []
+
+        const plain = String(playerNumber)
+        const padded = plain.padStart(3, '0')
+        const exists = list.includes(plain) || list.includes(padded)
+
+        if (!exists) {
+          done = true
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch {
+        // ignore parse errors
+      }
+    }
+
+    check()
+    const id = window.setInterval(check, intervalMs)
+    return () => window.clearInterval(id)
+  }, [playerNumber, navigate])
+
   // Poll the server for authoritative activeGameInfo so players already inside a game
   // get informed when the organizer stops the game (server clears activeGameInfo).
   useEffect(() => {
