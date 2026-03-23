@@ -335,4 +335,23 @@ export async function postPlayerHeartbeat(sessionId: string, playerNumber: strin
   return res.json()
 }
 
-// heartbeat endpoint is intentionally not exported for now; if needed implement and enable.
+// Explicit online/offline controls
+export async function setPlayerOnline(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/online`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function setPlayerOffline(sessionId: string, playerNumber: string): Promise<{ success?: boolean }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/offline`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}

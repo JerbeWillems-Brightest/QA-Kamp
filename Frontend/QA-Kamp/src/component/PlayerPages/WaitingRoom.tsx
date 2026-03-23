@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -43,6 +43,7 @@ export default function WaitingRoom() {
   }
   const [message, setMessage] = useState('Wacht tot het spel start')
   const [started, setStarted] = useState(false)
+  const [serverOnlineConfirmed, setServerOnlineConfirmed] = useState(false)
   const navigate = useNavigate()
 
   // helper to enter the game page when an activeGame is announced
@@ -189,34 +190,80 @@ export default function WaitingRoom() {
   // register this player as online in localStorage so organizer can see status
   useEffect(() => {
     if (!playerNumber) return
-    try {
+    const sess = sessionId
+    let cancelled = false
+
+    async function markOnline() {
+      setServerOnlineConfirmed(false)
+
+      // try to mark online on server first (authoritative). If it fails with 409, force local logout.
+      let serverOk = false
+      if (sess) {
+        try {
+          const api = await import('../../api')
+          await api.setPlayerOnline(sess, String(playerNumber))
+          serverOk = true
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err)
+          if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
+            // someone else is online with this number — force local logout
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+            return
+          }
+          console.warn('Failed to set player online on server (falling back to localStorage):', err)
+        }
+      }
+
+      if (cancelled) return
+
       // store the playerNumber as the plain string (tests expect e.g. '42')
       const storedVal = String(playerNumber)
       const padded = storedVal.padStart(3, '0')
-      const raw = localStorage.getItem('onlinePlayers')
-      const parsed = raw ? JSON.parse(raw) as unknown : []
-      const arr = Array.isArray(parsed) ? parsed as string[] : []
-      // check if either plain or padded representation already exists
-      const hasStored = arr.includes(storedVal) || arr.includes(padded)
-      if (!hasStored) {
-        const next = [...arr.filter(Boolean), storedVal]
-        localStorage.setItem('onlinePlayers', JSON.stringify(next))
-        // notify other tabs (some browsers don't fire storage for same-tab writes)
-        try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) })) } catch { /* ignore */ }
+
+      // If the server confirmed, store it too; otherwise only store if there's no sessionId (can't sync to server).
+      if (serverOk || !sess) {
+        try {
+          const raw = localStorage.getItem('onlinePlayers')
+          const parsed = raw ? JSON.parse(raw) as unknown : []
+          const arr = Array.isArray(parsed) ? parsed as string[] : []
+          // check if either plain or padded representation already exists
+          const hasStored = arr.includes(storedVal) || arr.includes(padded)
+          if (!hasStored) {
+            const next = [...arr.filter(Boolean), storedVal]
+            localStorage.setItem('onlinePlayers', JSON.stringify(next))
+            // notify other tabs (some browsers don't fire storage for same-tab writes)
+            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) })) } catch { /* ignore */ }
+          }
+        } catch {
+          try { localStorage.setItem('onlinePlayers', JSON.stringify([storedVal])) } catch { /* ignore */ }
+        }
       }
-    } catch {
-      try { localStorage.setItem('onlinePlayers', JSON.stringify([String(playerNumber)])) } catch { /* ignore */ }
+
+      if (serverOk || !sess) setServerOnlineConfirmed(true)
     }
+
+    void markOnline()
 
     const cleanup = () => {
       try {
         const raw2 = localStorage.getItem('onlinePlayers')
         const arr2 = raw2 ? JSON.parse(raw2) as string[] : []
         const plain = String(playerNumber)
-        const padded = plain.padStart(3,'0')
+        const padded = plain.padStart(3, '0')
         const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
+      } catch { /* ignore */ }
+
+      // tell server to mark offline if we previously set it online
+      try {
+        const sid = sessionId
+        if (sid) {
+          void import('../../api').then(m => m.setPlayerOffline(sid, String(playerNumber))).catch(() => {})
+        }
       } catch { /* ignore */ }
     }
 
@@ -224,14 +271,65 @@ export default function WaitingRoom() {
     // Do NOT remove the player on component unmount so the online status persists
     // when the player navigates within the SPA (e.g. to /player/game).
     window.addEventListener('beforeunload', cleanup)
-    return () => { try { window.removeEventListener('beforeunload', cleanup) } catch { /* ignore */ } }
-  }, [playerNumber])
+    return () => {
+      cancelled = true
+      try { window.removeEventListener('beforeunload', cleanup) } catch { /* ignore */ }
+    }
+  }, [playerNumber, sessionId, navigate])
+
+  // Sync authoritative onlinePlayers from server so status/locking works across devices.
+  useEffect(() => {
+    if (!sessionId || !playerNumber) return
+    if (!serverOnlineConfirmed) return
+
+    let cancelled = false
+    let timer: number | undefined
+
+    async function syncOnlinePlayers() {
+      try {
+        const resp = await fetchOnlinePlayers(sessionId, 15000)
+        const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3, '0'))
+
+        // update localStorage only if changed (avoids redundant events)
+        const raw = localStorage.getItem('onlinePlayers')
+        let cur: string[] = []
+        try {
+          cur = raw ? (JSON.parse(raw) as string[]) : []
+        } catch {
+          cur = []
+        }
+
+        const same = Array.isArray(cur) && cur.length === list.length && cur.every((v, i) => String(v) === String(list[i]))
+        if (!same) {
+          localStorage.setItem('onlinePlayers', JSON.stringify(list))
+          try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
+          try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(list) })) } catch { /* ignore */ }
+        }
+      } catch {
+        // ignore sync errors; next tick may succeed
+      }
+    }
+
+    void syncOnlinePlayers()
+    timer = window.setInterval(() => {
+      if (cancelled) return
+      void syncOnlinePlayers()
+    }, 5000)
+
+    return () => {
+      cancelled = true
+      if (timer) clearInterval(timer)
+    }
+  }, [sessionId, playerNumber, serverOnlineConfirmed])
 
   // Periodically re-check localStorage.onlinePlayers so the waiting-room tab reacts
   // immediately when the organizer removes the player (even if a storage event
   // didn't arrive). This avoids requiring a manual refresh.
   useEffect(() => {
     if (!playerNumber) return
+    // Avoid race: localStorage.onlinePlayers might not be written yet while we are
+    // waiting for the server-confirmed online status.
+    if (sessionId && !serverOnlineConfirmed) return
     const intervalMs = 2000 // check every 2s
     const check = () => {
       try {
@@ -255,7 +353,7 @@ export default function WaitingRoom() {
     // run immediate check once (don't wait interval)
     check()
     return () => clearInterval(id)
-  }, [playerNumber, navigate])
+  }, [playerNumber, navigate, sessionId, serverOnlineConfirmed])
 
   useEffect(() => {
     let mounted = true
