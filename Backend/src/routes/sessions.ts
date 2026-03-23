@@ -106,10 +106,29 @@ router.post('/active/join', async (req, res) => {
     if (!session) return res.status(404).json({ error: 'No active session' })
 
     // find player in that session
-    const player = await Player.findOne({ sessionId: session._id, playerNumber: normalized })
-    if (!player) return res.status(404).json({ error: 'Player not found in active session' })
+    // To prevent concurrent logins: only allow join if the player's lastSeen is null or older than
+    // a short cutoff window. We perform an atomic findOneAndUpdate so that two simultaneous
+    // join attempts won't both succeed.
+    const now = new Date()
+    const ONLINE_CUTOFF_MS = 60 * 1000 // 60 seconds considered "online"
+    const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
 
-    return res.json({ session: { id: session._id, code: session.code, name: session.name }, player })
+    // Try to update lastSeen only if the player is currently offline (lastSeen < cutoff or null).
+    const updatedPlayer = await Player.findOneAndUpdate(
+      { sessionId: session._id, playerNumber: normalized, $or: [{ lastSeen: { $lt: cutoff } }, { lastSeen: null }] },
+      { lastSeen: now },
+      { new: true }
+    )
+
+    // If update returned null, either the player doesn't exist or they are currently online.
+    if (!updatedPlayer) {
+      const exists = await Player.findOne({ sessionId: session._id, playerNumber: normalized })
+      if (!exists) return res.status(404).json({ error: 'Player not found in active session' })
+      // Player exists but was recently active -> reject concurrent login
+      return res.status(409).json({ error: 'Speler is al online op een ander apparaat' })
+    }
+
+    return res.json({ session: { id: session._id, code: session.code, name: session.name }, player: updatedPlayer })
   } catch (err) {
     console.error('Active join error:', err)
     return res.status(500).json({ error: 'Failed to join active session' })
@@ -461,6 +480,28 @@ router.get('/:id/active-game', async (req, res) => {
   } catch (err) {
     console.error('Get activeGameInfo error:', err)
     return res.status(500).json({ error: 'Failed to get active game info' })
+  }
+})
+
+// Get online players for a session (authoritative list based on lastSeen)
+router.get('/:id/online-players', async (req, res) => {
+  try {
+    const { id } = req.params
+    const ms = Number(req.query.cutoffMs ?? '15000')
+    const cutoffMs = Number.isFinite(ms) && ms > 0 ? ms : 15000
+    const cutoff = new Date(Date.now() - cutoffMs)
+
+    // ensure session exists
+    const session = await Session.findById(id)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+
+    // find players whose lastSeen is within cutoff
+    const docs = await Player.find({ sessionId: id, lastSeen: { $gte: cutoff } }).select('playerNumber lastSeen').lean()
+    const players = (docs || []).map((d: any) => ({ playerNumber: String(d.playerNumber).padStart(3,'0'), lastSeen: d.lastSeen }))
+    return res.json({ onlinePlayers: players })
+  } catch (err) {
+    console.error('Get online players error:', err)
+    return res.status(500).json({ error: 'Failed to get online players' })
   }
 })
 

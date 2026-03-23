@@ -156,6 +156,20 @@ function HomePage() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('joinActiveSession failed', msg, err)
+
+      // If the server indicated the player is already online elsewhere, revert optimistic local writes
+      if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
+        try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (e) { void e }
+        try {
+          const raw = localStorage.getItem('onlinePlayers')
+          const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
+          const idx = online.indexOf(playerNumber)
+          if (idx >= 0) { online.splice(idx, 1); localStorage.setItem('onlinePlayers', JSON.stringify(online)) }
+        } catch (e) { void e }
+        setNumberError('Dit spelersnummer is al ingelogd op een ander apparaat')
+        return
+      }
+
       // show friendly message for network/server issues
       setNumberError(msg.includes('Player not found') || /not found/i.test(msg) ? 'Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.' : 'Er is een fout opgetreden bij het controleren van je spelersnummer')
     }

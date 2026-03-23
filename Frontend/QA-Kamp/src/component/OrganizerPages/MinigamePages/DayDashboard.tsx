@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import Navbar from '../../Navbar.tsx'
 import { useSession } from '../../../context/SessionContext.tsx'
-import { fetchPlayersForSession, fetchLeaderboard } from '../../../api'
+import { fetchPlayersForSession, fetchLeaderboard, fetchOnlinePlayers } from '../../../api'
 import { useState } from 'react'
 // import images so the bundler (Vite) resolves their URLs
 import KRAAK_IMG from '../../../assets/KraakHetWachtwoord.png'
@@ -367,7 +367,45 @@ function DayDashboard(){
       }
     }
     window.addEventListener('storage', onStorage)
-    return () => window.removeEventListener('storage', onStorage)
+
+    // Poll server for authoritative onlinePlayers every 5s while this component is mounted
+    let cancelled = false
+    let timer: number | null = null
+    async function pollOnline() {
+      if (cancelled) return
+      try {
+        const sessId = sessionId
+        if (!sessId) return
+        const resp = await fetchOnlinePlayers(sessId, 15000)
+        const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3,'0'))
+        // update localStorage only if changed (helps avoid redundant storage events)
+        try {
+          const raw = localStorage.getItem('onlinePlayers')
+          const cur = raw ? (JSON.parse(raw) as string[]) : []
+          const same = Array.isArray(cur) && cur.length === list.length && cur.every((v, i) => String(v) === String(list[i]))
+          if (!same) {
+            localStorage.setItem('onlinePlayers', JSON.stringify(list))
+            // transient key to ensure same-tab listeners also react
+            try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
+            // notify other tabs explicitly in case some browsers don't fire storage for same-tab writes
+            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(list) })) } catch { /* ignore */ }
+          }
+          setOnlinePlayers(list)
+        } catch { /* ignore localStorage errors */ }
+      } catch {
+        // ignore polling errors; will retry
+      } finally {
+        if (!cancelled) timer = window.setTimeout(pollOnline, 5000)
+      }
+    }
+    // start polling
+    pollOnline().catch(() => {})
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      window.removeEventListener('storage', onStorage)
+    }
   }, [])
 
   // initialize running state from localStorage so it persists across navigation/tabs

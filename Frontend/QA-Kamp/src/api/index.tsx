@@ -224,6 +224,19 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
   return { players }
 }
 
+// Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
+export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/online-players?cutoffMs=${encodeURIComponent(String(cutoffMs))}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  const list = (json.onlinePlayers || []).map((p: any) => ({ playerNumber: String(p.playerNumber ?? '').padStart(3, '0'), lastSeen: p.lastSeen ?? null }))
+  return { onlinePlayers: list }
+}
+
 export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] }> {
   const q = overwrite ? '?overwrite=true' : ''
   const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players${q}`, {
