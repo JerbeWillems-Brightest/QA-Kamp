@@ -83,3 +83,5 @@ npm run dev
 # Overige opmerkingen
 - De seed-scripts in de backend lezen credentials uit environment variables en creëren accounts alleen wanneer de `organizers`-collectie leeg is. Dit voorkomt dat plaintext-credentials in de repo terechtkomen.
 
+# Release Versies op Vercel
+- 23/03/2026 release/sprint1
