@@ -19,6 +19,7 @@ vi.mock('../../api', () => ({
   // Server-first online logic: mock online/offline so WaitingRoom can mark localStorage correctly.
   setPlayerOnline: vi.fn(() => Promise.resolve({ success: true })),
   setPlayerOffline: vi.fn(() => Promise.resolve({ success: true })),
+  postPlayerHeartbeat: vi.fn(() => Promise.resolve({ success: true })),
   fetchOnlinePlayers: vi.fn((sessionId: string) => {
     const sid = String(sessionId ?? '')
     const m = sid.match(/(\d+)/)

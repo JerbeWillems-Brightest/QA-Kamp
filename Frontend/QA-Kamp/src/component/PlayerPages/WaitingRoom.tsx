@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers, postPlayerHeartbeat } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -322,6 +322,28 @@ export default function WaitingRoom() {
     }
   }, [sessionId, playerNumber, serverOnlineConfirmed])
 
+  // Keep the player "online" on the server until they explicitly logout
+  // (or until the organizer removes/kicks them).
+  // Without this, `lastSeen` becomes stale and they disappear from online lists.
+  useEffect(() => {
+    if (!sessionId || !playerNumber) return
+    if (!serverOnlineConfirmed) return
+
+    const intervalMs = 5000
+    let cancelled = false
+    const tick = () => {
+      if (cancelled) return
+      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch(() => {})
+    }
+
+    tick()
+    const id = window.setInterval(tick, intervalMs)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+  }, [sessionId, playerNumber, serverOnlineConfirmed])
+
   // Periodically re-check localStorage.onlinePlayers so the waiting-room tab reacts
   // immediately when the organizer removes the player (even if a storage event
   // didn't arrive). This avoids requiring a manual refresh.
@@ -419,18 +441,12 @@ export default function WaitingRoom() {
               try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
               try { navigate('/') } catch { /* ignore */ }
             } else {
-              // Per request: when we would show the waiting message, instead log the player out
-              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
-                try {
-                    localStorage.removeItem('onlinePlayers')
-                }
-                catch {
-                    /* ignore */
-                }
-              try { navigate('/') } catch { /* ignore */ }
+              // Player exists, but leaderboard is empty.
+              // In that case we must NOT kick the player; just keep them on the waiting screen.
+              // The previous behavior cleared session info and forced logout, which broke
+              // cross-device login flow when the leaderboard isn't populated yet.
+              setStarted(false)
+              setMessage('Wacht tot het spel start')
             }
           } catch {
             // if membership check fails, log out as a conservative fallback
