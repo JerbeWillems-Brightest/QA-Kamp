@@ -13,6 +13,12 @@ export default function Navbar() {
     const playerNumber = sessionStorage.getItem('playerNumber')
     if (playerNumber) {
       try {
+        const sess = sessionStorage.getItem('playerSessionId') ?? localStorage.getItem('currentSessionId')
+        if (sess) {
+          try { void import('../api').then(m => m.setPlayerOffline(sess, playerNumber)).catch(() => {}) } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+      try {
         const raw = localStorage.getItem('onlinePlayers')
         if (raw) {
           const arr = JSON.parse(raw) as string[]

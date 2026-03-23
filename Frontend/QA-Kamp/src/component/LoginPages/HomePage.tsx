@@ -45,6 +45,19 @@ function HomePage() {
       return;
     }
 
+    // Prefer existing client session id (fast path).
+    // Before relying on localStorage.onlinePlayers, sync the authoritative server list.
+    const existingSessionId = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
+    if (existingSessionId) {
+      try {
+        const resp = await api.fetchOnlinePlayers(existingSessionId, 15000)
+        const serverOnline = (resp.onlinePlayers || []).map(p => String(p.playerNumber))
+        localStorage.setItem('onlinePlayers', JSON.stringify(serverOnline))
+      } catch {
+        // If sync fails, fall back to localStorage uniqueness check below.
+      }
+    }
+
     // check uniqueness against localStorage key 'onlinePlayers' (assumed to be an array of used numbers)
     try {
       const raw = localStorage.getItem('onlinePlayers');
@@ -58,20 +71,32 @@ function HomePage() {
     }
 
     setNumberError('')
-
-    // Prefer existing client session id (fast, mocked in tests). If none exists, fall back to server-authoritative join.
-    const existingSessionId = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (existingSessionId) {
       try {
-        // Optimistically persist session/player values so tests and UI see them immediately.
+        // Ask server to mark this player online first (server-authoritative)
+        try {
+          await api.setPlayerOnline(existingSessionId, playerNumber)
+        } catch (srvErr: unknown) {
+          const msg = srvErr instanceof Error ? srvErr.message : String(srvErr)
+          if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
+            setNumberError('Dit spelersnummer is al ingelogd op een ander apparaat')
+            return
+          }
+          console.error('Failed to set player online for existingSessionId', srvErr)
+          setNumberError('Er is een fout opgetreden bij het inloggen. Probeer het opnieuw.')
+          return
+        }
+
+        // Persist session/player values only after server confirmed
         try { sessionStorage.setItem('playerNumber', playerNumber); sessionStorage.setItem('playerSessionId', existingSessionId) } catch { /* ignore */ }
         try {
           const raw = localStorage.getItem('onlinePlayers')
           const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
           if (online.includes(playerNumber)) {
-            // revert optimistic storage
-            try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
             setNumberError('Dit spelersnummer is al ingelogd in deze browser')
+            // revert server-side online set by calling offline
+            try { await api.setPlayerOffline(existingSessionId, playerNumber) } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             return
           }
           online.push(playerNumber)
@@ -86,13 +111,14 @@ function HomePage() {
           const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
           if (!found) {
             try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
-            // remove from onlinePlayers
+            // remove from onlinePlayers and notify server
             try {
               const raw2 = localStorage.getItem('onlinePlayers')
               const online2: string[] = raw2 ? (JSON.parse(raw2) as string[]) : []
               const idx = online2.indexOf(playerNumber)
               if (idx >= 0) { online2.splice(idx, 1); localStorage.setItem('onlinePlayers', JSON.stringify(online2)) }
             } catch (err) { void err }
+            try { await api.setPlayerOffline(existingSessionId, playerNumber) } catch { /* ignore */ }
             setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
             return
           }
@@ -107,6 +133,8 @@ function HomePage() {
             const idx = online3.indexOf(playerNumber)
             if (idx >= 0) { online3.splice(idx, 1); localStorage.setItem('onlinePlayers', JSON.stringify(online3)) }
           } catch (err) { void err }
+          // also tell server to go offline
+          try { await api.setPlayerOffline(existingSessionId, playerNumber) } catch { /* ignore */ }
           console.error('error checking players with existingSessionId', innerErr)
           setNumberError('Er is een fout opgetreden bij het controleren van je spelersnummer')
           return
@@ -129,12 +157,28 @@ function HomePage() {
 
       const serverSessionId = String((resp.session as Record<string, unknown>).id ?? (resp.session as Record<string, unknown>)._id ?? '')
 
+      // Ask server to mark player online explicitly (server authoritative). Only persist locally on success.
+      try {
+        await api.setPlayerOnline(serverSessionId, playerNumber)
+      } catch (setErr: unknown) {
+        const msg = setErr instanceof Error ? setErr.message : String(setErr)
+        if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
+          setNumberError('Dit spelersnummer is al ingelogd op een ander apparaat')
+          return
+        }
+        console.error('Failed to set player online after joinActiveSession', setErr)
+        setNumberError('Er is een fout opgetreden bij het inloggen. Probeer het opnieuw.')
+        return
+      }
+
       // update onlinePlayers list in localStorage (prevent multiple logins in same browser)
       try {
         const raw = localStorage.getItem('onlinePlayers')
         const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
         if (online.includes(playerNumber)) {
           setNumberError('Dit spelersnummer is al ingelogd in deze browser')
+          // revert server-side online set
+          try { await api.setPlayerOffline(serverSessionId, playerNumber) } catch { /* ignore */ }
           return
         }
         online.push(playerNumber)

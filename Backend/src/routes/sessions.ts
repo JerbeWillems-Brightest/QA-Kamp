@@ -113,9 +113,9 @@ router.post('/active/join', async (req, res) => {
     const ONLINE_CUTOFF_MS = 60 * 1000 // 60 seconds considered "online"
     const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
 
-    // Try to update lastSeen only if the player is currently offline (lastSeen < cutoff or null).
+    // For explicit online/offline behavior (no timers), only allow join when lastSeen is null.
     const updatedPlayer = await Player.findOneAndUpdate(
-      { sessionId: session._id, playerNumber: normalized, $or: [{ lastSeen: { $lt: cutoff } }, { lastSeen: null }] },
+      { sessionId: session._id, playerNumber: normalized, lastSeen: null },
       { lastSeen: now },
       { new: true }
     )
@@ -487,21 +487,73 @@ router.get('/:id/active-game', async (req, res) => {
 router.get('/:id/online-players', async (req, res) => {
   try {
     const { id } = req.params
-    const ms = Number(req.query.cutoffMs ?? '15000')
-    const cutoffMs = Number.isFinite(ms) && ms > 0 ? ms : 15000
-    const cutoff = new Date(Date.now() - cutoffMs)
 
     // ensure session exists
     const session = await Session.findById(id)
     if (!session) return res.status(404).json({ error: 'Session not found' })
 
-    // find players whose lastSeen is within cutoff
-    const docs = await Player.find({ sessionId: id, lastSeen: { $gte: cutoff } }).select('playerNumber lastSeen').lean()
+    // If caller provided cutoffMs, honor it (back-compat); otherwise return players marked online (lastSeen != null)
+    const msParam = req.query.cutoffMs ? Number(req.query.cutoffMs) : NaN
+    let docs: any[] = []
+    if (Number.isFinite(msParam) && msParam > 0) {
+      const cutoff = new Date(Date.now() - msParam)
+      docs = await Player.find({ sessionId: id, lastSeen: { $gte: cutoff } }).select('playerNumber lastSeen').lean()
+    } else {
+      docs = await Player.find({ sessionId: id, lastSeen: { $ne: null } }).select('playerNumber lastSeen').lean()
+    }
     const players = (docs || []).map((d: any) => ({ playerNumber: String(d.playerNumber).padStart(3,'0'), lastSeen: d.lastSeen }))
     return res.json({ onlinePlayers: players })
   } catch (err) {
     console.error('Get online players error:', err)
     return res.status(500).json({ error: 'Failed to get online players' })
+  }
+})
+
+// Explicitly mark a player as online (called when a player logs in). No timers used.
+router.post('/:id/players/:playerNumber/online', async (req, res) => {
+  try {
+    const { id, playerNumber } = req.params
+    // ensure session exists
+    const session = await Session.findById(id)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+
+    // Only set online if currently offline (lastSeen === null). Prevents concurrent override.
+    const now = new Date()
+    const updated = await Player.findOneAndUpdate(
+      { sessionId: id, playerNumber, lastSeen: null },
+      { lastSeen: now },
+      { new: true }
+    )
+    if (!updated) {
+      const exists = await Player.findOne({ sessionId: id, playerNumber })
+      if (!exists) return res.status(404).json({ error: 'Player not found in session' })
+      return res.status(409).json({ error: 'Speler is al online op een ander apparaat' })
+    }
+    return res.json({ success: true, player: updated })
+  } catch (err) {
+    console.error('Set player online error:', err)
+    return res.status(500).json({ error: 'Failed to set player online' })
+  }
+})
+
+// Explicitly mark a player as offline (called when a player logs out)
+router.post('/:id/players/:playerNumber/offline', async (req, res) => {
+  try {
+    const { id, playerNumber } = req.params
+    // ensure session exists
+    const session = await Session.findById(id)
+    if (!session) return res.status(404).json({ error: 'Session not found' })
+
+    const updated = await Player.findOneAndUpdate(
+      { sessionId: id, playerNumber },
+      { lastSeen: null },
+      { new: true }
+    )
+    if (!updated) return res.status(404).json({ error: 'Player not found in session' })
+    return res.json({ success: true })
+  } catch (err) {
+    console.error('Set player offline error:', err)
+    return res.status(500).json({ error: 'Failed to set player offline' })
   }
 })
 

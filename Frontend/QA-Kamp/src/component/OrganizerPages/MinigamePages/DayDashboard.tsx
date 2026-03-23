@@ -536,7 +536,7 @@ function DayDashboard(){
       try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
       // also persist to server so remote clients can poll
       try {
-        const sid = localStorage.getItem('currentSessionId')
+        const sid = sessionId
         if (sid) {
           // import API lazily to avoid circular imports
           const api = await import('../../../api')
@@ -566,7 +566,7 @@ function DayDashboard(){
 
     // Also clear server-side persisted activeGameInfo so remote devices polling the server know it's cleared
     try {
-      const sid = localStorage.getItem('currentSessionId')
+      const sid = sessionId
       if (sid) {
         const api = await import('../../../api')
         try { await api.setActiveGameInfo(sid, null) } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
