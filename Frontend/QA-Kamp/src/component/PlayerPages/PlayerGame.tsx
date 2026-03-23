@@ -181,7 +181,22 @@ export default function PlayerGame() {
     const intervalMs = 5000
     const tick = () => {
       if (cancelled) return
-      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch(() => {})
+      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        // If the organizer removed/deleted the player, backend responds 404.
+        // Stop polling to avoid console spam.
+        if (/player not found/i.test(msg) || /session not found/i.test(msg) || /not found/i.test(msg)) {
+          cancelled = true
+          // Ensure the player is kicked back to home immediately even if
+          // localStorage "onlinePlayers" updates/events are delayed.
+          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      })
     }
 
     tick()
@@ -397,7 +412,13 @@ export default function PlayerGame() {
           try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch { /* ignore */ }
           try { navigate('/player/waiting') } catch { /* ignore */ }
         }
-      } catch {
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err)
+        // If session was deleted, stop polling.
+        if (/session not found/i.test(msg)) {
+          mounted = false
+          return
+        }
         // network errors are fine; we'll retry
       } finally {
         timer = window.setTimeout(checkActiveInfo, 5000)
