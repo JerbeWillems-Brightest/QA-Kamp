@@ -32,7 +32,11 @@ export default function Navbar() {
       } catch {
         // ignore
       }
-      try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch {
+      try {
+        sessionStorage.removeItem('playerNumber')
+        sessionStorage.removeItem('playerSessionId')
+        sessionStorage.removeItem('playerOnlineLocked')
+      } catch {
           // ignore error
       }
       // Also remove the currentsessionid so a subsequent login will re-fetch the active session

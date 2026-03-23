@@ -88,7 +88,12 @@ function HomePage() {
         }
 
         // Persist session/player values only after server confirmed
-        try { sessionStorage.setItem('playerNumber', playerNumber); sessionStorage.setItem('playerSessionId', existingSessionId) } catch { /* ignore */ }
+        try {
+          sessionStorage.setItem('playerNumber', playerNumber)
+          sessionStorage.setItem('playerSessionId', existingSessionId)
+          // Flag so WaitingRoom knows it already acquired the online lock.
+          sessionStorage.setItem('playerOnlineLocked', 'true')
+        } catch { /* ignore */ }
         try {
           const raw = localStorage.getItem('onlinePlayers')
           const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
@@ -96,7 +101,11 @@ function HomePage() {
             setNumberError('Dit spelersnummer is al ingelogd in deze browser')
             // revert server-side online set by calling offline
             try { await api.setPlayerOffline(existingSessionId, playerNumber) } catch { /* ignore */ }
-            try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try {
+              sessionStorage.removeItem('playerNumber')
+              sessionStorage.removeItem('playerSessionId')
+              sessionStorage.removeItem('playerOnlineLocked')
+            } catch { /* ignore */ }
             return
           }
           online.push(playerNumber)
@@ -111,6 +120,7 @@ function HomePage() {
           const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
           if (!found) {
             try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             // remove from onlinePlayers and notify server
             try {
               const raw2 = localStorage.getItem('onlinePlayers')
@@ -126,7 +136,11 @@ function HomePage() {
           return
         } catch (innerErr: unknown) {
           // verification network failure - revert optimistic writes and show error
-          try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+          try {
+            sessionStorage.removeItem('playerNumber')
+            sessionStorage.removeItem('playerSessionId')
+            sessionStorage.removeItem('playerOnlineLocked')
+          } catch (err) { void err }
           try {
             const raw3 = localStorage.getItem('onlinePlayers')
             const online3: string[] = raw3 ? (JSON.parse(raw3) as string[]) : []
@@ -192,6 +206,8 @@ function HomePage() {
         localStorage.setItem('currentSessionId', serverSessionId)
         sessionStorage.setItem('playerNumber', playerNumber)
         sessionStorage.setItem('playerSessionId', serverSessionId)
+        // Flag so WaitingRoom won't call setPlayerOnline again (prevents 409).
+        sessionStorage.setItem('playerOnlineLocked', 'true')
       } catch {
         // ignore
       }
@@ -203,7 +219,11 @@ function HomePage() {
 
       // If the server indicated the player is already online elsewhere, revert optimistic local writes
       if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
-        try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (e) { void e }
+        try {
+          sessionStorage.removeItem('playerNumber')
+          sessionStorage.removeItem('playerSessionId')
+          sessionStorage.removeItem('playerOnlineLocked')
+        } catch (e) { void e }
         try {
           const raw = localStorage.getItem('onlinePlayers')
           const online: string[] = raw ? (JSON.parse(raw) as string[]) : []

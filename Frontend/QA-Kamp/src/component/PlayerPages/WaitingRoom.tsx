@@ -84,6 +84,7 @@ export default function WaitingRoom() {
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
             try { navigate('/') } catch { /* ignore */ }
             return
@@ -105,6 +106,7 @@ export default function WaitingRoom() {
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
             try { navigate('/') } catch { /* ignore */ }
           }
@@ -116,6 +118,7 @@ export default function WaitingRoom() {
           try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
           try { sessionStorage.removeItem('playerNumber') } catch (err) { void err }
           try { sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
           // remove this player from onlinePlayers
           try {
             const raw = localStorage.getItem('onlinePlayers')
@@ -196,24 +199,35 @@ export default function WaitingRoom() {
     async function markOnline() {
       setServerOnlineConfirmed(false)
 
+      // If login already acquired the server-side online lock, don't call setPlayerOnline again.
+      // Calling it twice triggers backend 409 because lastSeen is no longer null.
+      const onlineLocked = (() => {
+        try { return sessionStorage.getItem('playerOnlineLocked') === 'true' } catch { return false }
+      })()
+
       // try to mark online on server first (authoritative). If it fails with 409, force local logout.
       let serverOk = false
       if (sess) {
-        try {
-          const api = await import('../../api')
-          await api.setPlayerOnline(sess, String(playerNumber))
+        if (onlineLocked) {
           serverOk = true
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : String(err)
-          if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
-            // someone else is online with this number — force local logout
-            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-            try { navigate('/') } catch { /* ignore */ }
-            return
+        } else {
+          try {
+            const api = await import('../../api')
+            await api.setPlayerOnline(sess, String(playerNumber))
+            serverOk = true
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err)
+            if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
+              // someone else is online with this number — force local logout
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { navigate('/') } catch { /* ignore */ }
+              return
+            }
+            console.warn('Failed to set player online on server (falling back to localStorage):', err)
           }
-          console.warn('Failed to set player online on server (falling back to localStorage):', err)
         }
       }
 
@@ -366,6 +380,7 @@ export default function WaitingRoom() {
           try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
           try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
           try { navigate('/') } catch { /* ignore */ }
         }
@@ -438,6 +453,7 @@ export default function WaitingRoom() {
               try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
               try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
               try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
               try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
               try { navigate('/') } catch { /* ignore */ }
             } else {
@@ -453,6 +469,7 @@ export default function WaitingRoom() {
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
               try {
                   localStorage.removeItem('onlinePlayers')
