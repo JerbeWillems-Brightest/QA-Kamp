@@ -327,6 +327,9 @@ export default function WaitingRoom() {
   // didn't arrive). This avoids requiring a manual refresh.
   useEffect(() => {
     if (!playerNumber) return
+    // Avoid race: localStorage.onlinePlayers might not be written yet while we are
+    // waiting for the server-confirmed online status.
+    if (sessionId && !serverOnlineConfirmed) return
     const intervalMs = 2000 // check every 2s
     const check = () => {
       try {
@@ -350,7 +353,7 @@ export default function WaitingRoom() {
     // run immediate check once (don't wait interval)
     check()
     return () => clearInterval(id)
-  }, [playerNumber, navigate])
+  }, [playerNumber, navigate, sessionId, serverOnlineConfirmed])
 
   useEffect(() => {
     let mounted = true
