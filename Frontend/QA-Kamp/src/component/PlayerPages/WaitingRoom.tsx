@@ -347,7 +347,14 @@ export default function WaitingRoom() {
     let cancelled = false
     const tick = () => {
       if (cancelled) return
-      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch(() => {})
+      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : String(err)
+        // If the organizer removed/deleted the player, the backend will respond 404.
+        // Stop polling to avoid console spam.
+        if (/player not found/i.test(msg) || /not found/i.test(msg)) {
+          cancelled = true
+        }
+      })
     }
 
     tick()
