@@ -226,6 +226,7 @@ export default function PlayerGame() {
           try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
           try { sessionStorage.removeItem('playerNumber') } catch (err) { void err }
           try { sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
           // remove this player from onlinePlayers
           try {
             const raw = localStorage.getItem('onlinePlayers')
@@ -298,6 +299,7 @@ export default function PlayerGame() {
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
             try { navigate('/') } catch { /* ignore */ }
             return
@@ -316,6 +318,7 @@ export default function PlayerGame() {
           try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
           try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
           try { navigate('/') } catch { /* ignore */ }
         }
