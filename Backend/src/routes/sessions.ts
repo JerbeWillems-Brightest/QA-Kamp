@@ -110,12 +110,19 @@ router.post('/active/join', async (req, res) => {
     // a short cutoff window. We perform an atomic findOneAndUpdate so that two simultaneous
     // join attempts won't both succeed.
     const now = new Date()
-    const ONLINE_CUTOFF_MS = 60 * 1000 // 60 seconds considered "online"
+    // "online" window: align with frontend's recent onlinePlayers logic (15s).
+    // This prevents a stale lastSeen from permanently locking a playerNumber.
+    const ONLINE_CUTOFF_MS = 15000
     const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
 
-    // For explicit online/offline behavior (no timers), only allow join when lastSeen is null.
+    // Allow join if the player is currently offline OR if their lastSeen is older than the cutoff.
+    // Reject only when lastSeen is recent (another device is actively online).
     const updatedPlayer = await Player.findOneAndUpdate(
-      { sessionId: session._id, playerNumber: normalized, lastSeen: null },
+      {
+        sessionId: session._id,
+        playerNumber: normalized,
+        $or: [{ lastSeen: null }, { lastSeen: { $lt: cutoff } }],
+      },
       { lastSeen: now },
       { new: true }
     )
@@ -517,15 +524,27 @@ router.post('/:id/players/:playerNumber/online', async (req, res) => {
     const session = await Session.findById(id)
     if (!session) return res.status(404).json({ error: 'Session not found' })
 
-    // Only set online if currently offline (lastSeen === null). Prevents concurrent override.
+    // normalize player number to 3 digits
+    const normalizeNumber = (v: unknown) => {
+      const s = String(v ?? '')
+      const digits = s.replace(/\D/g, '')
+      return digits ? digits.padStart(3, '0') : ''
+    }
+    const normalized = normalizeNumber(playerNumber)
+    if (!normalized) return res.status(400).json({ error: 'Invalid playerNumber' })
+
+    // Allow setting online if player is offline OR lastSeen is older than the cutoff.
+    // Prevent concurrent override only when lastSeen is recent.
     const now = new Date()
+    const ONLINE_CUTOFF_MS = 15000
+    const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
     const updated = await Player.findOneAndUpdate(
-      { sessionId: id, playerNumber, lastSeen: null },
+      { sessionId: id, playerNumber: normalized, $or: [{ lastSeen: null }, { lastSeen: { $lt: cutoff } }] },
       { lastSeen: now },
       { new: true }
     )
     if (!updated) {
-      const exists = await Player.findOne({ sessionId: id, playerNumber })
+      const exists = await Player.findOne({ sessionId: id, playerNumber: normalized })
       if (!exists) return res.status(404).json({ error: 'Player not found in session' })
       return res.status(409).json({ error: 'Speler is al online op een ander apparaat' })
     }
