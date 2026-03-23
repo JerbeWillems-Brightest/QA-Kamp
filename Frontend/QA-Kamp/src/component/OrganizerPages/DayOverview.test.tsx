@@ -213,6 +213,14 @@ describe('DayOverview (merged tests)', () => {
     )
 
     fireEvent.click(screen.getByText(/QA[- ]kamp stoppen/i))
+
+    // confirmation popup must be shown (User Story 1)
+    const stopDialog = await screen.findByRole('dialog')
+    expect(stopDialog).toBeDefined()
+
+    // "Stoppen" komt zowel op de stop-knop (in de titel) als in de popup voor.
+    // We klikken dus expliciet de "Stoppen" knop binnen de popup.
+    fireEvent.click(within(stopDialog).getByRole('button', { name: /Stoppen/i }))
     await waitFor(() => expect(mockDelete).toHaveBeenCalled())
   })
 
