@@ -616,6 +616,16 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   const normalizedAgeGroup: "8-10" | "11-13" | "14-16" = inferAgeGroupFromString(candidatePriority);
   // debug log removed
 
+  // examples per age group used in the start modal
+  const examples: { weak: string; strong: string } = (() => {
+    switch (normalizedAgeGroup) {
+      case '8-10': return { weak: '🧾✨', strong: 'Zon!Maan9' };
+      case '11-13': return { weak: 'abc123', strong: 'Hond!Kat5' };
+      case '14-16': return { weak: 'qwerty123', strong: 'T!jger@8' };
+      default: return { weak: '🧾✨', strong: 'Zon!Maan9' };
+    }
+  })();
+
   // Use normalizedAgeGroup as the effective age group (no UI override in start modal)
   const effectiveAgeGroup: "8-10" | "11-13" | "14-16" = normalizedAgeGroup;
 
@@ -627,19 +637,48 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   const MAX_PROGRESS = effectiveAgeGroup === '8-10' ? 15 : effectiveAgeGroup === '14-16' ? 30 : 25;
   // whether the player has started the game (controls the start modal)
   const [started, setStarted] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   const navigate = useNavigate()
 
   // Toggle a body-level class so other UI (hint/pause/question, score, progress, ship)
   // can be hidden via CSS while the start modal is visible.
   useEffect(() => {
     const cls = 'pz-modal-open';
-    if (!started) {
+    if (!started || showHelp || showHint) {
       document.body.classList.add(cls);
     } else {
       document.body.classList.remove(cls);
     }
     return () => { document.body.classList.remove(cls); };
-  }, [started]);
+  }, [started, showHelp, showHint]);
+
+  // Pause handling: listen for global pause event and show pause modal
+  useEffect(() => {
+    const onPause = () => { try { setPaused(true) } catch { /* ignore */ } }
+    const onHelp = () => { try { setShowHelp(true) } catch { /* ignore */ } }
+    const onHint = () => { try { setShowHint(true); setPaused(true); } catch { /* ignore */ } }
+    window.addEventListener('minigame:pause', onPause as EventListener)
+    window.addEventListener('minigame:question', onHelp as EventListener)
+    window.addEventListener('minigame:hint', onHint as EventListener)
+    return () => {
+      window.removeEventListener('minigame:pause', onPause as EventListener)
+      window.removeEventListener('minigame:question', onHelp as EventListener)
+      window.removeEventListener('minigame:hint', onHint as EventListener)
+    }
+  }, [])
+
+  // Toggle a body-level class while paused so CSS can freeze animations if desired
+  useEffect(() => {
+    const cls = 'pz-paused'
+    if (paused) {
+      try { document.body.classList.add(cls) } catch { /* ignore */ }
+    } else {
+      try { document.body.classList.remove(cls) } catch { /* ignore */ }
+    }
+    return () => { try { document.body.classList.remove(cls) } catch { /* ignore */ } }
+  }, [paused]);
 
   // Helper to set the player's status. This is a small placeholder that
   // sends the status to a backend endpoint if available. Replace the URL
@@ -1090,6 +1129,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   // Process zap for a specific index (when clicking a specific comet)
   const zapAt = (idx: number) => {
     if (gameOver) return;
+    if (paused) return;
     const pw = passwords[idx];
     if (!pw) return;
     if (pw.zapped || pw.missed) return;
@@ -1141,6 +1181,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   const laserIdRef = React.useRef(1);
   const shootLaserTo = (idx: number) => {
     if (gameOver) return;
+    if (paused) return;
     const pw = passwords[idx];
     if (!pw) return;
     if (pw.zapped || pw.missed) return;
@@ -1192,6 +1233,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   // Skip (miss) for a specific index (e.g., when animation ends)
   const skipAt = (idx: number) => {
     if (gameOver) return;
+    if (paused) return;
     const pw = passwords[idx];
     if (!pw) return;
     if (pw.zapped || pw.missed) return;
@@ -1241,6 +1283,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     const pw = passwords[idx];
     if (!pw) return;
     if (pw.zapped || pw.missed) return;
+    if (paused) return; // don't auto-skip while paused
     // treat as missed
     skipAt(idx);
   };
@@ -1283,6 +1326,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     setStarted(true);
   }
 
+  // Pause controls are implemented inline in the pause modal to avoid unused-variable warnings
+
   if (!started) {
     return (
       <div className="pz-game">
@@ -1291,7 +1336,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
             <h2>Speluitleg - Password zapper</h2>
             <ul className="pz-start-bullets">
               <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
-              <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. 🧾✨) en sommige hebben een sterk wachtwoord (bv. 123456) erop.</li>
+              <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
               <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
               <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
             </ul>
@@ -1304,6 +1349,96 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
         </div>
       </div>
     );
+  }
+
+  // Help modal (triggered by question mark) - shows rules but NO action button
+  if (showHelp) {
+    return (
+      <div className="pz-game">
+        <div className="pz-start-overlay" onClick={() => setShowHelp(false)}>
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ textAlign: 'left' }}>Speluitleg - Password zapper</h2>
+            <ul className="pz-start-bullets">
+              <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
+              <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
+              <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
+              <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
+            </ul>
+            <div style={{ marginTop: 12, textAlign: 'center' }}>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHelp(false)}>Verder spelen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Hint modal overlay (triggered by hint button)
+  if (showHint) {
+    return (
+      <div className="pz-game">
+        <div className="pz-pause-overlay">
+          <div className="pz-pause-modal">
+            <h2 style={{ textAlign: 'left' }}>Hint</h2>
+            <div className="pz-hint-container" style={{ marginTop: 12 }}>
+              {/* Age-group specific hints as list items so the yellow bullet appears */}
+              {effectiveAgeGroup === '8-10' && (
+                <ul className="pz-start-bullets pz-hint-bullets">
+                  <li className="pz-hint-item">
+                    Zap wachtwoorden zoals kat, 123456 of minecraft — die zijn te makkelijk! </li>
+                    <li className="pz-hint-item">
+                        Een sterk wachtwoord ziet er zo uit: Boom@Vis7 — Twee losse woorden, een teken en een cijfer!
+                    </li>
+                </ul>
+              )}
+              {effectiveAgeGroup === '11-13' && (
+                <ul className="pz-start-bullets pz-hint-bullets">
+                  <li className="pz-hint-item">
+                    Let op! Wachtwoorden zoals samsung123 of Voetbal!1 zijn te voorspelbaar — ook al hebben ze een symbool. </li>
+                    <li className="pz-hint-item">
+                        Een sterk wachtwoord ziet er zo uit: Tijger#Soep8 — twee willekeurige woorden die niets met elkaar te maken hebben + symbool + cijfer
+                    </li>
+                </ul>
+              )}
+              {effectiveAgeGroup === '14-16' && (
+                <ul className="pz-start-bullets pz-hint-bullets">
+                  <li className="pz-hint-item">
+                    Wachtwoorden zoals Admin?2024 of Welkom!99 lijken sterk, maar zijn de eerste gok van hackers.
+                      </li>
+                    <li className="pz-hint-item">
+                        Een sterk wachtwoord ziet er zo uit: TijgerEten?99 — twee willekeurige woorden die niets met elkaar te maken hebben + symbool + cijfers
+                    </li>
+                </ul>
+              )}
+              <div style={{ textAlign: 'center' }}>
+                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false); }}>Verder spelen</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+
+  // Pause modal overlay
+  if (paused) {
+    return (
+      <div className="pz-game">
+        <div className="pz-pause-overlay">
+          <div className="pz-pause-modal">
+            <h2>Pauze</h2>
+            <div className="pz-pause-actions">
+              <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
+              <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { try { window.location.reload() } catch { /* ignore */ } }}>Opnieuw beginnen</button>
+              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
+                setPaused(false); setGameOver(true); setShowEnd(true); try { setPlayerStatus('online'); } catch { /* ignore */ } void markOnline();
+              }}>Stoppen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Huidig wachtwoord logic removed (we use lanes)
