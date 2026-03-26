@@ -8,9 +8,8 @@ const FRONTEND_DEV_RAW = import.meta.env.VITE_FRONTEND_DEV || ''
 try {
   // normalize API_URL and API_URL_DEV
   if (API_URL.endsWith('/api')) API_URL = API_URL.slice(0, -4)
-  if (API_URL_DEV.endsWith('/api')) {
+    if (API_URL_DEV.endsWith('/api')) {
     // remove trailing /api
-    // eslint-disable-next-line prefer-const
     API_URL = API_URL || API_URL_DEV.slice(0, -4)
   }
 } catch {
@@ -233,7 +232,12 @@ export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): P
     throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
   }
   const json = await res.json()
-  const list = (json.onlinePlayers || []).map((p: any) => ({ playerNumber: String(p.playerNumber ?? '').padStart(3, '0'), lastSeen: p.lastSeen ?? null }))
+        const list = (json.onlinePlayers || []).map((p: unknown) => {
+          const obj = p as Record<string, unknown>
+          const pn = String(obj['playerNumber'] ?? obj['nummer'] ?? '')
+          const lastSeen = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
+          return { playerNumber: pn.padStart(3, '0'), lastSeen }
+        })
   return { onlinePlayers: list }
 }
 
@@ -330,18 +334,48 @@ export async function postPlayerHeartbeat(sessionId: string, playerNumber: strin
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+    const msg = parseErrorMessage(err, `HTTP ${res.status}`)
+    const e = new Error(msg) as Error & { status?: number }
+    e.status = res.status
+    throw e
   }
   return res.json()
 }
 
 // Explicit online/offline controls
 export async function setPlayerOnline(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // If this client/tab already holds a local 'online lock' (set during login),
+  // avoid calling the server again to prevent 409 races when multiple tabs
+  // attempt to mark the same player online. This guard is safe because the
+  // local lock is set only after a successful server-side setPlayerOnline.
+  try {
+    if (typeof window !== 'undefined') {
+      const locked = sessionStorage.getItem('playerOnlineLocked') === 'true'
+      const sid = sessionStorage.getItem('playerSessionId') || ''
+      const pn = sessionStorage.getItem('playerNumber') || ''
+      if (locked && sid && pn && sid === String(sessionId) && pn === String(playerNumber)) {
+        return { success: true }
+      }
+    }
+  } catch {
+    // ignore and fall through to network call
+  }
+
   const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/online`
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
+    // If backend returns 409 Conflict for "already online", treat as non-fatal
+    // and return success so callers don't have to special-case thrown errors.
+    if (res.status === 409) {
+      // try to read body for additional info but ignore parse failures
+      const body = await res.json().catch(() => null)
+      return { success: true, player: body?.player ?? undefined }
+    }
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+    const msg = parseErrorMessage(err, `HTTP ${res.status}`)
+    const e = new Error(msg) as Error & { status?: number }
+    e.status = res.status
+    throw e
   }
   return res.json()
 }
@@ -351,7 +385,10 @@ export async function setPlayerOffline(sessionId: string, playerNumber: string):
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
-    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+    const msg = parseErrorMessage(err, `HTTP ${res.status}`)
+    const e = new Error(msg) as Error & { status?: number }
+    e.status = res.status
+    throw e
   }
   return res.json()
 }

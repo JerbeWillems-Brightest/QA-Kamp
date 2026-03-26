@@ -364,7 +364,7 @@ export default function DayOverview() {
         >
           <h2 style={{ margin: 0, fontSize: 24, marginBottom: 10 }}>Ben je zeker dat je het QA-kamp wilt stoppen?</h2>
           <p style={{ margin: 0, color: '#555', marginBottom: 18, fontSize: 16}}>
-            Spelergegevens zullen verwijderd worden en deze actie kan niet ongedaan gemaakt worden.
+            Spelersgegevens zullen verwijderd worden en deze actie kan niet ongedaan gemaakt worden.
           </p>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
