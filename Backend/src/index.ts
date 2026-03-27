@@ -14,16 +14,47 @@ const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
 
 // CORS: allow specific origin via env, or allow all origins on Vercel
+// Read origins from env. FRONTEND_ORIGIN may contain comma-separated origins.
 const FRONTEND_ORIGIN_RAW = process.env.FRONTEND_ORIGIN || '*'
-// support comma-separated origins in env: "http://localhost:5173,https://app.vercel.app"
 const FRONTEND_ORIGINS = FRONTEND_ORIGIN_RAW.split(',').map((s) => s.trim()).filter(Boolean)
 
+// Combine and deduplicate allowed origins (normalize by removing trailing slash and lowercasing)
+function normalizeOrigin(o: string) {
+  if (!o) return ''
+  return o.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+const allowedOrigins = Array.from(
+  new Set([
+    ...FRONTEND_ORIGINS.map(normalizeOrigin).filter(Boolean),
+  ])
+)
+
 const corsOptions = {
-  origin: FRONTEND_ORIGINS.length === 1 ? FRONTEND_ORIGINS[0] : FRONTEND_ORIGINS,
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // No origin (curl, server-to-server) => allow
+    if (!origin) return callback(null, true)
+    // normalize incoming origin for robust matching
+    const incoming = normalizeOrigin(origin)
+    // Wildcard configured => allow everything
+    if (allowedOrigins.includes('*')) return callback(null, true)
+    if (allowedOrigins.includes(incoming)) return callback(null, true)
+    console.warn(`CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(',')}`)
+    return callback(new Error('Not allowed by CORS'))
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  // Allow common headers plus the custom x-confirm-delete header used by the frontend
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-confirm-delete'],
+  credentials: true,
+  optionsSuccessStatus: 204,
 }
 
 app.use(cors(corsOptions))
+// Handle preflight (OPTIONS) safely for any path without registering a wildcard route
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return cors(corsOptions)(req as any, res as any, next as any)
+  next()
+})
 
 app.use(express.json())
 
