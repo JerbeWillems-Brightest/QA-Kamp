@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers, postPlayerHeartbeat } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
@@ -81,7 +81,8 @@ export default function WaitingRoom() {
   }, [navigate, sessionId])
 
   // on mount check if there's already an active game (player joining late)
-  useEffect(() => {
+  // useLayoutEffect so listeners are attached synchronously during mount
+  useLayoutEffect(() => {
     try {
       // support both keys: older 'activeGame' and organizer's 'activeGameInfo'
       const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
@@ -155,6 +156,8 @@ export default function WaitingRoom() {
         return
       }
       if (e.key === 'activeGame' || e.key === 'activeGameInfo') {
+        // debug: during tests log incoming storage events
+        try { if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') console.log('WaitingRoom.onStorage', { key: e.key, newValue: e.newValue, oldValue: e.oldValue }) } catch { /* ignore */ }
         try {
           // storage events set newValue === null when a key is removed
           if (e.newValue === null) {
