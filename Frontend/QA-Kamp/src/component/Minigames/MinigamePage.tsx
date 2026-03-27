@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import PasswordZapperGame from './PasswordZapperGame'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
@@ -55,8 +55,25 @@ export function MinigamePage() {
   }
 
   const ageGroup = mapAge(age)
+  // whether the hint button (top-level control) is unlocked; the game will
+  // dispatch a global event `minigame:hint-unlocked` when the mistake threshold
+  // is reached and the hint modal should appear. We also read a transient
+  // global flag so a late-mounted controller can pick up the state.
+  const [hintUnlocked, setHintUnlocked] = useState(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const w = window as unknown as Record<string, unknown>
+        return Boolean(w['__pz_hint_unlocked'])
+      }
+    } catch { /* ignore */ }
+    return false
+  })
   // Ensure player-side state is present so other components can read it
   useEffect(() => {
+    function onHintUnlocked() {
+      try { setHintUnlocked(true) } catch { /* ignore */ }
+    }
+    window.addEventListener('minigame:hint-unlocked', onHintUnlocked)
     try {
       const existing = sessionStorage.getItem('playerActiveGame')
       if (!existing) {
@@ -64,6 +81,7 @@ export function MinigamePage() {
         try { sessionStorage.setItem('playerActiveGame', JSON.stringify(info)) } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
+    return () => { window.removeEventListener('minigame:hint-unlocked', onHintUnlocked) }
   }, [game, ageGroup])
 
   // Listen for organizer stopping the game and navigate players back to waiting room
@@ -119,7 +137,13 @@ export function MinigamePage() {
       {game === 'passwordzapper' ? (
         <>
           <div className="pz-controls">
-            <button className="pz-btn" aria-label="Hint" onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:hint')) } catch { void 0 } }}>
+            <button
+              className="pz-btn"
+              aria-label="Hint"
+              onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:hint')) } catch { void 0 } }}
+              disabled={!hintUnlocked}
+              title={!hintUnlocked ? 'Hints worden beschikbaar na enkele fouten' : 'Toon hint'}
+            >
               <img src={HINT_IMG} alt="hint" />
             </button>
             <button className="pz-btn" aria-label="Pause" onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:pause')) } catch { void 0 } }}>

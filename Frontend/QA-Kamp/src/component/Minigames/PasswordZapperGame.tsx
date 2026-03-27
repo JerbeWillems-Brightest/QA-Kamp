@@ -1124,6 +1124,30 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     }
   }, [processed, passwords.length, endless, markOnline, setPlayerStatus, MAX_PROGRESS]);
 
+  // Unlock and show hint when mistakes reach the threshold for the age group.
+  // Ensure we only auto-open the hint modal once when the threshold is first reached.
+  const hintAutoShownRef = React.useRef(false);
+  useEffect(() => {
+    const mistakes = zappedStrong + missedWeak;
+    const hintThreshold = effectiveAgeGroup === '8-10' ? 1 : effectiveAgeGroup === '11-13' ? 2 : 3;
+    if (mistakes >= hintThreshold && !hintAutoShownRef.current) {
+      // mark we've auto-shown the hint so we don't do it again
+      hintAutoShownRef.current = true;
+      try {
+        setShowHint(true);
+        setPaused(true);
+      } catch { /* ignore */ }
+      // set a transient global flag and notify other UI (MinigamePage) so its external hint button can be enabled
+      try {
+        if (typeof window !== 'undefined') {
+          const w = window as unknown as Record<string, unknown>;
+          w['__pz_hint_unlocked'] = true;
+          window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'));
+        }
+      } catch { /* ignore */ }
+    }
+  }, [zappedStrong, missedWeak, effectiveAgeGroup]);
+
   // removed legacy zap/next/skip functions; use zapAt/skipAt which operate per-index/lane
 
   // Process zap for a specific index (when clicking a specific comet)
@@ -1139,13 +1163,13 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
       setProcessed((n) => n + 1);
       setScore((s) => Math.max(0, s + 2));
       setZappedWeak((n) => n + 1);
-      setFeedback(randomFrom(goodFeedbackList) + ' +2');
+      setFeedback(randomFrom(goodFeedbackList));
       setFeedbackType('good');
     } else {
       // Strong password zapped => -1 point
       setScore((s) => Math.max(0, s - 1));
       setZappedStrong((n) => n + 1);
-      setFeedback(randomFrom(badFeedbackList) + ' -1');
+      setFeedback(randomFrom(badFeedbackList));
       setFeedbackType('bad');
     }
     // mark password as zapped to prevent duplicate interactions
