@@ -14,11 +14,11 @@ const passwordSets = {
   "8-10": {
     // Pool of 45 weak passwords shown on the image; each game will pick 15 random ones
     weak: [
-      "123456","password","1234","0000","1111","abcd","qwerty","letmein","iloveyou","monkey",
-      "dragon","sunshine","football","baseball","princess","welcome","shadow","superman","pokemon","starwars",
-      "batman","1q2w3e","123123","abc123","password1","12345","654321","555555","hunter","george",
-      "asdfgh","qazwsx","flower","cookie","soccer","hockey","cheese","987654","pass","iloveu",
-      "lovely","kitty","pookie","bingo","naruto"
+      "123456","wachtwoord","1234","0000","1111","abcd","toets","laatmebinnen","houvanjouw","aap",
+      "draak","zon","voetbal","honkbal","prinses","welkom","schaduw","superman","pokemon","starwars",
+      "batman","1a2b3c","123123","abc123","wachtwoord1","12345","654321","555555","jager","bob",
+      "knop","links","bloem","koekje","voetbal123","spelen","kaas","987654","pas","teen",
+      "liefdevol","kat","baby","bingo","vrouw"
     ],
       strong: [
         "Zon!Maan9",
@@ -171,12 +171,12 @@ const passwordSets = {
   },
   "11-13": {
     weak: [
-      "qwerty123","password1","voetbal22","admin123","letmein","iloveyou1","monkey123","dragon99","master2024","abc12345",
-      "thomas2012","sophie2013","samsung123","google123","12345678","11111111","qwertyui","azerty123","zxcvbnm","pokemon25",
-      "minecraft1","roblox2023","liverpool9","barcelona10","batman123","superman1","nederland1","welkom123","zomer2024","winter2023",
-      "school123","thuis2024","hallo1234","test1234","user1234","secure1","pass1234","login123","corona2020","vakantie1",
-      "geheim123","thomas!!","Wachtwoord1","Password!1","Voetbal!1","Admin!23","Zomer!24","School!1","Hallo!23","Test@123",
-      "User@2024","Login@1","Sophie@13","Thomas@12","Dragon@99","Batman@1","Pokemon@25","Roblox@23","Minecraft@1","Welkom@123"
+      "123abd","wachtwoord1","voetbal22","baas123","laatmebinnen","houvanjou","aap123","draak99","sterk2024","abc456",
+      "thomas2012","sophie2013","telefoon123","internet123","12345678","11111111","toetsenbord123","belg123","drol123","pokemon25",
+      "minecraft1","roblox2023","voetbalclub9","frankrijk123","batman123","superman1","nederland1","welkom123","zomer2024","winter2023",
+      "school123","thuis2024","hallo1234","test1234","gebruiker1234","veilig1","pas1234","Zee123","corona2020","vakantie1",
+      "geheim123","thomas!!","Wachtwoord1","wachtwoord!1","Voetbal!1","Baas!23","Zomer!24","School!1","Hallo!23","Test@123",
+      "Gebruiker@2024","Zee@1","Sophie@13","Thomas@12","Draak@99","Batman@1","Pokemon@25","Roblox@23","Minecraft@1","Welkom@123"
     ],
     strong: [
       "M@ngo$Regen9",
@@ -1503,7 +1503,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
           return (
             <div key={idx} className={`pz-password pz-password--fall ${laneClass}`} onAnimationEnd={() => handleFallEnd(idx)}>
                   <img
-                        src={imgOverrides[idx] ?? komeetSrc}
+                      id="komeet"
+                      src={imgOverrides[idx] ?? komeetSrc}
                         alt={`Komeet voor wachtwoord`}
                         className={`pz-comet ${imgOverrides[idx] ? 'pz-comet--static' : ''}`}
                         role="button"
