@@ -581,6 +581,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   // refs to keep current snapshots for synchronous allocation when multiple lanes finish
   const passwordsRef = React.useRef<PasswordItem[]>(passwords);
   const nextToLoadRef = React.useRef<number>(nextToLoad);
+  // track indices that have had a laser shot at them (only one shot allowed per comet)
+  const shotFiredRef = React.useRef<Set<number>>(new Set());
   // endless mode toggle - when true, kometen keep spawning
   const endless = true;
   // cap to end the game after this many processed items
@@ -1190,6 +1192,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
         setImgOverrides((prev) => {
           const copy = { ...prev };
           delete copy[idx];
+          try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
           return copy;
         });
       }, 600);
@@ -1197,6 +1200,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     setTimeout(() => {
       setFeedback(null);
       setFeedbackType(null);
+      try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
     }, 1200);
   };
 
@@ -1236,6 +1240,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     // center the laser image on the ship start point
     const leftPos = startX - (LASER_SIZE / 2);
     const topPos = startY - (LASER_SIZE / 2);
+    // prevent multiple lasers for the same comet
+    if (shotFiredRef.current.has(idx)) return;
+    // mark shot fired for this index
+    shotFiredRef.current.add(idx);
     // add laser to state with zero translation so we can animate to target
     setLasers((prev) => prev.concat([{ id, left: leftPos, top: topPos, translateX: 0, translateY: 0, angle, targetIdx: idx, anim: false }]));
 
@@ -1283,10 +1291,12 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
         return copy;
       });
       assignNextToLane(laneIndex2);
+      try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
     }
     setTimeout(() => {
       setFeedback(null);
       setFeedbackType(null);
+      try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
     }, 1200);
   };
 
@@ -1347,6 +1357,17 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     } catch {
       // ignore errors; best-effort presence update
     }
+    // Ensure the URL reflects the selected age group so links/bookmarks show the correct category
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      // set or replace age param to the effectiveAgeGroup
+      params.set('age', String(effectiveAgeGroup));
+      // ensure game param is present (keep existing or set to passwordzapper)
+      if (!params.get('game')) params.set('game', 'passwordzapper');
+      // replace current history entry so back-button isn't polluted
+      const newSearch = params.toString();
+      try { navigate(`${window.location.pathname}?${newSearch}`, { replace: true }); } catch { /* ignore */ }
+    } catch { /* ignore */ }
     setStarted(true);
   }
 
