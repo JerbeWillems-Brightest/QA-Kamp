@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useLayoutEffect, useState, useCallback } from 'react'
 import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers, postPlayerHeartbeat } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
@@ -54,14 +54,35 @@ export default function WaitingRoom() {
     try {
       sessionStorage.setItem('playerActiveGame', JSON.stringify(details))
     } catch (err) { void err }
-    // navigate to a dedicated player game page (route should exist) or fallback to /player/game
+    // navigate player to the minigame page with query params so minigame page can read the game+age
     try {
+      // normalize game key (e.g. 'Password Zapper' -> 'passwordzapper')
+      const rawGame = String(details.gameName ?? '')
+      const normalizeKey = (s: string) => s.toLowerCase().normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g,'').replace(/[^a-z0-9]/g,'')
+      const gameKey = normalizeKey(rawGame) || ''
+      // map category to short age-group form used by the minigame page
+      const rawCat = String(details.category ?? '')
+      const mapAge = (a: string) => {
+        const r = (a || '').toString().toLowerCase()
+        if (/8\D*10/.test(r) || r.includes('8')) return '8-10'
+        if (/11\D*13/.test(r) || r.includes('11')) return '11-13'
+        if (/14\D*16/.test(r) || r.includes('14')) return '14-16'
+        return '11-13'
+      }
+      const ageParam = encodeURIComponent(mapAge(rawCat))
+      const gameParam = encodeURIComponent(gameKey)
+      if (gameKey) {
+        navigate(`/minigame?game=${gameParam}&age=${ageParam}`)
+        return
+      }
+      // fallback to player game route if no game key
       navigate('/player/game')
     } catch (err) { void err }
   }, [navigate, sessionId])
 
   // on mount check if there's already an active game (player joining late)
-  useEffect(() => {
+  // useLayoutEffect so listeners are attached synchronously during mount
+  useLayoutEffect(() => {
     try {
       // support both keys: older 'activeGame' and organizer's 'activeGameInfo'
       const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
@@ -135,6 +156,8 @@ export default function WaitingRoom() {
         return
       }
       if (e.key === 'activeGame' || e.key === 'activeGameInfo') {
+        // debug: during tests log incoming storage events
+        try { if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') console.log('WaitingRoom.onStorage', { key: e.key, newValue: e.newValue, oldValue: e.oldValue }) } catch { /* ignore */ }
         try {
           // storage events set newValue === null when a key is removed
           if (e.newValue === null) {
@@ -214,19 +237,19 @@ export default function WaitingRoom() {
           try {
             const api = await import('../../api')
             await api.setPlayerOnline(sess, String(playerNumber))
+            // mark that this tab holds the online lock so other tabs won't retry
+            try { sessionStorage.setItem('playerOnlineLocked', 'true') } catch { /* ignore */ }
             serverOk = true
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err)
             if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
-              // someone else is online with this number — force local logout
-              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-              try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
-              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-              try { navigate('/') } catch { /* ignore */ }
-              return
+              // Previously: force logout. Instead, assume another tab/device already holds
+              // the server-side lock. Set local lock so we don't re-call and continue.
+              try { sessionStorage.setItem('playerOnlineLocked', 'true') } catch { /* ignore */ }
+              serverOk = true
+            } else {
+              console.warn('Failed to set player online on server (falling back to localStorage):', err)
             }
-            console.warn('Failed to set player online on server (falling back to localStorage):', err)
           }
         }
       }
@@ -297,7 +320,6 @@ export default function WaitingRoom() {
     if (!serverOnlineConfirmed) return
 
     let cancelled = false
-    let timer: number | undefined
 
     async function syncOnlinePlayers() {
       try {
@@ -306,7 +328,7 @@ export default function WaitingRoom() {
 
         // update localStorage only if changed (avoids redundant events)
         const raw = localStorage.getItem('onlinePlayers')
-        let cur: string[] = []
+        let cur: string[]
         try {
           cur = raw ? (JSON.parse(raw) as string[]) : []
         } catch {
@@ -325,14 +347,14 @@ export default function WaitingRoom() {
     }
 
     void syncOnlinePlayers()
-    timer = window.setInterval(() => {
+    const id = window.setInterval(() => {
       if (cancelled) return
       void syncOnlinePlayers()
     }, 5000)
 
     return () => {
       cancelled = true
-      if (timer) clearInterval(timer)
+      clearInterval(id)
     }
   }, [sessionId, playerNumber, serverOnlineConfirmed])
 
@@ -579,7 +601,6 @@ export default function WaitingRoom() {
             <div className="hero-inner">
               {/* Title and subtitle like HomePage */}
               <h1 style={{ padding: 25, fontSize: 40 }}>Maak je klaar!</h1>
-              <p style={{ marginTop: 6, color: '#666', fontSize: 16  }}>De sessie start zo meteen. Wacht tot je begeleider het spel start.</p>
 
               {/* animated stars */}
               <div style={{ marginTop: 18, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'center' }} aria-hidden>
