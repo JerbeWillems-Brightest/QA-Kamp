@@ -539,9 +539,11 @@ interface PasswordItem {
 
 interface Props {
   ageGroup: "8-10" | "11-13" | "14-16";
+  // optional testing hook: provide deterministic initial passwords
+  initialPasswords?: PasswordItem[];
 }
 
-const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
+const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => {
   const [passwords, setPasswords] = useState<PasswordItem[]>([]);
   // currentIdx removed: we use per-lane indices and zapAt/skipAt handlers
   const [score, setScore] = useState(0);
@@ -572,8 +574,11 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   const asteroidRef = React.useRef<HTMLDivElement | null>(null);
   // same size as .pz-laser in CSS (desktop default) - used to center the image
   const LASER_SIZE = 128;
-  // lanes: indices of passwords currently visible in each lane (left, center, right)
+  // lanes: indices of passwords currently visible in each lane
+  // default to 3 lanes; this will be resized later when the effectiveAgeGroup is known
   const [lanes, setLanes] = useState<Array<number | null>>([null, null, null]);
+  const lanesRef = React.useRef<Array<number | null>>(lanes);
+  useEffect(() => { lanesRef.current = lanes; }, [lanes]);
   // next password index to load into an empty lane
   const [nextToLoad, setNextToLoad] = useState(0);
   // Keep a copy of the original pool to spawn new items when exhausted
@@ -581,6 +586,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   // refs to keep current snapshots for synchronous allocation when multiple lanes finish
   const passwordsRef = React.useRef<PasswordItem[]>(passwords);
   const nextToLoadRef = React.useRef<number>(nextToLoad);
+  // track indices that have had a laser shot at them (only one shot allowed per comet)
+  const shotFiredRef = React.useRef<Set<number>>(new Set());
   // endless mode toggle - when true, kometen keep spawning
   const endless = true;
   // cap to end the game after this many processed items
@@ -629,6 +636,14 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   // Use normalizedAgeGroup as the effective age group (no UI override in start modal)
   const effectiveAgeGroup: "8-10" | "11-13" | "14-16" = normalizedAgeGroup;
 
+  // compute max lanes based on the effective age group
+  const MAX_LANES = effectiveAgeGroup === '14-16' ? 4 : 3;
+
+  // initialize lanes array when component mounts / when effectiveAgeGroup changes
+  useEffect(() => {
+    setLanes(new Array(MAX_LANES).fill(null));
+  }, [MAX_LANES]);
+
   // Debug: help diagnose mismatches in runtime environments
   // debug log removed
 
@@ -637,6 +652,13 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   const MAX_PROGRESS = effectiveAgeGroup === '8-10' ? 15 : effectiveAgeGroup === '14-16' ? 30 : 25;
   // whether the player has started the game (controls the start modal)
   const [started, setStarted] = useState(false);
+  // base and current fall duration (in seconds). We expose this via a CSS variable
+  // so the pz-fall animation uses the current speed. Base values chosen so higher
+  // age groups start slightly faster.
+  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 14 : effectiveAgeGroup === '11-13' ? 12 : 10);
+  const [fallDuration, setFallDuration] = useState<number>(baseFallDuration);
+  // speedLevel tracks how many speed increments have been applied (0 = base, 1 = first increase, 2 = second increase)
+  const [speedLevel, setSpeedLevel] = useState<number>(0);
   const [paused, setPaused] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -982,6 +1004,13 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
   useEffect(() => {
     if (!started) return;
     if (passwords.length === 0) {
+      // If tests provide deterministic initial passwords, use them instead of random generation
+      if (initialPasswords && initialPasswords.length > 0) {
+        setPasswords(initialPasswords.slice())
+        // store original pool as well
+        originalPoolRef.current = initialPasswords.slice()
+        return
+      }
       // For 8-10: choose 15 random weak passwords from the larger pool of 45
       let chosenWeakPool: string[];
       switch (effectiveAgeGroup) {
@@ -1042,24 +1071,82 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveAgeGroup, started]);
 
-  // When passwords are loaded, initialize lanes with up to 3 first items
+  // When passwords are loaded, initialize lanes with as many items as lanes currently support
   useEffect(() => {
     if (passwords.length === 0) return;
     // if lanes already filled or nextToLoad advanced, don't re-init
-    if (nextToLoad !== 0 || lanes.some((l) => l !== null)) return;
-    const initial: Array<number | null> = [null, null, null];
+    if (nextToLoad !== 0 || lanesRef.current.some((l) => l !== null)) return;
+    const laneCount = lanesRef.current.length || 3;
+    const initial: Array<number | null> = new Array(laneCount).fill(null);
     let idx = 0;
-    for (let i = 0; i < 3 && idx < passwords.length; i++) {
+    for (let i = 0; i < laneCount && idx < passwords.length; i++) {
       initial[i] = idx;
       idx++;
     }
     setLanes(initial);
     setNextToLoad(idx);
-  }, [passwords, lanes, nextToLoad]);
+  }, [passwords, nextToLoad]);
 
   // keep refs in sync with state
   useEffect(() => { passwordsRef.current = passwords; }, [passwords]);
   useEffect(() => { nextToLoadRef.current = nextToLoad; }, [nextToLoad]);
+
+  // Reflect current fall duration into CSS variable so animation speed changes
+  useEffect(() => {
+    try {
+      const container = document.querySelector('.pz-game') as HTMLElement | null;
+      if (container) container.style.setProperty('--pz-fall-duration', `${fallDuration}s`);
+    } catch { /* ignore */ }
+  }, [fallDuration]);
+
+  // Track consecutive correct weak zaps to increase speed, and mistakes to reset
+  const correctStreakRef = React.useRef(0);
+  const mistakeCountRef = React.useRef(0);
+
+  // When zappedWeak increases, update speed rules
+  useEffect(() => {
+    const age = effectiveAgeGroup;
+    // thresholds by age group
+    // 8-10: no speed changes
+    // 11-13: at 5 correct -> small speed up; reset after 2 mistakes
+    // 14-16: at 5 correct -> speed up (level1); at 10 correct -> speed up again (level2); reset after 2 mistakes
+    if (age === '8-10') return;
+
+    // increment streak
+    if (zappedWeak > 0) {
+      // compute streak by difference of correctStreakRef and zappedWeak isn't reliable after reload; instead we update on each change
+    }
+    // This effect runs whenever zappedWeak or zappedStrong/missedWeak change and recomputes speed level.
+    const mistakes = zappedStrong + missedWeak;
+    if (mistakes >= 2) {
+      // reset to base
+      if (speedLevel !== 0) {
+        setSpeedLevel(0);
+        setFallDuration(baseFallDuration);
+      }
+      // reset counters
+      correctStreakRef.current = 0;
+      mistakeCountRef.current = mistakes;
+      return;
+    }
+
+    // determine new speed level based on zappedWeak count
+    if (age === '11-13') {
+      if (zappedWeak >= 5 && speedLevel < 1) {
+        setSpeedLevel(1);
+        setFallDuration(Math.max(1, baseFallDuration * 0.88)); // slight speed up (~12% faster)
+      }
+    } else if (age === '14-16') {
+      if (zappedWeak >= 5 && speedLevel < 1) {
+        setSpeedLevel(1);
+        setFallDuration(Math.max(1, baseFallDuration * 0.9)); // first small speed up
+      }
+      if (zappedWeak >= 10 && speedLevel < 2) {
+        setSpeedLevel(2);
+        setFallDuration(Math.max(0.6, baseFallDuration * 0.75)); // further speed up
+      }
+    }
+  }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel]);
 
   // helper: assign next available password index into a specific lane (atomic-ish)
   const assignNextToLane = (laneIndex: number) => {
@@ -1068,7 +1155,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     if (curNext < passwordsRef.current.length) {
       setLanes((prev) => {
         const copy = [...prev];
-        copy[laneIndex] = curNext;
+        // if laneIndex exceeds current lane length (shouldn't happen), clamp it
+        const idxToSet = Math.min(laneIndex, copy.length - 1);
+        copy[idxToSet] = curNext;
         return copy;
       });
       nextToLoadRef.current = curNext + 1;
@@ -1086,7 +1175,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
         // assign lane to new index
         setLanes((old) => {
           const copy = [...old];
-          copy[laneIndex] = newIdx;
+          const idxToSet = Math.min(laneIndex, copy.length - 1);
+          copy[idxToSet] = newIdx;
           return copy;
         });
         return newList;
@@ -1190,6 +1280,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
         setImgOverrides((prev) => {
           const copy = { ...prev };
           delete copy[idx];
+          try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
           return copy;
         });
       }, 600);
@@ -1197,6 +1288,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     setTimeout(() => {
       setFeedback(null);
       setFeedbackType(null);
+      try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
     }, 1200);
   };
 
@@ -1236,6 +1328,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     // center the laser image on the ship start point
     const leftPos = startX - (LASER_SIZE / 2);
     const topPos = startY - (LASER_SIZE / 2);
+    // prevent multiple lasers for the same comet
+    if (shotFiredRef.current.has(idx)) return;
+    // mark shot fired for this index
+    shotFiredRef.current.add(idx);
     // add laser to state with zero translation so we can animate to target
     setLasers((prev) => prev.concat([{ id, left: leftPos, top: topPos, translateX: 0, translateY: 0, angle, targetIdx: idx, anim: false }]));
 
@@ -1279,14 +1375,17 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     if (laneIndex2 >= 0) {
       setLanes((prev) => {
         const copy = [...prev];
-        copy[laneIndex2] = null;
+        const idxToClear = Math.min(laneIndex2, copy.length - 1);
+        copy[idxToClear] = null;
         return copy;
       });
       assignNextToLane(laneIndex2);
+      try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
     }
     setTimeout(() => {
       setFeedback(null);
       setFeedbackType(null);
+      try { shotFiredRef.current.delete(idx); } catch { /* ignore */ }
     }, 1200);
   };
 
@@ -1347,6 +1446,17 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
     } catch {
       // ignore errors; best-effort presence update
     }
+    // Ensure the URL reflects the selected age group so links/bookmarks show the correct category
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      // set or replace age param to the effectiveAgeGroup
+      params.set('age', String(effectiveAgeGroup));
+      // ensure game param is present (keep existing or set to passwordzapper)
+      if (!params.get('game')) params.set('game', 'passwordzapper');
+      // replace current history entry so back-button isn't polluted
+      const newSearch = params.toString();
+      try { navigate(`${window.location.pathname}?${newSearch}`, { replace: true }); } catch { /* ignore */ }
+    } catch { /* ignore */ }
     setStarted(true);
   }
 
@@ -1499,14 +1609,17 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
           if (idx === null || idx === undefined) return null;
           const item = passwords[idx];
           if (!item) return null;
-          const laneClass = lane === 0 ? 'pz-lane-left' : lane === 1 ? 'pz-lane-center' : 'pz-lane-right';
+          // map lane index to CSS class; support up to 4 lanes (left, inner-left, center, right)
+          const laneClass = lane === 0 ? 'pz-lane-left' : lane === 1 ? (lanes.length === 4 ? 'pz-lane-inner-left' : 'pz-lane-center') : lane === 2 ? (lanes.length === 4 ? 'pz-lane-center' : 'pz-lane-right') : 'pz-lane-right';
+          const isWeakComet = item.isWeak;
+
           return (
             <div key={idx} className={`pz-password pz-password--fall ${laneClass}`} onAnimationEnd={() => handleFallEnd(idx)}>
                   <img
-                      id="komeet"
+                      id={`komeet-${idx}`}
                       src={imgOverrides[idx] ?? komeetSrc}
                         alt={`Komeet voor wachtwoord`}
-                        className={`pz-comet ${imgOverrides[idx] ? 'pz-comet--static' : ''}`}
+                        className={`pz-comet ${imgOverrides[idx] ? 'pz-comet--static' : ''} ${isWeakComet ? 'pz-comet--weak' : 'pz-comet--strong'}`}
                         role="button"
                         tabIndex={0}
                         data-idx={idx}

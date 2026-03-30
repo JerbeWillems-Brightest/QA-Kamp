@@ -45,9 +45,9 @@ export default function Navbar() {
       return
     }
 
-    // Otherwise assume organizer logout
+    // Otherwise assume organizer logout -> send to organizer login page
     auth.logout()
-    navigate('/')
+    navigate('/organizer-login')
   }
 
   // Show logout button when organizer logged in or player session present
