@@ -1521,13 +1521,15 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup }) => {
           const item = passwords[idx];
           if (!item) return null;
           const laneClass = lane === 0 ? 'pz-lane-left' : lane === 1 ? 'pz-lane-center' : 'pz-lane-right';
+          const isWeakComet = item.isWeak;
+
           return (
             <div key={idx} className={`pz-password pz-password--fall ${laneClass}`} onAnimationEnd={() => handleFallEnd(idx)}>
                   <img
-                      id="komeet"
+                      id={`komeet-${idx}`}
                       src={imgOverrides[idx] ?? komeetSrc}
                         alt={`Komeet voor wachtwoord`}
-                        className={`pz-comet ${imgOverrides[idx] ? 'pz-comet--static' : ''}`}
+                        className={`pz-comet ${imgOverrides[idx] ? 'pz-comet--static' : ''} ${isWeakComet ? 'pz-comet--weak' : 'pz-comet--strong'}`}
                         role="button"
                         tabIndex={0}
                         data-idx={idx}
