@@ -680,7 +680,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
 
   // tween helper: smoothly interpolate multiplier from current to target over duration (ms)
   const multiplierTweenRef = React.useRef<number | null>(null);
-  const tweenFallMultiplier = useCallback((target: number, durationMs = 600) => {
+  const tweenFallMultiplier = useCallback((target: number, durationMs = 200) => {
     // cancel previous tween
     if (multiplierTweenRef.current) cancelAnimationFrame(multiplierTweenRef.current);
     const start = performance.now();
@@ -1216,7 +1216,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         setSpeedLevel(0);
       }
       // smoothly tween back to normal speed
-      try { tweenFallMultiplier(1, 600); } catch { /* ignore */ }
+      try { tweenFallMultiplier(1, 200); } catch { /* ignore */ }
       // reset counters
       correctStreakRef.current = 0;
       mistakeCountRef.current = mistakes;
@@ -1228,18 +1228,18 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       if (zappedWeak >= 5 && speedLevel < 1) {
         setSpeedLevel(1);
         const mult = 0.88; // ~12% faster
-        try { tweenFallMultiplier(mult, 600); } catch { /* ignore */ }
+        try { tweenFallMultiplier(mult, 200); } catch { /* ignore */ }
       }
     } else if (age === '14-16') {
       if (zappedWeak >= 5 && speedLevel < 1) {
         setSpeedLevel(1);
         const mult = 0.9; // small speed up
-        try { tweenFallMultiplier(mult, 600); } catch { /* ignore */ }
+        try { tweenFallMultiplier(mult, 200); } catch { /* ignore */ }
       }
       if (zappedWeak >= 10 && speedLevel < 2) {
         setSpeedLevel(2);
         const mult = 0.75; // further speed up
-        try { tweenFallMultiplier(mult, 600); } catch { /* ignore */ }
+        try { tweenFallMultiplier(mult, 200); } catch { /* ignore */ }
       }
     }
   }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel, applyFallMultiplierToAll, tweenFallMultiplier]);
