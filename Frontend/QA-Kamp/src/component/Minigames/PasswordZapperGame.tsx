@@ -535,6 +535,10 @@ interface PasswordItem {
   isWeak: boolean;
   zapped: boolean;
   missed: boolean;
+  // per-item fall duration in seconds for the falling animation
+  fallDuration?: number;
+  // the immutable base duration used to derive fallDuration via a multiplier
+  baseFallDuration?: number;
 }
 
 interface Props {
@@ -569,9 +573,14 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     targetIdx: number;
     anim?: boolean;
   }>>([]);
+  // persisted high score for this minigame (per age group)
+  const [highScore, setHighScore] = useState<number | null>(null);
+  const [isNewHigh, setIsNewHigh] = useState(false);
   // explosions removed - we no longer render explosion overlays
   // ref to asteroid container so we can compute coordinates
   const asteroidRef = React.useRef<HTMLDivElement | null>(null);
+  // fireworks canvas ref for end screen
+  const fwCanvasRef = React.useRef<HTMLCanvasElement | null>(null);
   // same size as .pz-laser in CSS (desktop default) - used to center the image
   const LASER_SIZE = 128;
   // lanes: indices of passwords currently visible in each lane
@@ -655,8 +664,59 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // base and current fall duration (in seconds). We expose this via a CSS variable
   // so the pz-fall animation uses the current speed. Base values chosen so higher
   // age groups start slightly faster.
-  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 14 : effectiveAgeGroup === '11-13' ? 12 : 10);
+  // Increase base durations so initial comets fall more slowly and end speeds remain reasonable
+  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 24 : effectiveAgeGroup === '11-13' ? 19 : 15);
   const [fallDuration, setFallDuration] = useState<number>(baseFallDuration);
+  // multiplier applied to each item's baseFallDuration to compute final fallDuration
+  const [fallMultiplier, setFallMultiplier] = useState<number>(1);
+  // apply the current fallMultiplier to all existing passwords
+  const applyFallMultiplierToAll = useCallback((mult: number) => {
+    setPasswords((prev) => prev.map(p => ({ ...p, fallDuration: (p.baseFallDuration ?? p.fallDuration ?? baseFallDuration) * mult })));
+  }, [baseFallDuration]);
+
+  // keep a ref of current multiplier so tweens read the latest value without stale closures
+  const fallMultiplierRef = React.useRef<number>(fallMultiplier);
+  useEffect(() => { fallMultiplierRef.current = fallMultiplier; }, [fallMultiplier]);
+
+  // tween helper: smoothly interpolate multiplier from current to target over duration (ms)
+  const multiplierTweenRef = React.useRef<number | null>(null);
+  const tweenFallMultiplier = useCallback((target: number, durationMs = 600) => {
+    // cancel previous tween
+    if (multiplierTweenRef.current) cancelAnimationFrame(multiplierTweenRef.current);
+    const start = performance.now();
+    const from = fallMultiplierRef.current ?? 1;
+
+    // easing (easeInOutQuad)
+    const ease = (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+
+    function step(now: number) {
+      const elapsed = now - start;
+      const t = Math.min(1, Math.max(0, elapsed / durationMs));
+      const eased = ease(t);
+      const cur = from + (target - from) * eased;
+      // update state/ref and apply to items
+      try {
+        setFallMultiplier(cur);
+        fallMultiplierRef.current = cur;
+        applyFallMultiplierToAll(cur);
+        // update CSS fallback duration so any elements without per-item style also feel it
+        setFallDuration(Math.max(0.2, baseFallDuration * cur));
+      } catch { /* ignore */ }
+
+      if (t < 1) {
+        multiplierTweenRef.current = requestAnimationFrame(step);
+      } else {
+        // finalize to exact target
+        setFallMultiplier(target);
+        fallMultiplierRef.current = target;
+        applyFallMultiplierToAll(target);
+        setFallDuration(Math.max(0.2, baseFallDuration * target));
+        multiplierTweenRef.current = null;
+      }
+    }
+
+    multiplierTweenRef.current = requestAnimationFrame(step);
+  }, [applyFallMultiplierToAll, baseFallDuration]);
   // speedLevel tracks how many speed increments have been applied (0 = base, 1 = first increase, 2 = second increase)
   const [speedLevel, setSpeedLevel] = useState<number>(0);
   const [paused, setPaused] = useState(false);
@@ -803,6 +863,20 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     }
     return () => { document.body.classList.remove(cls); };
   }, [showEnd]);
+
+  // Load persisted high score for this age group on mount / when age changes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const key = `pz_highscore_passwordzapper_${effectiveAgeGroup}`;
+        const raw = localStorage.getItem(key);
+        if (raw !== null) {
+          const n = parseInt(raw, 10);
+          if (!Number.isNaN(n)) setHighScore(n);
+        }
+      }
+    } catch { /* ignore */ }
+  }, [effectiveAgeGroup]);
 
   // Helper to mark player online in the same way WaitingRoom does: try server
   // then fall back to localStorage so organizer can see presence.
@@ -1006,9 +1080,15 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     if (passwords.length === 0) {
       // If tests provide deterministic initial passwords, use them instead of random generation
       if (initialPasswords && initialPasswords.length > 0) {
-        setPasswords(initialPasswords.slice())
+        // ensure any provided items have a fallDuration; otherwise assign one
+        const withDur = initialPasswords.map((p) => {
+          const base = (p as PasswordItem).baseFallDuration ?? (p as PasswordItem).fallDuration ?? (Math.random() * (baseFallDuration * 1.3 - baseFallDuration * 0.7) + baseFallDuration * 0.7);
+          const final = base * fallMultiplier;
+          return { ...p, baseFallDuration: base, fallDuration: final } as PasswordItem;
+        });
+        setPasswords(withDur.slice())
         // store original pool as well
-        originalPoolRef.current = initialPasswords.slice()
+        originalPoolRef.current = withDur.slice()
         return
       }
       // For 8-10: choose 15 random weak passwords from the larger pool of 45
@@ -1037,26 +1117,38 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         }
       }
 
-      const weak = chosenWeakPool.map((pw) => ({ value: pw, isWeak: true, zapped: false, missed: false }));
+      const weak = chosenWeakPool.map((pw) => {
+        const base = Math.random() * (baseFallDuration * 1.3 - baseFallDuration * 0.7) + baseFallDuration * 0.7;
+        return ({ value: pw, isWeak: true, zapped: false, missed: false, baseFallDuration: base, fallDuration: base * fallMultiplier } as PasswordItem);
+      });
       let strong: PasswordItem[];
       // Choose a random subset of the strong pool depending on ageGroup
       switch (effectiveAgeGroup) {
         case '8-10': {
           const pool = passwordSets['8-10'].strong.slice();
           const chosen = shuffle(pool).slice(0, Math.min(15, pool.length));
-          strong = chosen.map((pw) => ({ value: pw, isWeak: false, zapped: false, missed: false }));
+          strong = chosen.map((pw) => {
+            const base = Math.random() * (baseFallDuration * 1.3 - baseFallDuration * 0.7) + baseFallDuration * 0.7;
+            return ({ value: pw, isWeak: false, zapped: false, missed: false, baseFallDuration: base, fallDuration: base * fallMultiplier } as PasswordItem);
+          });
           break;
         }
         case '11-13': {
           const pool = passwordSets['11-13'].strong.slice();
           const chosen = shuffle(pool).slice(0, Math.min(25, pool.length));
-          strong = chosen.map((pw) => ({ value: pw, isWeak: false, zapped: false, missed: false }));
+          strong = chosen.map((pw) => {
+            const base = Math.random() * (baseFallDuration * 1.3 - baseFallDuration * 0.7) + baseFallDuration * 0.7;
+            return ({ value: pw, isWeak: false, zapped: false, missed: false, baseFallDuration: base, fallDuration: base * fallMultiplier } as PasswordItem);
+          });
           break;
         }
         case '14-16': {
           const pool = passwordSets['14-16'].strong.slice();
           const chosen = shuffle(pool).slice(0, Math.min(30, pool.length));
-          strong = chosen.map((pw) => ({ value: pw, isWeak: false, zapped: false, missed: false }));
+          strong = chosen.map((pw) => {
+            const base = Math.random() * (baseFallDuration * 1.3 - baseFallDuration * 0.7) + baseFallDuration * 0.7;
+            return ({ value: pw, isWeak: false, zapped: false, missed: false, baseFallDuration: base, fallDuration: base * fallMultiplier } as PasswordItem);
+          });
           break;
         }
         default: {
@@ -1119,34 +1211,38 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     // This effect runs whenever zappedWeak or zappedStrong/missedWeak change and recomputes speed level.
     const mistakes = zappedStrong + missedWeak;
     if (mistakes >= 2) {
-      // reset to base
+      // reset to base multiplier and speed level
       if (speedLevel !== 0) {
         setSpeedLevel(0);
-        setFallDuration(baseFallDuration);
       }
+      // smoothly tween back to normal speed
+      try { tweenFallMultiplier(1, 600); } catch { /* ignore */ }
       // reset counters
       correctStreakRef.current = 0;
       mistakeCountRef.current = mistakes;
       return;
     }
 
-    // determine new speed level based on zappedWeak count
+    // determine new speed level based on zappedWeak count and age
     if (age === '11-13') {
       if (zappedWeak >= 5 && speedLevel < 1) {
         setSpeedLevel(1);
-        setFallDuration(Math.max(1, baseFallDuration * 0.88)); // slight speed up (~12% faster)
+        const mult = 0.88; // ~12% faster
+        try { tweenFallMultiplier(mult, 600); } catch { /* ignore */ }
       }
     } else if (age === '14-16') {
       if (zappedWeak >= 5 && speedLevel < 1) {
         setSpeedLevel(1);
-        setFallDuration(Math.max(1, baseFallDuration * 0.9)); // first small speed up
+        const mult = 0.9; // small speed up
+        try { tweenFallMultiplier(mult, 600); } catch { /* ignore */ }
       }
       if (zappedWeak >= 10 && speedLevel < 2) {
         setSpeedLevel(2);
-        setFallDuration(Math.max(0.6, baseFallDuration * 0.75)); // further speed up
+        const mult = 0.75; // further speed up
+        try { tweenFallMultiplier(mult, 600); } catch { /* ignore */ }
       }
     }
-  }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel]);
+  }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel, applyFallMultiplierToAll, tweenFallMultiplier]);
 
   // helper: assign next available password index into a specific lane (atomic-ish)
   const assignNextToLane = (laneIndex: number) => {
@@ -1171,7 +1267,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       // append the new item and assign lane inside the updater
       setPasswords((prev) => {
         const newIdx = prev.length;
-        const newList = prev.concat([{ ...item, zapped: false, missed: false }]);
+        // ensure appended item has baseFallDuration and computed fallDuration
+        const base = (item as PasswordItem).baseFallDuration ?? (item as PasswordItem).fallDuration ?? (Math.random() * (baseFallDuration * 1.3 - baseFallDuration * 0.7) + baseFallDuration * 0.7);
+        const newItem = { ...item, zapped: false, missed: false, baseFallDuration: base, fallDuration: base * fallMultiplier } as PasswordItem;
+        const newList = prev.concat([newItem]);
         // assign lane to new index
         setLanes((old) => {
           const copy = [...old];
@@ -1193,6 +1292,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     });
   };
 
+  // apply the current fallMultiplier to all existing passwords
+  
+
   // when processed reaches total, end the game
   useEffect(() => {
     // End when we've processed MAX_PROGRESS items even in endless mode
@@ -1213,6 +1315,131 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       }
     }
   }, [processed, passwords.length, endless, markOnline, setPlayerStatus, MAX_PROGRESS]);
+
+  // When gameOver/showEnd becomes true, compute and persist high score
+  useEffect(() => {
+    if (!showEnd) return;
+    try {
+      const key = `pz_highscore_passwordzapper_${effectiveAgeGroup}`;
+      const existingRaw = localStorage.getItem(key);
+      const existing = existingRaw !== null ? parseInt(existingRaw, 10) : undefined;
+      const existingIsValid = typeof existing === 'number' && !Number.isNaN(existing);
+      if (!existingIsValid || score > (existing as number)) {
+        try { localStorage.setItem(key, String(score)); } catch { /* ignore */ }
+        setHighScore(score);
+        setIsNewHigh(true);
+      } else {
+        setIsNewHigh(false);
+      }
+    } catch { /* ignore */ }
+  }, [showEnd, score, effectiveAgeGroup]);
+
+  // Fireworks canvas: initialize when end screen is shown
+  React.useEffect(() => {
+    if (!showEnd) return;
+    const canvasEl = fwCanvasRef.current!;
+    const ctx = canvasEl.getContext('2d')!;
+
+    let canvasWidth = 0;
+    let canvasHeight = 0;
+    function resize() {
+      const rect = canvasEl.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvasEl.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvasEl.height = Math.max(1, Math.floor(rect.height * dpr));
+      canvasEl.style.width = `${Math.floor(rect.width)}px`;
+      canvasEl.style.height = `${Math.floor(rect.height)}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      canvasWidth = canvasEl.width;
+      canvasHeight = canvasEl.height;
+    }
+
+    const PALETTES: string[][] = [
+      ['#FFD700','#FFA500'],['#FF3333','#FF7777'],['#AA33FF','#DD88FF'],['#33DDFF','#0099FF'],
+      ['#33FF88','#00CC55'],['#FF44AA','#FF0077'],['#FF3333','#AA33FF'],['#FFD700','#33DDFF']
+    ];
+    const rnd = (a:number,b:number) => a + Math.random() * (b - a);
+    const pick = <T,>(arr:T[]) => arr[Math.floor(Math.random() * arr.length)];
+
+    type TrailPoint = { x:number; y:number };
+
+    class Particle {
+      x:number; y:number; vx:number; vy:number; col:string; alpha:number; decay:number; r:number; tx:TrailPoint[]; doTrail:boolean;
+      constructor(x:number,y:number,pal:string[],big:boolean){
+        this.x = x; this.y = y;
+        const a = Math.random() * Math.PI * 2;
+        const s = big ? rnd(1.5,6) : rnd(0.5,2.5);
+        this.vx = Math.cos(a) * s; this.vy = Math.sin(a) * s;
+        this.col = pick(pal) as unknown as string;
+        this.alpha = 1; this.decay = rnd(0.008,0.018);
+        this.r = big ? rnd(1.5,3) : rnd(0.6,1.5);
+        this.tx = []; this.doTrail = Math.random() < 0.45;
+      }
+      step(){
+        if (this.doTrail) { this.tx.push({ x: this.x, y: this.y }); if (this.tx.length > 7) this.tx.shift(); }
+        this.vy += 0.055; this.vx *= 0.99; this.x += this.vx; this.y += this.vy; this.alpha -= this.decay;
+      }
+      draw(){
+        if (this.alpha <= 0) return;
+        if (this.doTrail) {
+          for (let i = 0; i < this.tx.length; i++) {
+            const t = this.tx[i]; ctx.save(); ctx.globalAlpha = Math.max(0, (i / this.tx.length) * this.alpha * 0.35);
+            ctx.fillStyle = this.col; ctx.beginPath(); ctx.arc(t.x, t.y, this.r * 0.5, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+          }
+        }
+        ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.col; ctx.beginPath(); ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+      }
+      dead(){ return this.alpha <= 0; }
+    }
+
+    class Burst {
+      x:number; y:number; pal:string[]; col:string; phase:number; alpha:number; maxR:number; arms:number; pts:{len:number; max:number}[]; particles:Particle[];
+      constructor(x:number,y:number,pal:string[]){
+        this.x = x; this.y = y; this.pal = pal; this.col = pal[0]; this.phase = 0; this.alpha = 1;
+        this.maxR = rnd(20,38); this.arms = 8; this.pts = [];
+        for (let i = 0; i < this.arms; i++) this.pts.push({ len: 0, max: this.maxR * (i % 2 === 0 ? 1 : 0.6) });
+        this.particles = [];
+        for (let i = 0; i < 90; i++) this.particles.push(new Particle(x,y,pal,true));
+        for (let i = 0; i < 35; i++) this.particles.push(new Particle(x,y,pal,false));
+      }
+      step(){ this.phase += 0.04; this.alpha = Math.max(0, 1 - this.phase * 0.55); for (const p of this.pts) p.len = Math.min(p.max, p.len + 2.8); for (const p of this.particles) p.step(); this.particles = this.particles.filter(p => !p.dead()); }
+      draw(){ for (const p of this.particles) p.draw(); if (this.alpha > 0.05) { ctx.save(); ctx.globalAlpha = this.alpha; ctx.strokeStyle = this.col; ctx.lineWidth = 2; ctx.lineCap = 'round'; for (let i = 0; i < this.arms; i++) { const a = (i / this.arms) * Math.PI * 2; ctx.beginPath(); ctx.moveTo(this.x, this.y); ctx.lineTo(this.x + Math.cos(a) * this.pts[i].len, this.y + Math.sin(a) * this.pts[i].len); ctx.stroke(); } ctx.restore(); } }
+      done(){ return this.alpha <= 0 && this.particles.length === 0; }
+    }
+
+    class Rocket {
+      pal:string[]; col:string; x:number; y:number; tx:number; ty:number; vx:number; vy:number; trail:{x:number;y:number;a:number}[]; dist:number; gone:boolean; traveled:number;
+      constructor(){ const pal = pick(PALETTES) as string[]; this.pal = pal; this.col = pal[0]; this.x = rnd(canvasWidth * 0.1, canvasWidth * 0.9); this.y = canvasHeight; this.tx = this.x + rnd(-60,60); this.ty = rnd(canvasHeight * 0.08, canvasHeight * 0.45); const ang = Math.atan2(this.ty - this.y, this.tx - this.x); const sp = rnd(9,15); this.vx = Math.cos(ang) * sp; this.vy = Math.sin(ang) * sp; this.trail = []; this.dist = Math.hypot(this.tx - this.x, this.ty - this.y); this.gone = false; this.traveled = 0; }
+      step(){ this.trail.push({ x: this.x, y: this.y, a: 1 }); if (this.trail.length > 14) this.trail.shift(); for (const t of this.trail) t.a = Math.max(0, t.a - 0.08); this.vy += 0.03; this.x += this.vx; this.y += this.vy; this.traveled += Math.hypot(this.vx, this.vy); if (this.traveled >= this.dist * 0.9 || this.y <= this.ty) this.gone = true; }
+      draw(){ for (const t of this.trail) { if (t.a <= 0) continue; ctx.save(); ctx.globalAlpha = t.a * 0.7; ctx.fillStyle = this.col; ctx.beginPath(); ctx.arc(t.x, t.y, 1.5, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } if (!this.gone) { ctx.save(); ctx.globalAlpha = 1; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(this.x, this.y, 2.5, 0, Math.PI * 2); ctx.fill(); ctx.restore(); } }
+    }
+
+    const rockets: Rocket[] = [];
+    const bursts: Burst[] = [];
+    let last = 0;
+    let interval = 600;
+    let raf = 0;
+
+    function loop(ts:number){
+      raf = requestAnimationFrame(loop);
+      // fade towards white background
+      ctx.fillStyle = 'rgba(255,255,255,0.17)';
+      ctx.fillRect(0,0,canvasWidth,canvasHeight);
+
+      if (ts - last > interval) {
+        last = ts; interval = rnd(400,800); rockets.push(new Rocket()); if (Math.random() < 0.55) setTimeout(() => rockets.push(new Rocket()), rnd(80,180)); if (Math.random() < 0.25) setTimeout(() => rockets.push(new Rocket()), rnd(200,350));
+      }
+
+      for (let i = rockets.length - 1; i >= 0; i--) { const r = rockets[i]; r.step(); r.draw(); if (r.gone) { bursts.push(new Burst(r.x, r.y, r.pal)); rockets.splice(i,1); } }
+      for (let i = bursts.length - 1; i >= 0; i--) { const b = bursts[i]; b.step(); b.draw(); if (b.done()) bursts.splice(i,1); }
+    }
+
+    resize();
+    raf = requestAnimationFrame(loop);
+    window.addEventListener('resize', resize);
+
+    return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  }, [showEnd]);
 
   // Unlock and show hint when mistakes reach the threshold for the age group.
   // Ensure we only auto-open the hint modal once when the threshold is first reached.
@@ -1411,26 +1638,113 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     skipAt(idx);
   };
 
+  // Helper to restart the game without reloading the page
+  const resetGame = () => {
+    // reset all relevant state to initial values and re-initialize passwords
+    setScore(0);
+    setFeedback(null);
+    setFeedbackType(null);
+    setProcessed(0);
+    setGameOver(false);
+    setShowEnd(false);
+    setZappedWeak(0);
+    setMissedWeak(0);
+    setZappedStrong(0);
+    setImgOverrides({});
+    setLasers([]);
+    setLanes(new Array(MAX_LANES).fill(null));
+    setNextToLoad(0);
+    nextToLoadRef.current = 0;
+    passwordsRef.current = [];
+    originalPoolRef.current = null;
+    setPasswords([]);
+    setStarted(false);
+    setIsNewHigh(false);
+    // reopen start modal; the user can press start again
+  };
+
   // Eindscherm
   if (showEnd) {
-    const totalWeak = passwordSets[effectiveAgeGroup].weak.length;
+    // determine how many weak passwords were actually in this game run
+    const actualWeakInGame = (() => {
+      try {
+        const fromPasswords = passwords.filter((p) => p.isWeak).length;
+        if (fromPasswords > 0) return fromPasswords;
+      } catch { /* ignore */ }
+      // fallback to expected counts per age group when passwords not available
+      return effectiveAgeGroup === '8-10' ? 15 : effectiveAgeGroup === '11-13' ? 25 : 30;
+    })();
+
+    const totalCorrect = zappedWeak; // number of weak passwords correctly zapped
+    const totalWrong = zappedStrong + missedWeak;
+    const correctPercentage = actualWeakInGame > 0 ? Math.round((totalCorrect / actualWeakInGame) * 100) : 0;
+    // thresholds updated per request: 0-33% => 1 star, 34-66% => 2 stars, 67-100% => 3 stars
+    const starCount = correctPercentage <= 33 ? 1 : (correctPercentage <= 66 ? 2 : 3);
+
+    // compute score percentage based on max possible score per age group
+    const maxPossibleScore = effectiveAgeGroup === '14-16' ? 60 : effectiveAgeGroup === '11-13' ? 50 : 30;
+    const scorePercent = maxPossibleScore > 0 ? Math.round((score / maxPossibleScore) * 100) : 0;
+    const clampedScorePercent = Math.max(0, Math.min(100, scorePercent));
+    // prepare CSS variable style (typed) for the ring fill
+    const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${clampedScorePercent}%` } as unknown) as React.CSSProperties;
+
     return (
       <div className="pz-end">
-        <h2>Game Over!</h2>
-        <p>Score: {score}</p>
-        <p>Juiste zwakke wachtwoorden gezapt: {zappedWeak} / {totalWeak}</p>
-        <p>Foute acties: {zappedStrong + missedWeak}</p>
-        <p>Percentage correct: {Math.round((zappedWeak / totalWeak) * 100)}%</p>
-        <div className="pz-tips">
-          <h4>Tips voor sterke wachtwoorden:</h4>
-          <ul>
-            <li>Gebruik hoofdletters, kleine letters, cijfers en symbolen</li>
-            <li>Vermijd voor de hand liggende patronen</li>
-            <li>Gebruik geen persoonlijke info</li>
-            <li>Maak wachtwoorden lang en uniek</li>
-          </ul>
+        <div className="pz-end-box">
+          {/* fireworks canvas (renders behind the end content) */}
+          <canvas ref={fwCanvasRef} className="pz-fireworks-canvas" aria-hidden={true} />
+          <div className="pz-highscore" style={{ marginBottom: 18, textAlign: 'center' }}>
+            <span className="pz-highscore-label">Hoogste score:</span>
+            <span id="highScore" className="pz-highscore-value">{highScore ?? '-'}</span>
+            {isNewHigh && <span className="pz-new-record"> Nieuw record!</span>}
+          </div>
+          {/* fireworks removed */}
+
+          <div className="pz-end-content">
+            <div className="pz-end-left">
+              <div className="pz-score-circle" aria-hidden style={circleStyle}>
+                <div className="pz-score-label">SCORE</div>
+                <div className="pz-score-number" id="score">{score}</div>
+                <div className="pz-score-percent" id="percentage">{clampedScorePercent}%</div>
+                <div className="pz-score-stars" aria-hidden>
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <span key={i} className={"pz-star " + (i < starCount ? '' : 'pz-star--empty')}>
+                      {i < starCount ? '★' : '☆'}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pz-stats-row">
+                <div className="pz-stat pz-stat--correct">
+                  <div className="pz-stat-title">Juist</div>
+                  <div className="pz-stat-value" id="totalCorrect">+{totalCorrect}</div>
+                </div>
+                <div className="pz-stat pz-stat--wrong">
+                  <div className="pz-stat-title">Fout</div>
+                  <div className="pz-stat-value" id="totalWrong">-{totalWrong}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pz-end-right">
+              <div className="pz-tips-card">
+                <h3>Tips voor sterke wachtwoorden</h3>
+                <ul>
+                  <li>Gebruik minstens 2 woorden die niets met elkaar te maken hebben, bv. HondWolken4.</li>
+                  <li>Voeg een cijfer en een teken toe zoals ! of @.</li>
+                  <li>Gebruik nooit je naam, verjaardag of alleen cijfers "123456".</li>
+                </ul>
+
+                <div className="pz-end-actions">
+                  <button id="btnPlayAgain" className="pz-play-again" onClick={() => { resetGame(); }}>Opnieuw spelen</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* footer removed - highscore now displayed above the attributes */}
         </div>
-        <button onClick={() => window.location.reload()}>Opnieuw spelen</button>
       </div>
     );
   }
@@ -1604,7 +1918,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
           {feedback}
         </div>
       )}
-      <div className="pz-asteroid" ref={asteroidRef}>
+      {/* add a modifier class so CSS can adapt positions for 3 vs 4 lanes */}
+      <div className={`pz-asteroid ${lanes.length === 3 ? 'pz-lanes-3' : 'pz-lanes-4'}`} ref={asteroidRef}>
         {lanes.map((idx, lane) => {
           if (idx === null || idx === undefined) return null;
           const item = passwords[idx];
@@ -1613,8 +1928,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
           const laneClass = lane === 0 ? 'pz-lane-left' : lane === 1 ? (lanes.length === 4 ? 'pz-lane-inner-left' : 'pz-lane-center') : lane === 2 ? (lanes.length === 4 ? 'pz-lane-center' : 'pz-lane-right') : 'pz-lane-right';
           const isWeakComet = item.isWeak;
 
+          // use item's fallDuration if present; otherwise fall back to CSS variable
+          const itemDurationStyle = item.fallDuration ? { animationDuration: `${item.fallDuration}s` } : undefined;
           return (
-            <div key={idx} className={`pz-password pz-password--fall ${laneClass}`} onAnimationEnd={() => handleFallEnd(idx)}>
+            <div key={idx} className={`pz-password pz-password--fall ${laneClass}`} onAnimationEnd={() => handleFallEnd(idx)} style={itemDurationStyle}>
                   <img
                       id={`komeet-${idx}`}
                       src={imgOverrides[idx] ?? komeetSrc}
