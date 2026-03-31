@@ -1374,6 +1374,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       try {
         setPaused(true);
         setShowPracticeEnd(true);
+        try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] practice end triggered by zappedWeak', { practiceMode, zappedWeak, showPracticeEnd }) } catch { /* ignore */ }
       } catch { /* ignore */ }
     }
   }, [practiceMode, zappedWeak, showPracticeEnd]);
@@ -1395,6 +1396,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       // keep started=true
       // clear transient hint-unlocked flag set during practice
       try { if (typeof window !== 'undefined') { const w = window as unknown as Record<string, unknown>; w['__pz_hint_unlocked'] = false; window.dispatchEvent(new CustomEvent('minigame:hint-locked')); } } catch { /* ignore */ }
+      try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] startRealGame: passwords.len=', passwords.length, 'lanes=', lanes) } catch { /* ignore */ }
     } catch { /* ignore */ }
   };
 
@@ -1458,10 +1460,26 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // apply the current fallMultiplier to all existing passwords
   
 
-  // when processed reaches total, end the game
+  // when processed reaches total, end the game or the practice round
   useEffect(() => {
-    // End when we've processed MAX_PROGRESS items even in endless mode
-    if (processed >= MAX_PROGRESS) {
+    // Use a small practice max for the practice round and the normal MAX_PROGRESS
+    // for the real game. We compute effectiveMax locally to avoid moving the
+    // PRACTICE_MAX constant around.
+    const PRACTICE_MAX_LOCAL = 3;
+    const effectiveMax = practiceMode ? PRACTICE_MAX_LOCAL : MAX_PROGRESS;
+
+    // If we've reached the effective max, handle practice end or full game end
+    if (processed >= effectiveMax) {
+      if (practiceMode) {
+        try {
+          setPaused(true);
+          setShowPracticeEnd(true);
+          try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] practice end triggered by processed', { practiceMode, processed, effectiveMax }) } catch { /* ignore */ }
+        } catch { /* ignore */ }
+        return;
+      }
+
+      // End when we've processed MAX_PROGRESS items even in endless mode
       setGameOver(true);
       setShowEnd(true);
       // player finished the game -> mark them back online (return to lobby)
@@ -1469,15 +1487,23 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       void markOnline();
       return;
     }
+
     if (!endless) {
       if (passwords.length > 0 && processed >= passwords.length) {
+        if (practiceMode) {
+          try {
+            setPaused(true);
+            setShowPracticeEnd(true);
+          } catch { /* ignore */ }
+          return;
+        }
         setGameOver(true);
         setShowEnd(true);
         setPlayerStatus('online');
         void markOnline();
       }
     }
-  }, [processed, passwords.length, endless, markOnline, setPlayerStatus, MAX_PROGRESS]);
+  }, [processed, passwords.length, endless, markOnline, setPlayerStatus, MAX_PROGRESS, practiceMode]);
 
   // When gameOver/showEnd becomes true, compute and persist high score
   useEffect(() => {
@@ -1565,7 +1591,18 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       // progress increases only for weak passwords
       setProcessed((n) => n + 1);
       setScore((s) => Math.max(0, s + 2));
-      setZappedWeak((n) => n + 1);
+      // update zappedWeak and if we're in practice and reach threshold,
+      // synchronously show the practice end modal so tests don't race with effects
+      setZappedWeak((n) => {
+        const next = n + 1;
+        try {
+          if (practiceMode && next >= 3 && !showPracticeEnd) {
+            setPaused(true);
+            setShowPracticeEnd(true);
+          }
+        } catch { /* ignore */ }
+        return next;
+      });
       setFeedback(randomFrom(goodFeedbackList));
       setFeedbackType('good');
       // play correct sound
@@ -1895,14 +1932,14 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     nextToLoadRef.current = 0;
     // mark started so passwords initialize
     setStarted(true);
-    // Ensure the top-level hint button is enabled during practice rounds so
-    // players can use hints. We set a transient global flag and fire the
-    // same event MinigamePage listens for.
+    // Ensure the top-level hint button is locked/disabled during the practice
+    // round. We set a transient global flag and fire the same event the
+    // MinigamePage listens for so external UI can disable the hint button.
     try {
       if (typeof window !== 'undefined') {
         const w = window as unknown as Record<string, unknown>;
-        w['__pz_hint_unlocked'] = true;
-        window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'));
+        w['__pz_hint_unlocked'] = false;
+        window.dispatchEvent(new CustomEvent('minigame:hint-locked'));
       }
     } catch { /* ignore */ }
   };
