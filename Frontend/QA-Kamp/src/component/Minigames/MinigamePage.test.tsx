@@ -6,7 +6,9 @@ import { MemoryRouter } from 'react-router-dom'
 import MinigamePage from './MinigamePage'
 
 // Mock the PasswordZapperGame child so tests focus on MinigamePage behavior
-vi.mock('./PasswordZapperGame', () => {
+// Note: MinigamePage imports the component from './PasswordZapper/PasswordZapperGame.tsx'
+// so the mock path must match that import exactly to take effect during the test.
+vi.mock('./PasswordZapper/PasswordZapperGame.tsx', () => {
   return {
     default: (props: { ageGroup?: string }) => (
       <div data-testid="passwordzapper-mock" data-age={props.ageGroup} />
