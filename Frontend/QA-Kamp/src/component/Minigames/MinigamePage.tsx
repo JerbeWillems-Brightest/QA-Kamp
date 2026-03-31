@@ -73,7 +73,11 @@ export function MinigamePage() {
     function onHintUnlocked() {
       try { setHintUnlocked(true) } catch { /* ignore */ }
     }
+    function onHintLocked() {
+      try { setHintUnlocked(false) } catch { /* ignore */ }
+    }
     window.addEventListener('minigame:hint-unlocked', onHintUnlocked)
+    window.addEventListener('minigame:hint-locked', onHintLocked)
     try {
       const existing = sessionStorage.getItem('playerActiveGame')
       if (!existing) {
@@ -81,7 +85,7 @@ export function MinigamePage() {
         try { sessionStorage.setItem('playerActiveGame', JSON.stringify(info)) } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
-    return () => { window.removeEventListener('minigame:hint-unlocked', onHintUnlocked) }
+    return () => { window.removeEventListener('minigame:hint-unlocked', onHintUnlocked); window.removeEventListener('minigame:hint-locked', onHintLocked); }
   }, [game, ageGroup])
 
   // Listen for organizer stopping the game and navigate players back to waiting room
