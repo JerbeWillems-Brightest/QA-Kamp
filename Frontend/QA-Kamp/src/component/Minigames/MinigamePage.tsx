@@ -1,6 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
-import PasswordZapperGame from './PasswordZapperGame'
+import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
 import VRAAG_IMG from '../../assets/vraag.png'
