@@ -45,8 +45,12 @@ describe('PasswordZapperGame start modal', () => {
     const btn = screen.getByRole('button', { name: /Volgende/i })
     fireEvent.click(btn)
 
-    // After starting, the score element should appear
-    const score = await screen.findByText(/Score:/i)
-    expect(score).toBeInTheDocument()
+    // The "Volgende" button opens the practice intro; click the practice "Spelen" button to actually start
+    const playBtn = await screen.findByRole('button', { name: /Spelen/i })
+    fireEvent.click(playBtn)
+
+    // After starting, either the practice label or the score element should appear
+    const scoreOrPractice = await screen.findByText(/Score:|Oefenronde/i)
+    expect(scoreOrPractice).toBeInTheDocument()
   })
 })
