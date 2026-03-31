@@ -694,6 +694,12 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   const MAX_PROGRESS = effectiveAgeGroup === '8-10' ? 15 : effectiveAgeGroup === '14-16' ? 30 : 25;
   // whether the player has started the game (controls the start modal)
   const [started, setStarted] = useState(false);
+  // whether to show the practice-intro popup (shown after pressing "Volgende" on the rules)
+  const [showPracticeIntro, setShowPracticeIntro] = useState(false);
+  // practice mode: when true the current run is a practice round (points won't count)
+  const [practiceMode, setPracticeMode] = useState<boolean>(true);
+  // show the end-of-practice overlay when practice finishes
+  const [showPracticeEnd, setShowPracticeEnd] = useState<boolean>(false);
   // base and current fall duration (in seconds). We expose this via a CSS variable
   // so the pz-fall animation uses the current speed. Base values chosen so higher
   // age groups start slightly faster.
@@ -761,13 +767,14 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // can be hidden via CSS while the start modal is visible.
   useEffect(() => {
     const cls = 'pz-modal-open';
-    if (!started || showHelp || showHint) {
+    // consider the practice-intro popup as a modal as well
+    if (!started || showHelp || showHint || showPracticeIntro) {
       document.body.classList.add(cls);
     } else {
       document.body.classList.remove(cls);
     }
     return () => { document.body.classList.remove(cls); };
-  }, [started, showHelp, showHint]);
+  }, [started, showHelp, showHint, showPracticeIntro]);
 
   // Pause handling: listen for global pause event and show pause modal
   useEffect(() => {
@@ -1360,6 +1367,46 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     }
   }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel, applyFallMultiplierToAll, tweenFallMultiplier]);
 
+  // End practice round after player zaps 3 weak passwords during practiceMode
+  useEffect(() => {
+    if (practiceMode && zappedWeak >= 3 && !showPracticeEnd) {
+      // Pause the game and show the practice end modal
+      try {
+        setPaused(true);
+        setShowPracticeEnd(true);
+      } catch { /* ignore */ }
+    }
+  }, [practiceMode, zappedWeak, showPracticeEnd]);
+
+  // Start the real game: close practice modal, reset processed counters for real scoring
+  const startRealGame = () => {
+    try {
+      setPracticeMode(false);
+      setShowPracticeEnd(false);
+      setPaused(false);
+      // reset processed so progress reflects the real game run
+      setProcessed(0);
+      // clear practice score so points earned during the oefenronde do not count
+      setScore(0);
+      // ensure zappedWeak/missedWeak/zappedStrong counters are reset for fresh scoring
+      setZappedWeak(0);
+      setMissedWeak(0);
+      setZappedStrong(0);
+      // keep started=true
+      // clear transient hint-unlocked flag set during practice
+      try { if (typeof window !== 'undefined') { const w = window as unknown as Record<string, unknown>; w['__pz_hint_unlocked'] = false; window.dispatchEvent(new CustomEvent('minigame:hint-locked')); } } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  };
+
+  const restartPractice = () => {
+    // Reload the page so the whole game resets to initial state.
+    try {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
+    } catch { /* ignore */ }
+  };
+
   // helper: assign next available password index into a specific lane (atomic-ish)
   const assignNextToLane = (laneIndex: number) => {
     const curNext = nextToLoadRef.current;
@@ -1482,6 +1529,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // Ensure we only auto-open the hint modal once when the threshold is first reached.
   const hintAutoShownRef = React.useRef(false);
   useEffect(() => {
+    // Do not auto-unlock/show hints based on mistakes that happen during practice.
+    if (practiceMode) return;
     const mistakes = zappedStrong + missedWeak;
     const hintThreshold = effectiveAgeGroup === '8-10' ? 1 : effectiveAgeGroup === '11-13' ? 2 : 3;
     if (mistakes >= hintThreshold && !hintAutoShownRef.current) {
@@ -1500,7 +1549,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         }
       } catch { /* ignore */ }
     }
-  }, [zappedStrong, missedWeak, effectiveAgeGroup]);
+  }, [zappedStrong, missedWeak, effectiveAgeGroup, practiceMode]);
 
   // removed legacy zap/next/skip functions; use zapAt/skipAt which operate per-index/lane
 
@@ -1720,36 +1769,27 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
 
   // Eindscherm
   if (showEnd) {
-    // determine how many weak passwords were actually in this game run
-    const actualWeakInGame = (() => {
-      try {
-        const fromPasswords = passwords.filter((p) => p.isWeak).length;
-        if (fromPasswords > 0) return fromPasswords;
-      } catch { /* ignore */ }
-      // fallback to expected counts per age group when passwords not available
-      return effectiveAgeGroup === '8-10' ? 15 : effectiveAgeGroup === '11-13' ? 25 : 30;
-    })();
-
-    const totalCorrect = zappedWeak; // number of weak passwords correctly zapped
+    // number of weak passwords correctly zapped and wrongs
+    const totalCorrect = zappedWeak;
     const totalWrong = zappedStrong + missedWeak;
-    const correctPercentage = actualWeakInGame > 0 ? Math.round((totalCorrect / actualWeakInGame) * 100) : 0;
-    // New rules:
-    // - under 33% => 0 stars
-    // - 33% or more => 1 star
-    // - 66% or more => 2 stars
-    // - exactly 100% => 3 stars
-    const starCount = (() => {
-      const pct = Math.max(0, Math.min(100, correctPercentage));
-      if (pct === 100) return 3;
-      if (pct >= 66) return 2;
-      if (pct >= 33) return 1;
-      return 0;
-    })();
 
     // compute score percentage based on max possible score per age group
     const maxPossibleScore = effectiveAgeGroup === '14-16' ? 60 : effectiveAgeGroup === '11-13' ? 50 : 30;
     const scorePercent = maxPossibleScore > 0 ? Math.round((score / maxPossibleScore) * 100) : 0;
     const clampedScorePercent = Math.max(0, Math.min(100, scorePercent));
+
+    // New rules (use score-based percentage so reaching 100% score lights all 3 stars):
+    // - under 33% => 0 stars
+    // - 33% or more => 1 star
+    // - 66% or more => 2 stars
+    // - exactly 100% => 3 stars
+    const starCount = (() => {
+      const pct = Math.max(0, Math.min(100, clampedScorePercent));
+      if (pct === 100) return 3;
+      if (pct >= 66) return 2;
+      if (pct >= 33) return 1;
+      return 0;
+    })();
     // prepare CSS variable style (typed) for the ring fill
     const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${clampedScorePercent}%` } as unknown) as React.CSSProperties;
 
@@ -1820,50 +1860,86 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
 
   // Start modal: show rules before the game begins
   const handleStart = async () => {
-    // When entering the minigame, keep the player ONLINE so the organizer/waiting-room
-    // still shows them as present. Previously we marked them offline here; change
-    // that so players remain visible while playing.
-    try {
-      await markOnline();
-      setPlayerStatus('online');
-    } catch {
-      // ignore errors; best-effort presence update
-    }
-    // Ensure the URL reflects the selected age group so links/bookmarks show the correct category
+    // Open the practice-intro popup. Actual practice will start when the user
+    // clicks "Spelen" in that popup; at that moment we will markOnline and
+    // set started=true so passwords are initialized then.
     try {
       const params = new URLSearchParams(window.location.search || '');
-      // set or replace age param to the effectiveAgeGroup
       params.set('age', String(effectiveAgeGroup));
-      // ensure game param is present (keep existing or set to passwordzapper)
       if (!params.get('game')) params.set('game', 'passwordzapper');
-      // replace current history entry so back-button isn't polluted
       const newSearch = params.toString();
       try { navigate(`${window.location.pathname}?${newSearch}`, { replace: true }); } catch { /* ignore */ }
     } catch { /* ignore */ }
-    setStarted(true);
+    // show the practice intro modal (do NOT start the game yet)
+    setShowPracticeIntro(true);
   }
+
+  // Start the practice run when user confirms the practice intro
+  const startPractice = async () => {
+    try {
+      await markOnline();
+      setPlayerStatus('online');
+    } catch { /* ignore */ }
+    setShowPracticeIntro(false);
+    setPracticeMode(true);
+    // reset counters for practice run
+    setProcessed(0);
+    setScore(0);
+    setZappedWeak(0);
+    setMissedWeak(0);
+    setZappedStrong(0);
+    setImgOverrides({});
+    setLasers([]);
+    setLanes(new Array(MAX_LANES).fill(null));
+    setNextToLoad(0);
+    nextToLoadRef.current = 0;
+    // mark started so passwords initialize
+    setStarted(true);
+    // Ensure the top-level hint button is enabled during practice rounds so
+    // players can use hints. We set a transient global flag and fire the
+    // same event MinigamePage listens for.
+    try {
+      if (typeof window !== 'undefined') {
+        const w = window as unknown as Record<string, unknown>;
+        w['__pz_hint_unlocked'] = true;
+        window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'));
+      }
+    } catch { /* ignore */ }
+  };
 
   // Pause controls are implemented inline in the pause modal to avoid unused-variable warnings
 
   if (!started) {
     return (
       <div className="pz-game">
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal">
-            <h2>Speluitleg - Password zapper</h2>
-            <ul className="pz-start-bullets">
-              <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
-              <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
-              <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
-              <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
-            </ul>
-              <div style={{ marginTop: 12, textAlign: 'center' }}>
-                  <div style={{ textAlign: 'center' }}>
-                      <button className="pz-start-btn pz-start-btn--large" onClick={() => void handleStart()}>Volgende</button>
-                  </div>
+        {showPracticeIntro ? (
+          <div className="pz-start-overlay">
+            <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+              <h2>Even oefenen!</h2>
+              <p>Zie je een komeet met een slecht wachtwoord? Tik erop om het weg te zappen! Laat de goede sterke wachtwoorden voorbijvliegen</p>
+              <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
+                <button className="pz-start-btn pz-start-btn--large" onClick={() => { void startPractice(); }}>Spelen</button>
               </div>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="pz-start-overlay">
+            <div className="pz-start-modal">
+              <h2>Speluitleg - Password zapper</h2>
+              <ul className="pz-start-bullets">
+                <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
+                <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
+                <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
+                <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
+              </ul>
+              <div style={{ marginTop: 12, textAlign: 'center' }}>
+                <div style={{ textAlign: 'center' }}>
+                  <button className="pz-start-btn pz-start-btn--large" onClick={() => void handleStart()}>Volgende</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -1883,6 +1959,24 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
             </ul>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHelp(false)}>Verder spelen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Practice end modal (shown after practiceMode completes)
+  if (showPracticeEnd) {
+    return (
+      <div className="pz-game">
+        <div className="pz-start-overlay">
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Het echte spel begint nu</h2>
+            <p>Punten tellen mee. Succes!</p>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
+              <button id="btnPlayGame" type="button" className="pz-start-btn pz-start-btn--large" onClick={() => { startRealGame(); }}>Spelen</button>
+              <button id="btnRestartPractice" type="button" className="pz-start-btn pz-start-btn--large" onClick={() => { restartPractice(); }}>Opnieuw oefenen</button>
             </div>
           </div>
         </div>
@@ -1962,20 +2056,20 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // Progress should reflect how far through the password list the player is,
   // not the score. Use currentIdx (0-based) -> show (currentIdx+1)/passwords.length.
   // Cap progressbar to at most 30 steps so the UI doesn't grow beyond that
-  const displayedProcessed = Math.min(processed, MAX_PROGRESS);
-  const fillPercent = Math.max(
-    0,
-    Math.min(100, Math.round((displayedProcessed / MAX_PROGRESS) * 100))
-  );
+  const PRACTICE_MAX = 3;
+  const effectiveMaxProgress = practiceMode ? PRACTICE_MAX : MAX_PROGRESS;
+  const displayedProcessed = Math.min(processed, effectiveMaxProgress);
+  const fillPercent = Math.max(0, Math.min(100, Math.round((displayedProcessed / effectiveMaxProgress) * 100)));
 
   return (
     <div className="pz-game">
+      {/* practice intro is shown before starting the game; do not overlay running game */}
       {/* debug badge removed */}
-      <div className="pz-score">Score: {score}</div>
+      <div className="pz-score">{practiceMode && !showPracticeIntro ? 'Oefenronde' : `Score: ${score}`}</div>
       {/* Local status badge so player understands presence behavior */}
       <div className="pz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fillPercent}>
         <div className="pz-progress-fill" style={{ width: `${fillPercent}%` }} />
-        <div className="pz-progress-text">{displayedProcessed} / {MAX_PROGRESS}</div>
+        <div className="pz-progress-text">{displayedProcessed} / {effectiveMaxProgress}</div>
       </div>
       {feedback && (
         <div
