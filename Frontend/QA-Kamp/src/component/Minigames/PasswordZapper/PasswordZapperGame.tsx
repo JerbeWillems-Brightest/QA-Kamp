@@ -1783,13 +1783,15 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               </div>
 
               <div className="pz-stats-row">
-                <div className="pz-stat pz-stat--correct">
-                  <div className="pz-stat-title">Juist</div>
-                  <div className="pz-stat-value" id="totalCorrect">+{totalCorrect}</div>
+                <div className="pz-stats-correct">
+                  <div className="shine" aria-hidden></div>
+                  <div className="label">Juist</div>
+                  <div className="score"><span className="plus">+</span>{totalCorrect}</div>
                 </div>
-                <div className="pz-stat pz-stat--wrong">
-                  <div className="pz-stat-title">Fout</div>
-                  <div className="pz-stat-value" id="totalWrong">-{totalWrong}</div>
+                <div className="pz-stats-wrong">
+                  <div className="shine" aria-hidden></div>
+                  <div className="label">Fout</div>
+                  <div className="score"><span className="minus">-</span>{totalWrong}</div>
                 </div>
               </div>
             </div>
