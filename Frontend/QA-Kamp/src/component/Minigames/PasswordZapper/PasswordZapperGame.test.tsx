@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
-import { act } from 'react-dom/test-utils'
+import { act } from 'react'
 import '@testing-library/jest-dom'
 import { vi, describe, it, beforeEach, expect } from 'vitest'
 import { MemoryRouter } from 'react-router-dom'
@@ -167,9 +167,9 @@ describe('PasswordZapperGame start modal', () => {
 
     const { container } = render(
       <MemoryRouter>
-        {/* test-only: cast to any because PasswordItem type is internal to the component file */}
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any} />
+            {/* test-only: cast to any because PasswordItem type is internal to the component file */}
+            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+            <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any} />
       </MemoryRouter>
     )
 
@@ -222,5 +222,102 @@ describe('PasswordZapperGame start modal', () => {
 
     // restore timers
     vi.useRealTimers()
+  })
+
+  it('shows Spelen and Opnieuw oefenen buttons on practice end popup after 3 zaps', async () => {
+    // Provide exactly 3 weak passwords so zapping all of them ends practice
+    const initial = [
+      { value: 'weak-1', isWeak: true, zapped: false, missed: false },
+      { value: 'weak-2', isWeak: true, zapped: false, missed: false },
+      { value: 'weak-3', isWeak: true, zapped: false, missed: false }
+    ]
+
+    const { container } = render(
+      <MemoryRouter>
+        {/* start practice normally; use skipLaserAnimation to avoid timing complexities */}
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any}/>
+      </MemoryRouter>
+    )
+
+    // advance start modal to practice and start
+    await screen.findByRole('heading', { name: /Speluitleg - Password zapper/i })
+    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /Spelen/i }))
+
+    // ensure practice state shows
+    await screen.findByText(/Oefenronde/i)
+
+    // find and click the three comets
+    for (let i = 0; i < 3; i++) {
+      let comet: HTMLElement | null = null
+      await waitFor(() => {
+        comet = container.querySelector(`img[data-idx='${i}']`) as HTMLElement | null
+        if (!comet) throw new Error(`comet ${i} not yet rendered`)
+      })
+      act(() => { fireEvent.click(comet!) })
+    }
+
+    // After zapping 3 weak passwords, the practice-end popup should appear
+    const playBtn = await screen.findByRole('button', { name: /Spelen/i })
+    const retryBtn = await screen.findByRole('button', { name: /Opnieuw oefenen/i })
+
+    expect(playBtn).toBeInTheDocument()
+    expect(playBtn).toHaveAttribute('id', 'btnPlayGame')
+    expect(retryBtn).toBeInTheDocument()
+    expect(retryBtn).toHaveAttribute('id', 'btnRestartPractice')
+  })
+
+  it('end screen shows Opnieuw spelen, score, percentage, correct and wrong counts', async () => {
+    // Start the game via the start modal so the running UI is present, then force end
+    const initial = [
+      { value: 'weak-1', isWeak: true, zapped: false, missed: false },
+      { value: 'strong-1', isWeak: false, zapped: false, missed: false }
+    ]
+
+    const { container } = render(
+      <MemoryRouter>
+        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+        <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any}/>
+      </MemoryRouter>
+    )
+
+    // advance start modal to practice and start (like other tests)
+    await screen.findByRole('heading', { name: /Speluitleg - Password zapper/i })
+    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    fireEvent.click(await screen.findByRole('button', { name: /Spelen/i }))
+
+    // wait for the running UI (either Oefenronde or Score)
+    await screen.findByText(/Score:|Oefenronde/i)
+
+    // open pause modal and click the Stoppen button to force end screen
+    window.dispatchEvent(new CustomEvent('minigame:pause'))
+    const stopBtn = await screen.findByRole('button', { name: /Stoppen/i })
+    act(() => { fireEvent.click(stopBtn) })
+
+    // End screen should render the play-again button
+    const playAgain = await screen.findByRole('button', { name: /Opnieuw spelen/i })
+    expect(playAgain).toBeInTheDocument()
+    expect(playAgain).toHaveAttribute('id', 'btnPlayAgain')
+
+    // Score number is visible (id=score)
+    const scoreEl = container.querySelector('#score') as HTMLElement | null
+    expect(scoreEl).toBeTruthy()
+    // should contain a number (string containing digits)
+    expect(scoreEl!.textContent).toMatch(/\d+/)
+
+    // Percentage visible (id=percentage)
+    const pctEl = container.querySelector('#percentage') as HTMLElement | null
+    expect(pctEl).toBeTruthy()
+    expect(pctEl!.textContent).toMatch(/\d+%/) 
+
+    // Correct and wrong counts visible
+    const correctEl = container.querySelector('.pz-stats-correct .score') as HTMLElement | null
+    const wrongEl = container.querySelector('.pz-stats-wrong .score') as HTMLElement | null
+    expect(correctEl).toBeTruthy()
+    expect(wrongEl).toBeTruthy()
+    // their text should include digits (e.g., +0, -0)
+    expect(correctEl!.textContent).toMatch(/\d+/)
+    expect(wrongEl!.textContent).toMatch(/\d+/)
   })
 })
