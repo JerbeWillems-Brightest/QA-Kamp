@@ -81,9 +81,20 @@ export default function initFireworks(canvasEl: HTMLCanvasElement) {
   let last = 0;
     let interval = 900; // less frequent rockets
   let raf = 0;
+  // safe wrappers in case the global rAF/cancel are not functions in the test env
+  const rafRequest = (cb: FrameRequestCallback) => {
+    if (typeof window.requestAnimationFrame === 'function') return window.requestAnimationFrame(cb);
+    // fallback to setTimeout-based id
+    return setTimeout(() => cb(Date.now()), 16) as unknown as number;
+  };
+  const rafCancel = (id: number) => {
+    if (typeof window.cancelAnimationFrame === 'function') return window.cancelAnimationFrame(id);
+    // if fallback used, clear the timeout
+    try { clearTimeout(id as unknown as number); } catch { /* ignore */ }
+  };
 
   function loop(ts:number){
-    raf = requestAnimationFrame(loop);
+    raf = rafRequest(loop) as unknown as number;
     ctx.fillStyle = 'rgba(255,255,255,0.17)';
     ctx.fillRect(0,0,canvasWidth,canvasHeight);
 
@@ -96,9 +107,9 @@ export default function initFireworks(canvasEl: HTMLCanvasElement) {
   }
 
   resize();
-  raf = requestAnimationFrame(loop);
+  raf = rafRequest(loop) as unknown as number;
   window.addEventListener('resize', resize);
 
-  return () => { cancelAnimationFrame(raf); window.removeEventListener('resize', resize); };
+  return () => { rafCancel(raf); window.removeEventListener('resize', resize); };
 }
 
