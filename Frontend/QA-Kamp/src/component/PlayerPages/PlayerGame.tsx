@@ -205,7 +205,7 @@ export default function PlayerGame() {
       cancelled = true
       clearInterval(id)
     }
-  }, [sessionId, playerNumber])
+  }, [sessionId, playerNumber, navigate])
 
   // derive description with useMemo
   function resolveDescriptionFor(tableSection: Record<string, string>, cat: string) {
@@ -300,7 +300,7 @@ export default function PlayerGame() {
       try { window.removeEventListener('storage', handleStorage) } catch (err) { void err }
       try { window.removeEventListener('activeGameInfoChanged', handleCustom) } catch (err) { void err }
     }
-  }, [navigate])
+  }, [navigate, playerNumber])
 
   useEffect(() => {
     function handleOnlinePlayersChange(e: StorageEvent) {

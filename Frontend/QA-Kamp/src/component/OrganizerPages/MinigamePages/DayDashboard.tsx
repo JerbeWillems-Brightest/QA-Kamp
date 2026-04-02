@@ -406,7 +406,7 @@ function DayDashboard(){
       if (timer) clearTimeout(timer)
       window.removeEventListener('storage', onStorage)
     }
-  }, [])
+  }, [sessionId])
 
   // initialize running state from localStorage so it persists across navigation/tabs
   useEffect(() => {
@@ -544,6 +544,10 @@ function DayDashboard(){
         }
       } catch (err) { console.warn('Failed to notify server of activeGameInfo', err) }
     } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
+
+    // Do NOT navigate the organizer to the minigame. Players are redirected from the
+    // waiting room when the organizer starts the game (we persist activeGameInfo to
+    // localStorage and dispatch a custom event so player UIs will react).
   }
   async function stopGame(){
     if (!selectedGame) return

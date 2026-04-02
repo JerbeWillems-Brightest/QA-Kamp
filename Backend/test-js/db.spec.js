@@ -15,11 +15,7 @@ describe('DB module (compiled)', function() {
 
   after(async function() {
     // ensure mongoose is disconnected and stop mongod
-    try {
-      await mongoose.disconnect()
-    } catch (e) {
-      // ignore
-    }
+    await mongoose.disconnect()
     if (mongod) await mongod.stop()
   })
 

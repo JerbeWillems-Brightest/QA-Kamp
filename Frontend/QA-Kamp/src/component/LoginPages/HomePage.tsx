@@ -116,9 +116,9 @@ function HomePage() {
 
         // Now verify on the server that the player exists for this session. If verification fails, revert the optimistic writes.
         try {
-          const res = await api.fetchPlayersForSession(existingSessionId)
-          const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
-          if (!found) {
+              const res = await api.fetchPlayersForSession(existingSessionId)
+              const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
+              if (!found) {
             try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
             try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             // remove from onlinePlayers and notify server
@@ -132,6 +132,16 @@ function HomePage() {
             setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
             return
           }
+          // store player's category/ageGroup if available
+          try {
+            const player = (res.players || []).find((p: ApiPlayer) => p.playerNumber === playerNumber) as ApiPlayer | undefined
+            if (player) {
+                const cat = player.category ?? (!Number.isNaN(player.age) ? (player.age <= 10 ? '8-10' : player.age <= 13 ? '11-13' : '14-16') : undefined)
+              if (cat) {
+                try { sessionStorage.setItem('playerCategory', String(cat)) } catch { /* ignore */ }
+              }
+            }
+          } catch { /* ignore */ }
           navigate('/player/waiting')
           return
         } catch (innerErr: unknown) {
@@ -194,6 +204,14 @@ function HomePage() {
         sessionStorage.setItem('playerSessionId', serverSessionId)
         // Flag so WaitingRoom won't call setPlayerOnline again (prevents 409).
         sessionStorage.setItem('playerOnlineLocked', 'true')
+        // persist player's category if backend returned it as part of player
+        try {
+          const playerObj = (resp.player as ApiPlayer | undefined)
+          if (playerObj && (playerObj.category || !Number.isNaN(playerObj.age))) {
+            const cat = playerObj.category ?? (!Number.isNaN(playerObj.age) ? (playerObj.age <= 10 ? '8-10' : playerObj.age <= 13 ? '11-13' : '14-16') : undefined)
+            if (cat) sessionStorage.setItem('playerCategory', String(cat))
+          }
+        } catch { /* ignore */ }
       } catch {
         // ignore
       }

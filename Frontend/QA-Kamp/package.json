@@ -10,6 +10,22 @@
     "preview": "vite preview",
     "test": "vitest"
   },
+  "c8": {
+    "include": [
+      "src/**/*.{ts,tsx,js,jsx}"
+    ],
+    "all": false,
+    "exclude": [
+      "vitest.config.ts",
+      "**/vitest.config.ts",
+      "./vitest.config.ts",
+      "src/setupTests.ts",
+      "**/setupTests.*",
+      "src/**/setupTests.*",
+      "src/**/__tests__/**",
+      "src/**/?(*.)+(spec|test).*"
+    ]
+  },
   "dependencies": {
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
