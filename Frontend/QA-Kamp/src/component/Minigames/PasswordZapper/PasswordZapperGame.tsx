@@ -780,8 +780,68 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     }
     function onStorage(e: StorageEvent) {
       try {
+        // handle explicit kick keys like 'kick_123' or 'kick_001'
+        if (e.key && e.key.startsWith('kick_')) {
+          const kicked = e.key.slice(5)
+          const plain = sessionStorage.getItem('playerNumber') || ''
+          const padded = String(plain).padStart(3, '0')
+          if (kicked === plain || kicked === padded) {
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+            return
+          }
+        }
+
+        // when onlinePlayers is changed, check whether this player was removed
+        if (e.key === 'onlinePlayers' || e.key === 'onlinePlayers_last_update') {
+          try {
+            const raw = (e.key === 'onlinePlayers') ? (e.newValue ?? localStorage.getItem('onlinePlayers')) : localStorage.getItem('onlinePlayers')
+            const arr = raw ? JSON.parse(String(raw)) as string[] : []
+            const padded = String(sessionStorage.getItem('playerNumber') || '').padStart(3,'0')
+            const plain = String(sessionStorage.getItem('playerNumber') || '')
+            const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded))
+            if (!exists) {
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+              try { navigate('/') } catch { /* ignore */ }
+            }
+          } catch { /* ignore */ }
+        }
+
+        // session ended/cleared by organizer on another tab
+        if (e.key === 'currentSessionId') {
+          if (e.newValue === null) {
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+            // remove this player from onlinePlayers
+            try {
+              const raw = localStorage.getItem('onlinePlayers')
+              const arr = raw ? JSON.parse(raw) as string[] : []
+              const plain = String(sessionStorage.getItem('playerNumber') || '')
+              const padded = String(sessionStorage.getItem('playerNumber') || '').padStart(3, '0')
+              const filtered = Array.isArray(arr) ? arr.filter(x => (String(x) !== plain && String(x) !== padded)) : []
+              localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+              // notify other tabs about the change
+              window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
+            } catch { /* ignore */ }
+            try { navigate('/') } catch { /* ignore */ }
+          }
+          return
+        }
+
+        // treat both legacy and current keys
         if (e.key === 'activeGameInfo' || e.key === 'activeGame') {
           const nv = e.newValue
+          // consider cleared when newValue is null, undefined, empty string, or the literal 'null'
           if (nv === null || typeof nv === 'undefined' || nv === '' || String(nv) === 'null') {
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
             try { navigate('/player/waiting') } catch { /* ignore */ }
