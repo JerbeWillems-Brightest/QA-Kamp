@@ -135,6 +135,36 @@ export function MinigamePage() {
     return () => clearInterval(id)
   }, [navigate])
 
+  // Poll the server periodically for authoritative activeGameInfo so remote
+  // devices (different machines) can detect when the organizer cleared the
+  // game. We do this in addition to localStorage/storage events which only
+  // synchronize within the same browser/profile.
+  useEffect(() => {
+    let mounted = true
+    let timer: number | undefined
+    async function pollServer() {
+      try {
+        const sid = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
+        if (!sid) return
+        const api = await import('../../api')
+        const resp = await api.getActiveGameInfo(sid)
+        if (!mounted) return
+        if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
+          try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+          return
+        }
+      } catch {
+        // network errors are safe; we'll retry
+      } finally {
+        if (mounted) timer = window.setTimeout(pollServer, 5000)
+      }
+    }
+    pollServer()
+    return () => { mounted = false; if (timer) clearTimeout(timer) }
+  }, [navigate])
+
   // render fullscreen container. We intentionally omit the back button and title
   return (
     <div className="pz-root">
