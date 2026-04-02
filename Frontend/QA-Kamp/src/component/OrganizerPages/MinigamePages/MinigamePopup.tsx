@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+// Import API helper to ensure we can clear server-side activeGameInfo
+import { setActiveGameInfo } from '../../../api'
 
 export type MinigamePopupProps = {
   isOpen: boolean
@@ -124,6 +126,28 @@ export default function MinigamePopup({
         console.warn('MinigamePopup: onStop handler failed', err)
       }
     }
+
+    // As a safety net, also attempt to clear the server-side activeGameInfo
+    // directly from the popup. This helps when the parent handler doesn't
+    // reach the server (e.g. due to a wrong API url/proxy) — calling the
+    // API here ensures remote devices polling the server will observe the
+    // cleared state.
+    try {
+      let sid: string | null
+      try { sid = localStorage.getItem('currentSessionId') } catch { sid = null }
+      if (sid) {
+        try {
+          await setActiveGameInfo(sid, null)
+        } catch (e) {
+          console.warn('MinigamePopup: failed to clear activeGameInfo on server', e)
+          try {
+            if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+              window.alert('Kon spel niet stoppen op server')
+            }
+          } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore */ }
 
     // Now clear local state and notify other tabs in this browser. This is
     // best-effort only: the server call above is the authoritative notification
