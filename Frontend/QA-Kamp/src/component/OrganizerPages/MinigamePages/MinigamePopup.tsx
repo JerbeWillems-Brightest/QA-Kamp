@@ -136,15 +136,24 @@ export default function MinigamePopup({
       let sid: string | null
       try { sid = localStorage.getItem('currentSessionId') } catch { sid = null }
       if (sid) {
-        try {
-          await setActiveGameInfo(sid, null)
-        } catch (e) {
-          console.warn('MinigamePopup: failed to clear activeGameInfo on server', e)
+        // If the parent handler already cleared the activeGameInfo (it usually
+        // removes the key from localStorage after updating the server), there's
+        // no need to call the API again. Only attempt the fallback when the
+        // local key still exists — that indicates the server update may not
+        // have completed.
+        let hasActive: boolean
+        try { hasActive = localStorage.getItem('activeGameInfo') !== null } catch { hasActive = false }
+        if (hasActive) {
           try {
-            if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-              window.alert('Kon spel niet stoppen op server')
-            }
-          } catch { /* ignore */ }
+            await setActiveGameInfo(sid, null)
+          } catch (e) {
+            console.warn('MinigamePopup: failed to clear activeGameInfo on server', e)
+            try {
+              if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+                window.alert('Kon spel niet stoppen op server')
+              }
+            } catch { /* ignore */ }
+          }
         }
       }
     } catch { /* ignore */ }
