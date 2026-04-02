@@ -559,10 +559,22 @@ function DayDashboard(){
     console.log('Stopping', name)
     // close the modal after stopping
     closeModal()
-    // First: clear server-side persisted activeGameInfo so remote devices polling
-    // the server will observe the cleared state. Awaiting this gives remote
-    // devices the authoritative null before we remove local copies and notify
-    // same-browser tabs.
+    // First: clear localStorage and notify same-tab and other tabs so the
+    // organizer's browser (and other tabs in this browser) react immediately.
+    try {
+      try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+      // same-tab listeners: dispatch custom event with null detail
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
+      // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
+      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
+    } catch (e) {
+      console.warn('Failed to notify clients of stop', e)
+    }
+
+    // Then persist the cleared state to the server so remote devices polling
+    // the server will observe the cleared state. We do this after clearing
+    // localStorage to avoid duplicate fallback calls from popup logic that may
+    // also attempt a server update when the local key still exists.
     try {
       const sid = sessionId
       if (sid) {
@@ -576,15 +588,6 @@ function DayDashboard(){
     } catch (err) {
       console.warn('Failed to clear activeGameInfo on server', err)
     }
-
-    // Now clear localStorage + notify same-tab and other tabs
-    try {
-      try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
-      // same-tab listeners: dispatch custom event with null detail so onCustom handler treats it as cleared
-      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
-      // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
-      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
-    } catch (e) { console.warn('Failed to notify clients of stop', e) }
   }
 
   // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
