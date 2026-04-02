@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
+// Local payload type for update call (includes score and category)
+type UpdatePlayerPayload = { score?: number; category?: string }
+import type { ApiPlayer } from '../../../api'
 import { useNavigate } from 'react-router-dom'
 import "./PasswordZapperGame.css";
 // ruimteschip asset
@@ -1520,15 +1523,112 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       const existingRaw = localStorage.getItem(key);
       const existing = existingRaw !== null ? parseInt(existingRaw, 10) : undefined;
       const existingIsValid = typeof existing === 'number' && !Number.isNaN(existing);
-      if (!existingIsValid || score > (existing as number)) {
-        try { localStorage.setItem(key, String(score)); } catch { /* ignore */ }
-        setHighScore(score);
-        setIsNewHigh(true);
-      } else {
-        setIsNewHigh(false);
-      }
+      // finalHigh is the persisted highscore we will use for DB updates and signalling.
+      const finalHigh = (existingIsValid ? Math.max(existing as number, score) : score);
+      try { localStorage.setItem(key, String(finalHigh)); } catch { /* ignore */ }
+      setHighScore(finalHigh);
+      setIsNewHigh(existingIsValid ? (finalHigh > (existing as number)) : true);
+      // Persist final score to backend so the organizer scoreboard can show it.
+      ;(async () => {
+        try {
+          const playerNumberRaw = sessionStorage.getItem('playerNumber') || ''
+          const sessionStorageId = sessionStorage.getItem('playerSessionId')
+          const localStorageId = localStorage.getItem('currentSessionId')
+          const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
+          if (!sid || !playerNumberRaw) return
+
+          // Normalize to digits-only and pad to 3 characters to match backend stored playerNumber
+          const normalizedPlayerNumber = String((playerNumberRaw || '').toString().replace(/\D/g, '')).padStart(3, '0')
+          try {
+            const api = await import('../../../api')
+            // Fetch current stored player info and only update the DB when the
+            // new score is strictly greater than the stored score. This avoids
+            // overwriting a player's highscore with a lower value.
+            let shouldUpdate = true
+            let foundCategory: string | undefined = undefined
+            try {
+              const pResp = await api.fetchPlayersForSession(sid)
+              const list = (pResp && (pResp as { players?: unknown[] }).players) || []
+              const found = (list as Record<string, unknown>[]).find((p) => {
+                const pn = String(p['playerNumber'] ?? p['nummer'] ?? '')
+                return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
+              })
+              if (found) {
+                const existingScoreVal = found['score']
+                if (typeof existingScoreVal === 'number' && !Number.isNaN(existingScoreVal)) {
+                  const existingScoreNum = existingScoreVal as number
+                  // Compare against finalHigh (the player's stored highscore) instead of the run score
+                  if (existingScoreNum >= finalHigh) {
+                    shouldUpdate = false
+                  }
+                }
+                // preserve player's existing category when present to avoid
+                // backend defaulting it to 'unknown' on partial updates
+                const catVal = found['category']
+                if (typeof catVal === 'string' && catVal) foundCategory = catVal as string
+              }
+            } catch (readErr) {
+              // If reading the existing player entry fails, attempt the update
+              // optimistically. The backend update route was adjusted to only
+              // set fields that are present in the request, so it's safe to
+              // issue the update even when we couldn't read the previous score.
+              shouldUpdate = true
+              try {
+                const sessCat = sessionStorage.getItem('playerCategory') || undefined
+                if (sessCat) foundCategory = sessCat
+              } catch {
+                /* ignore */
+              }
+              try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] fetchPlayersForSession failed, falling back to optimistic update', { sid, normalizedPlayerNumber, err: String(readErr) }) } catch { /* ignore */ }
+            }
+
+            if (shouldUpdate) {
+              try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] Attempting DB update', { sid, normalizedPlayerNumber, finalHigh, foundCategory }) } catch { /* ignore */ }
+              // update only the score field on the player document
+              // Retry once on transient failure
+              try {
+                const payload: UpdatePlayerPayload = { score: finalHigh }
+                if (typeof foundCategory === 'string' && foundCategory) payload.category = foundCategory
+                await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer)
+                try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] DB update succeeded', { sid, normalizedPlayerNumber, finalHigh }) } catch { /* ignore */ }
+              } catch {
+                await new Promise((r) => setTimeout(r, 250))
+                const payload2: UpdatePlayerPayload = { score: finalHigh }
+                if (typeof foundCategory === 'string' && foundCategory) payload2.category = foundCategory
+                await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload2 as unknown as ApiPlayer)
+                try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] DB update succeeded after retry', { sid, normalizedPlayerNumber, finalHigh }) } catch { /* ignore */ }
+              }
+
+              // Notify other tabs in this browser quickly so organiser UI can reflect change faster
+              try {
+                const key = 'pz_score_update'
+                const payload = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() })
+                localStorage.setItem(key, payload)
+                try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload })) } catch { /* ignore */ }
+              } catch { /* ignore */ }
+            } else {
+              try { if (typeof console !== 'undefined') console.log('[PasswordZapper] Skipping DB update because existing stored score is higher or equal', { sid, normalizedPlayerNumber, score }) } catch { /* ignore */ }
+            }
+                  } catch (err: unknown) {
+            const info = getErrorInfo(err)
+            const status = info.status
+            const msg = info.message
+            // If the server reports the player/session is gone, force local logout and navigate home
+            if (status === 404 || /player not found|session not found|not found/i.test(msg)) {
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+              try { navigate('/') } catch { /* ignore */ }
+              return
+            }
+            // otherwise log and continue; scoreboard may update on next poll
+            console.warn('Failed to persist player score to backend:', msg)
+          }
+        } catch { /* ignore */ }
+      })()
     } catch { /* ignore */ }
-  }, [showEnd, score, effectiveAgeGroup, playSound]);
+  }, [showEnd, score, effectiveAgeGroup, playSound, navigate]);
 
   // Fireworks canvas: initialize when end screen is shown
   React.useEffect(() => {

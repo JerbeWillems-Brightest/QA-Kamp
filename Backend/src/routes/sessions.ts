@@ -402,20 +402,22 @@ router.put('/:id/players/:playerNumber', async (req, res) => {
     if (!player) return res.status(400).json({ error: 'player object required in body' })
 
     // find and update by sessionId + playerNumber
+    // Build an update object only containing keys provided by the client.
+    // This avoids unintentionally overwriting existing fields when the
+    // client only intends to update a subset (for example: only score).
+    const updateObj: Record<string, unknown> = {}
+    updateObj.playerNumber = (player.playerNumber ?? playerNumber)
+    // keep legacy alias in sync when a playerNumber is provided
+    updateObj.nummer = (player.playerNumber ?? playerNumber)
+    if (player.lastSeen) updateObj.lastSeen = new Date(player.lastSeen)
+    if (typeof player.score === 'number') updateObj.score = player.score
+    if (typeof player.name !== 'undefined') updateObj.name = player.name
+    if (typeof player.age !== 'undefined') updateObj.age = player.age
+    if (typeof player.category !== 'undefined') updateObj.category = player.category
+
     const updated = await Player.findOneAndUpdate(
       { sessionId: id, playerNumber },
-      {
-        playerNumber: (player.playerNumber ?? playerNumber),
-        // keep legacy field in sync
-        nummer: (player.playerNumber ?? playerNumber),
-        // optionally update lastSeen if client provides it
-        ...(player.lastSeen ? { lastSeen: new Date(player.lastSeen) } : {}),
-        // optionally update score if provided
-        ...(typeof player.score === 'number' ? { score: player.score } : {}),
-        name: player.name,
-        age: player.age,
-        category: player.category ?? 'unknown',
-      },
+      updateObj,
       { new: true, runValidators: true }
     )
 

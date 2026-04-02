@@ -142,8 +142,27 @@ export default function Scoreboard() {
       }
     }
     load()
-    const iv = setInterval(load, 10000) // poll every 10 seconds
-    return () => { mounted = false; clearInterval(iv) }
+    // Poll every 10 seconds
+    const iv = setInterval(load, 10000)
+
+    // Also listen for cross-tab/localStorage events that indicate a score was
+    // updated by a player (PasswordZapper writes a 'pz_score_update' key when
+    // it successfully persists a score). React to that by reloading the
+    // leaderboard immediately so the organiser sees updated scores fast.
+    const onStorage = (ev: StorageEvent) => {
+      try {
+        if (!ev || !ev.key) return
+        if (ev.key === 'pz_score_update' || ev.key === 'activeGameInfo') {
+          // schedule load asynchronously to avoid state updates during storage event
+          setTimeout(() => { void load().catch(() => {}) }, 0)
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    window.addEventListener('storage', onStorage)
+
+    return () => { mounted = false; clearInterval(iv); window.removeEventListener('storage', onStorage) }
   }, [sessionId])
 
   return (
