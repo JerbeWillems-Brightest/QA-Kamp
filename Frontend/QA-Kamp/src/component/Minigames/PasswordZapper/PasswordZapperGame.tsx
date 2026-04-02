@@ -766,6 +766,58 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   const [showHint, setShowHint] = useState(false);
   const navigate = useNavigate()
 
+  // React to organizer stopping the game: listen for custom events, storage
+  // events (same browser), and poll the server (different machines).
+  useEffect(() => {
+    function onCustom(ev: Event) {
+      try {
+        const ce = ev as CustomEvent
+        if (!ce.detail) {
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+    function onStorage(e: StorageEvent) {
+      try {
+        if (e.key === 'activeGameInfo' || e.key === 'activeGame') {
+          const nv = e.newValue
+          if (nv === null || typeof nv === 'undefined' || nv === '' || String(nv) === 'null') {
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { navigate('/player/waiting') } catch { /* ignore */ }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('activeGameInfoChanged', onCustom)
+    window.addEventListener('storage', onStorage)
+
+    // server poll for cross-machine detection
+    let mounted = true
+    let timer: number | undefined
+    async function pollServer() {
+      try {
+        const sid = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
+        if (!sid) return
+        const api = await import('../../../api')
+        const resp = await api.getActiveGameInfo(sid)
+        if (!mounted) return
+        if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
+          try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+          return
+        }
+      } catch {
+        // ignore and retry
+      } finally {
+        if (mounted) timer = window.setTimeout(pollServer, 5000)
+      }
+    }
+    pollServer()
+    return () => { window.removeEventListener('activeGameInfoChanged', onCustom); window.removeEventListener('storage', onStorage); mounted = false; if (timer) clearTimeout(timer) }
+  }, [navigate])
+
   // Toggle a body-level class so other UI (hint/pause/question, score, progress, ship)
   // can be hidden via CSS while the start modal is visible.
   useEffect(() => {
