@@ -106,10 +106,35 @@ export default function MinigamePopup({
     setIsRunning(true)
     if (onStart) onStart()
   }
-  function handleStop(){
+  async function handleStop(){
     // optimistically clear local running state
     setIsRunning(false)
-    if (onStop) onStop()
+
+    // First, allow parent to perform the authoritative action (persist
+    // activeGameInfo = null on the server). We await it so remote devices
+    // polling the server will observe the cleared state before we clear
+    // localStorage and dispatch events in this browser.
+    if (onStop) {
+      try {
+        // If onStop returns a promise, await it. If it's synchronous, awaiting
+        // resolves immediately.
+        await onStop()
+      } catch (err) {
+        // Swallow errors — we still proceed to notify local tabs, but log.
+        console.warn('MinigamePopup: onStop handler failed', err)
+      }
+    }
+
+    // Now clear local state and notify other tabs in this browser. This is
+    // best-effort only: the server call above is the authoritative notification
+    // for remote devices.
+    try {
+      try { localStorage.removeItem('activeGameInfo') } catch (e) { void e }
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (e) { void e }
+      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (e) { void e }
+    } catch (err) {
+      console.warn('MinigamePopup: failed to notify other tabs of stop', err)
+    }
   }
 
   if (!isOpen) return null

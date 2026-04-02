@@ -559,7 +559,25 @@ function DayDashboard(){
     console.log('Stopping', name)
     // close the modal after stopping
     closeModal()
-    // Clear localStorage + notify same-tab and other tabs
+    // First: clear server-side persisted activeGameInfo so remote devices polling
+    // the server will observe the cleared state. Awaiting this gives remote
+    // devices the authoritative null before we remove local copies and notify
+    // same-browser tabs.
+    try {
+      const sid = sessionId
+      if (sid) {
+        const api = await import('../../../api')
+        try {
+          await api.setActiveGameInfo(sid, null)
+        } catch (err) {
+          console.warn('Failed to clear activeGameInfo on server', err)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to clear activeGameInfo on server', err)
+    }
+
+    // Now clear localStorage + notify same-tab and other tabs
     try {
       try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
       // same-tab listeners: dispatch custom event with null detail so onCustom handler treats it as cleared
@@ -567,15 +585,6 @@ function DayDashboard(){
       // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
       try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
     } catch (e) { console.warn('Failed to notify clients of stop', e) }
-
-    // Also clear server-side persisted activeGameInfo so remote devices polling the server know it's cleared
-    try {
-      const sid = sessionId
-      if (sid) {
-        const api = await import('../../../api')
-        try { await api.setActiveGameInfo(sid, null) } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
-      }
-    } catch (err) { console.warn('Failed to clear activeGameInfo on server', err) }
   }
 
   // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
