@@ -1197,46 +1197,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     };
   }, [markOnline, setPlayerStatus]);
 
-  // Keep the player alive on the server while the minigame is running so the
-  // authoritative onlinePlayers list (used by organizer/waiting-room) still
-  // contains this player's number. This mirrors the heartbeat logic in
-  // `PlayerGame`/`WaitingRoom` but runs only while the minigame is started.
-  useEffect(() => {
-    if (!started) return
-    const sessionStorageId = sessionStorage.getItem('playerSessionId')
-    const localStorageId = localStorage.getItem('currentSessionId')
-    const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
-    const playerNumber = sessionStorage.getItem('playerNumber') || ''
-    if (!sid || !playerNumber) return
-
-    let cancelled = false
-    const intervalMs = 5000
-    const tick = () => {
-      if (cancelled) return
-      void import('../../../api').then(m => m.postPlayerHeartbeat(sid, String(playerNumber))).catch((err: unknown) => {
-        const info = getErrorInfo(err)
-        const status = info.status
-        const msg = info.message
-        if (status === 404 || /player not found/i.test(msg) || /session not found/i.test(msg) || /not found/i.test(msg)) {
-          // organizer removed this player on server; stop polling and force logout
-          cancelled = true
-          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
-          try { navigate('/') } catch { /* ignore */ }
-        }
-        // for 409 or other errors, keep trying; 409 usually means "already online" and is non-fatal
-      })
-    }
-
-    tick()
-    const id = window.setInterval(tick, intervalMs)
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
-  }, [started, navigate])
+  // Heartbeat polling removed — online state is set on login and cleared on logout.
 
   // While the minigame is started, periodically ensure localStorage.onlinePlayers
   // contains our padded player number and update a freshness timestamp. This

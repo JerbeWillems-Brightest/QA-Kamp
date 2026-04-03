@@ -234,12 +234,12 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
-  it('GET /api/sessions/:id/online-players honors cutoffMs branch', async function() {
+  it('GET /api/sessions/:id/online-players returns online players without cutoffMs', async function() {
     const org = await Organizer.create({ email: 'cut@qa.test', password: 'P', name: 'C' })
     const s = await Session.create({ organizerId: org._id, name: 'Cut', code: 'C', active: true })
     await Player.create({ sessionId: s._id, playerNumber: '501', name: 'P1', age: 10, category: '8-10', lastSeen: new Date(), score: 0 })
     await Player.create({ sessionId: s._id, playerNumber: '502', name: 'P2', age: 11, category: '8-10', lastSeen: new Date(Date.now() - 100000), score: 0 })
-    const r = await request(app).get(`/api/sessions/${s._id}/online-players?cutoffMs=2000`).send()
+    const r = await request(app).get(`/api/sessions/${s._id}/online-players`).send()
     expect(r.status).to.equal(200)
     expect(r.body).to.have.property('onlinePlayers')
   })

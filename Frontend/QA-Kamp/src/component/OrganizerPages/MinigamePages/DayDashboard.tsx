@@ -376,7 +376,7 @@ function DayDashboard(){
       try {
         const sessId = sessionId
         if (!sessId) return
-        const resp = await fetchOnlinePlayers(sessId, 15000)
+        const resp = await fetchOnlinePlayers(sessId)
         const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3,'0'))
         // update localStorage only if changed (helps avoid redundant storage events)
         try {
@@ -720,15 +720,14 @@ function DayDashboard(){
              : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
              : '-'
 
-          // derive status from localStorage onlinePlayers set OR server lastSeen timestamp
+          // derive status from localStorage onlinePlayers set OR server lastSeen presence
+          // A non-null lastSeen is considered authoritative 'online'; there is no
+          // client-side heartbeat cutoff — offline should only happen on explicit logout.
           let status = 'Offline'
           try {
-            const now = Date.now()
             const lastSeenRaw = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
-            const lastSeenMs = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0
-            const RECENT_MS = 15000 // consider recent within 15s as online (matches heartbeat interval)
-            const seenRecently = lastSeenMs && (now - lastSeenMs) <= RECENT_MS
-            if (playerNumberStr && (currentOnline.has(playerNumberStr) || seenRecently)) status = 'Online'
+            const hasLastSeen = !!lastSeenRaw
+            if (playerNumberStr && (currentOnline.has(playerNumberStr) || hasLastSeen)) status = 'Online'
           } catch {
             status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
           }
