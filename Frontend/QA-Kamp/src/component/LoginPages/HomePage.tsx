@@ -50,7 +50,7 @@ function HomePage() {
     const existingSessionId = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (existingSessionId) {
       try {
-        const resp = await api.fetchOnlinePlayers(existingSessionId, 15000)
+        const resp = await api.fetchOnlinePlayers(existingSessionId)
         const serverOnline = (resp.onlinePlayers || []).map(p => String(p.playerNumber))
         localStorage.setItem('onlinePlayers', JSON.stringify(serverOnline))
       } catch {

@@ -118,22 +118,17 @@ router.post('/active/join', async (req, res) => {
     if (!session) return res.status(404).json({ error: 'No active session' })
 
     // find player in that session
-    // To prevent concurrent logins: only allow join if the player's lastSeen is null or older than
-    // a short cutoff window. We perform an atomic findOneAndUpdate so that two simultaneous
-    // join attempts won't both succeed.
+    // Only allow join when the player is currently offline. We consider a player
+    // "online" when their `lastSeen` is non-null and "offline" when `lastSeen` is null.
+    // Perform an atomic findOneAndUpdate so two simultaneous join attempts won't both succeed.
     const now = new Date()
-    // "online" window: align with frontend's recent onlinePlayers logic (15s).
-    // This prevents a stale lastSeen from permanently locking a playerNumber.
-    const ONLINE_CUTOFF_MS = 15000
-    const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
 
-    // Allow join if the player is currently offline OR if their lastSeen is older than the cutoff.
-    // Reject only when lastSeen is recent (another device is actively online).
+    // Allow join only if the player is currently offline (lastSeen === null).
     const updatedPlayer = await Player.findOneAndUpdate(
       {
         sessionId: session._id,
         playerNumber: normalized,
-        $or: [{ lastSeen: null }, { lastSeen: { $lt: cutoff } }],
+        lastSeen: null,
       },
       { lastSeen: now },
       { new: true }
@@ -445,26 +440,8 @@ router.delete('/:id/players/:playerNumber', async (req, res) => {
 })
 
 // Heartbeat: update lastSeen for a player in session (used by player clients)
-router.post('/:id/players/:playerNumber/heartbeat', async (req, res) => {
-  try {
-    // dynamic endpoint - don't cache
-    res.set('Cache-Control', 'no-store')
-    res.set('Vary', 'Origin')
-    const { id, playerNumber } = req.params
-    const now = new Date()
-    const updated = await Player.findOneAndUpdate(
-      { sessionId: id, playerNumber },
-      { lastSeen: now },
-      { new: true }
-    )
-    if (!updated) return res.status(404).json({ error: 'Player not found in session' })
-    return res.json({ success: true, player: updated })
-  /* istanbul ignore next */
-  } catch (err) {
-    console.error('Heartbeat error:', err)
-    return res.status(500).json({ error: 'Failed to update heartbeat' })
-  }
-})
+// NOTE: heartbeat endpoint removed. Online/offline status is now only changed by
+// login (active join) and logout (offline) actions so we don't update lastSeen from heartbeats.
 
 // Leaderboard: players sorted by score descending
 router.get('/:id/leaderboard', async (req, res) => {
@@ -559,13 +536,11 @@ router.post('/:id/players/:playerNumber/online', async (req, res) => {
     const normalized = normalizeNumber(playerNumber)
     if (!normalized) return res.status(400).json({ error: 'Invalid playerNumber' })
 
-    // Allow setting online if player is offline OR lastSeen is older than the cutoff.
-    // Prevent concurrent override only when lastSeen is recent.
+    // Allow setting online only if player is currently offline (lastSeen === null).
+    // This prevents concurrent logins by requiring the server-side lock to be free.
     const now = new Date()
-    const ONLINE_CUTOFF_MS = 15000
-    const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
     const updated = await Player.findOneAndUpdate(
-      { sessionId: id, playerNumber: normalized, $or: [{ lastSeen: null }, { lastSeen: { $lt: cutoff } }] },
+      { sessionId: id, playerNumber: normalized, lastSeen: null },
       { lastSeen: now },
       { new: true }
     )
@@ -581,6 +556,7 @@ router.post('/:id/players/:playerNumber/online', async (req, res) => {
     return res.status(500).json({ error: 'Failed to set player online' })
   }
 })
+
 
 // Explicitly mark a player as offline (called when a player logs out)
 router.post('/:id/players/:playerNumber/offline', async (req, res) => {

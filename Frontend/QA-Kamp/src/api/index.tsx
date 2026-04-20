@@ -239,8 +239,12 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
 }
 
 // Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
-export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
-  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/online-players?cutoffMs=${encodeURIComponent(String(cutoffMs))}`
+export async function fetchOnlinePlayers(sessionId: string): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  // The server now treats online/offline as explicit state changed by
+  // login (online) and logout (offline). There is no recency cutoff to
+  // apply client-side — always request the authoritative list.
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${encodeURIComponent(sessionId)}/online-players`
   const res = await fetch(url)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -344,8 +348,10 @@ export async function getActiveGameInfo(sessionId: string): Promise<{ activeGame
 }
 
 export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // Heartbeat endpoint was removed on the server; map heartbeat calls to the
+  // explicit "online" setter so existing callers (and tests) continue to work.
   const base = API_URL || ''
-  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/online`
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
