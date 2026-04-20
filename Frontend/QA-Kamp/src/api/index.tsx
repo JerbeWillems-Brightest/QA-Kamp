@@ -1,32 +1,47 @@
 // Base URL from environment, strip trailing /api if present
-let API_URL = import.meta.env.VITE_API_URL || ''
-const API_URL_DEV = import.meta.env.VITE_API_URL_DEV || ''
-const FRONTEND_DEV_RAW = import.meta.env.VITE_FRONTEND_DEV || ''
+let API_URL = ''
 
-// If no explicit API_URL is set, allow using a dev API URL when the frontend is
-// running from a known development preview origin (or when running Vite dev mode).
-try {
-  // normalize API_URL and API_URL_DEV
-  if (API_URL.endsWith('/api')) API_URL = API_URL.slice(0, -4)
-    if (API_URL_DEV.endsWith('/api')) {
-    // remove trailing /api
-    API_URL = API_URL || API_URL_DEV.slice(0, -4)
+export function computeApiUrlFromEnv(env: { VITE_API_URL?: string; DEV?: boolean }, _locationOrigin?: string) {
+  // mark unused param as used to satisfy lint rule when callers pass a second arg in tests
+  void _locationOrigin
+  // derive raw value: only consider the production API URL (VITE_API_URL)
+  const rawApi = env && typeof env.VITE_API_URL !== 'undefined' ? (env.VITE_API_URL || '') : (import.meta.env.VITE_API_URL || '')
+
+  let computed = rawApi || ''
+  try {
+    if (computed.endsWith('/api')) computed = computed.slice(0, -4)
+  } catch {
+    // ignore
   }
-} catch {
-  // ignore
+
+  return computed
 }
 
-// If API_URL is empty and API_URL_DEV is provided, decide whether to use it.
-if (!API_URL && API_URL_DEV) {
-  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : ''
-  const devFrontends = FRONTEND_DEV_RAW.split(',').map((s: string) => s.trim()).filter(Boolean)
-  const isDevFrontend = devFrontends.length > 0 ? devFrontends.some((d: string) => currentOrigin.includes(d)) : false
-  // import.meta.env.DEV is true when running with Vite in dev mode; allow that too.
-  if (isDevFrontend || import.meta.env.DEV) {
-    API_URL = API_URL_DEV
-    if (API_URL.endsWith('/api')) API_URL = API_URL.slice(0, -4)
-  }
-}
+// initialize using real import.meta.env
+API_URL = computeApiUrlFromEnv(import.meta.env as unknown as { VITE_API_URL?: string; DEV?: boolean })
+
+    // Expose test helpers so unit tests can exercise the environment-based branches
+    // without having to reload the module under different build-time envs.
+    export function __test_recomputeApiUrl(env?: { VITE_API_URL?: string; VITE_API_URL_DEV?: string; VITE_FRONTEND_DEV?: string; DEV?: boolean }, _locationOrigin?: string) {
+          // mark optional param used to satisfy lint when tests pass two args
+          void _locationOrigin
+          // Use provided values or fall back to current import.meta.env
+          const apiUrlRaw = env && typeof env.VITE_API_URL !== 'undefined' ? (env.VITE_API_URL || '') : (import.meta.env.VITE_API_URL || '')
+
+          let computed = apiUrlRaw || ''
+          try {
+            if (computed.endsWith('/api')) computed = computed.slice(0, -4)
+          } catch {
+            // ignore
+          }
+
+          API_URL = computed
+          return API_URL
+        }
+
+    export function __test_getApiUrl() {
+      return API_URL
+    }
 
 export interface LoginResponse {
   message: string;
@@ -224,8 +239,12 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
 }
 
 // Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
-export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
-  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/online-players?cutoffMs=${encodeURIComponent(String(cutoffMs))}`
+export async function fetchOnlinePlayers(sessionId: string): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  // The server now treats online/offline as explicit state changed by
+  // login (online) and logout (offline). There is no recency cutoff to
+  // apply client-side — always request the authoritative list.
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${encodeURIComponent(sessionId)}/online-players`
   const res = await fetch(url)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -299,7 +318,7 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
   return { leaderboard: list }
 }
 
-export async function setActiveGameInfo(sessionId: string, info: Record<string, unknown> | null): Promise<{ success?: boolean; activeGameInfo?: unknown }> {
+export async function setActiveGameInfo(sessionId: string, info: Record<string, unknown> | null | undefined): Promise<{ success?: boolean; activeGameInfo?: unknown }> {
   const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
   // Avoid sending the literal JSON "null" (JSON.stringify(null) -> "null") because
   // body-parser in strict mode rejects non-object/array JSON (it treats "null" as invalid).
@@ -329,8 +348,10 @@ export async function getActiveGameInfo(sessionId: string): Promise<{ activeGame
 }
 
 export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // Heartbeat endpoint was removed on the server; map heartbeat calls to the
+  // explicit "online" setter so existing callers (and tests) continue to work.
   const base = API_URL || ''
-  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/online`
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))

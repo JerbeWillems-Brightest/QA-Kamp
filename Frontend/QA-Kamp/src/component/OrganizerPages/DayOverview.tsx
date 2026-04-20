@@ -68,6 +68,25 @@ export default function DayOverview() {
     const sessionIdLocal = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sessionIdLocal) return setError('Geen actieve sessie gevonden')
 
+    // New validation: don't allow stopping the QA-kamp while a game is still active.
+    // We read directly from localStorage so we have the latest cross-tab state.
+    try {
+      const rawActive = localStorage.getItem('activeGameInfo')
+      if (rawActive) {
+        try {
+          const parsed = JSON.parse(rawActive) as { game?: string; day?: string } | null
+          if (parsed && parsed.game) {
+            setError('Er is nog een spel bezig — stop eerst het spel voordat je het QA-kamp stopt')
+            return
+          }
+        } catch {
+          // malformed JSON — ignore and proceed
+        }
+      }
+    } catch {
+      // localStorage may throw in some environments — ignore and continue
+    }
+
     try {
       await deleteSession(sessionIdLocal)
       // success

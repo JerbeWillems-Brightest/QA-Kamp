@@ -13,7 +13,6 @@ import { AuthProvider } from './context/AuthContext'
 import { SessionProvider } from './context/SessionContext'
 import Navbar from './component/Navbar'
 import WaitingRoom from './component/PlayerPages/WaitingRoom'
-import PlayerGame from './component/PlayerPages/PlayerGame'
 
 function App() {
     return (
@@ -35,7 +34,6 @@ function App() {
               <Route path="/minigame" element={<MinigameLoader />} />
               <Route path="/minigame/passwordzapper" element={<MinigameLoader />} />
               <Route path="/player/waiting" element={<WaitingRoom />} />
-              <Route path="/player/game" element={<PlayerGame />} />
               <Route path="/manage-players" element={<ManagePlayers />} />
               <Route path="/scoreboard" element={<Scoreboard />} />
             </Routes>
