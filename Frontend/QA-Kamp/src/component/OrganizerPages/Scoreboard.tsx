@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchLeaderboard, fetchPlayersForSession } from '../../api'
+import { fetchLeaderboard, fetchPlayersForSession, fetchPlayersRawForSession } from '../../api'
 import { useSession } from '../../context/SessionContext'
 // Embedded CSS so HTML + CSS live in a single file
 const embeddedCss = `
@@ -141,6 +141,44 @@ export default function Scoreboard() {
         if (mounted) setLoading(false)
       }
     }
+    // helper: refresh items directly from players list and aggregate per-game score fields
+    async function refreshFromPlayers() {
+      try {
+        const pResp = await fetchPlayersRawForSession(sid)
+        const rawPlayers = (pResp && pResp.players) || []
+        const mapped: LeaderboardItem[] = (rawPlayers as Record<string, unknown>[]).map((p) => {
+          // preserve game-specific fields and legacy score
+          const pzRaw = Object.prototype.hasOwnProperty.call(p, 'score_passwordzapper') ? p['score_passwordzapper'] : undefined
+          const prRaw = Object.prototype.hasOwnProperty.call(p, 'score_printerslaatophol') ? p['score_printerslaatophol'] : undefined
+          const legacyRaw = Object.prototype.hasOwnProperty.call(p, 'score') ? p['score'] : undefined
+          const pz = typeof pzRaw === 'number' ? pzRaw : (typeof pzRaw === 'string' ? Number(pzRaw) : NaN)
+          const pr = typeof prRaw === 'number' ? prRaw : (typeof prRaw === 'string' ? Number(prRaw) : NaN)
+          const legacy = typeof legacyRaw === 'number' ? legacyRaw : (typeof legacyRaw === 'string' ? Number(legacyRaw) : NaN)
+          let scoreVal: number | undefined = undefined
+          const hasAny = !Number.isNaN(pz) || !Number.isNaN(pr) || !Number.isNaN(legacy)
+          if (hasAny) {
+            scoreVal = (Number.isNaN(pz) ? 0 : pz) + (Number.isNaN(pr) ? 0 : pr) + (Number.isNaN(legacy) ? 0 : legacy)
+          }
+          return {
+            playerNumber: String(p['playerNumber'] ?? p['nummer'] ?? ''),
+            name: String(p['name'] ?? p['naam'] ?? '').toLowerCase(),
+            category: String(p['category'] ?? ''),
+            score: typeof scoreVal === 'number' ? scoreVal : 0,
+          }
+        })
+        // sort by score desc then name
+        mapped.sort((a, b) => {
+          const sa = a.score ?? 0
+          const sb = b.score ?? 0
+          if (sa !== sb) return sb - sa
+          return a.name.localeCompare(b.name)
+        })
+        if (mounted) setItems(mapped)
+      } catch (err) {
+        // ignore and let load() try
+        void err
+      }
+    }
     load()
     // Poll every 10 seconds
     const iv = setInterval(load, 10000)
@@ -149,10 +187,48 @@ export default function Scoreboard() {
     // updated by a player (PasswordZapper writes a 'pz_score_update' key when
     // it successfully persists a score). React to that by reloading the
     // leaderboard immediately so the organiser sees updated scores fast.
+    const applyOptimistic = (payload: { sessionId?: string; playerNumber?: string; score?: number } | null) => {
+      try {
+        if (!payload || !payload.playerNumber) return
+        // only apply optimistic change for the same session
+        if (payload.sessionId && payload.sessionId !== sid) return
+        const pn = String((payload.playerNumber || '').toString()).padStart(3, '0')
+        const sc = typeof payload.score === 'number' ? payload.score : undefined
+        if (typeof sc !== 'number') return
+        setItems((prev) => {
+          const copy = prev.slice()
+          const idx = copy.findIndex((it) => String(it.playerNumber || '').padStart(3, '0') === pn)
+          if (idx >= 0) {
+            const existing = copy[idx]
+            // update score only if different
+            if ((existing.score ?? 0) !== sc) {
+              copy[idx] = { ...existing, score: sc }
+            }
+            return copy
+          }
+          // not found: append a minimal row (name unknown) so organiser sees the new score
+          copy.push({ playerNumber: pn, name: `#${pn}`, score: sc })
+          // keep sort: highest score first
+          copy.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name))
+          return copy
+        })
+      } catch {
+        /* ignore */
+      }
+    }
+
     const onStorage = (ev: StorageEvent) => {
       try {
         if (!ev || !ev.key) return
         if (ev.key === 'pz_score_update' || ev.key === 'activeGameInfo') {
+          if (ev.key === 'pz_score_update') {
+            try {
+              const parsed = ev.newValue ? JSON.parse(ev.newValue) : null
+              applyOptimistic(parsed)
+            } catch { /* ignore parse errors */ }
+          }
+          // try to immediately update the UI from players list (fast path)
+          void refreshFromPlayers().catch(() => {})
           // schedule load asynchronously to avoid state updates during storage event
           setTimeout(() => { void load().catch(() => {}) }, 0)
         }
@@ -160,9 +236,25 @@ export default function Scoreboard() {
         /* ignore */
       }
     }
+    const onCustom = (ev: Event) => {
+      try {
+        // custom events (pz_score_update) dispatched by games to notify same-tab listeners
+        // fast path: apply optimistic update from event.detail, then refresh
+        try {
+          const ce = ev as CustomEvent
+          const det = (ce && (ce as any).detail) ? (ce as any).detail : null
+          applyOptimistic(det)
+        } catch { /* ignore */ }
+        void refreshFromPlayers().catch(() => {})
+        setTimeout(() => { void load().catch(() => {}) }, 0)
+      } catch {
+        /* ignore */
+      }
+    }
     window.addEventListener('storage', onStorage)
+    window.addEventListener('pz_score_update', onCustom)
 
-    return () => { mounted = false; clearInterval(iv); window.removeEventListener('storage', onStorage) }
+    return () => { mounted = false; clearInterval(iv); window.removeEventListener('storage', onStorage); window.removeEventListener('pz_score_update', onCustom) }
   }, [sessionId])
 
   return (
