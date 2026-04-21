@@ -1,0 +1,19 @@
+.bugcleanup-root { font-family: var(--font-family, Arial, sans-serif); }
+.pz-layout .topbar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f5f7fa; border-bottom:1px solid #e1e6ef }
+.pz-layout .topbar .left { font-weight:600 }
+.pz-layout .topbar .center { font-weight:700 }
+.pz-layout .topbar .right button { margin-left:8px }
+
+.game-area { position:relative; height:420px; background:linear-gradient(#fff,#f3f6fb); overflow:hidden }
+.game-area .overlay { position:absolute; left:8px; top:8px; background:rgba(255,255,255,0.7); padding:6px 8px; border-radius:6px }
+
+.bug { position:absolute; background:radial-gradient(circle at 30% 30%, #ff5f5f 0%, #d94343 60%); border-radius:8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor:pointer; transition:transform 0.08s ease }
+.bug:active { transform: scale(0.92) }
+
+.lag-cursor { position:absolute; width:18px; height:18px; border-radius:50%; background:#2b6bf6; box-shadow: 0 0 8px rgba(43,107,246,0.6); pointer-events:none; transform:translate(-9px,-9px) }
+
+.modal { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35) }
+.modal-card { background:#fff; padding:18px; border-radius:8px; width:360px; box-shadow:0 6px 20px rgba(0,0,0,0.2) }
+.modal-actions { margin-top:12px; display:flex; justify-content:flex-end }
+.modal-actions button { margin-left:8px }
+
