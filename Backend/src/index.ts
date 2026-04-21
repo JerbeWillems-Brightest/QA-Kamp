@@ -1,5 +1,9 @@
 import express = require('express')
 import cors = require('cors')
+// Load environment variables from .env when running locally
+import dotenv from 'dotenv'
+dotenv.config()
+
 import type { Request, Response, NextFunction } from 'express'
 import { connectDB, seedOrganizers } from './db'
 import usersRouter from './routes/users'
@@ -10,14 +14,47 @@ const app = express()
 const PORT = process.env.PORT ? Number(process.env.PORT) : 4000
 
 // CORS: allow specific origin via env, or allow all origins on Vercel
-const FRONTEND_ORIGIN = process.env.FRONTEND_ORIGIN || '*'
+// Read origins from env. FRONTEND_ORIGIN may contain comma-separated origins.
+const FRONTEND_ORIGIN_RAW = process.env.FRONTEND_ORIGIN || '*'
+const FRONTEND_ORIGINS = FRONTEND_ORIGIN_RAW.split(',').map((s) => s.trim()).filter(Boolean)
 
-app.use(
-  cors({
-    origin: FRONTEND_ORIGIN,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  })
+// Combine and deduplicate allowed origins (normalize by removing trailing slash and lowercasing)
+function normalizeOrigin(o: string) {
+  if (!o) return ''
+  return o.trim().replace(/\/+$/, '').toLowerCase()
+}
+
+const allowedOrigins = Array.from(
+  new Set([
+    ...FRONTEND_ORIGINS.map(normalizeOrigin).filter(Boolean),
+  ])
 )
+
+const corsOptions = {
+  origin: function (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) {
+    // No origin (curl, server-to-server) => allow
+    if (!origin) return callback(null, true)
+    // normalize incoming origin for robust matching
+    const incoming = normalizeOrigin(origin)
+    // Wildcard configured => allow everything
+    if (allowedOrigins.includes('*')) return callback(null, true)
+    if (allowedOrigins.includes(incoming)) return callback(null, true)
+    console.warn(`CORS blocked origin: ${origin}. Allowed: ${allowedOrigins.join(',')}`)
+    return callback(new Error('Not allowed by CORS'))
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  // Allow common headers plus the custom x-confirm-delete header used by the frontend
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'x-confirm-delete'],
+  credentials: true,
+  optionsSuccessStatus: 204,
+}
+
+app.use(cors(corsOptions))
+// Handle preflight (OPTIONS) safely for any path without registering a wildcard route
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return cors(corsOptions)(req as any, res as any, next as any)
+  next()
+})
 
 app.use(express.json())
 
@@ -49,7 +86,7 @@ if (!process.env.VERCEL) {
 // Only listen when running locally (not on Vercel)
 if (!process.env.VERCEL) {
   app.listen(PORT, () => {
-    console.log(`Backend listening on http://localhost:${PORT} — CORS origin: ${FRONTEND_ORIGIN}`)
+    console.log(`Backend listening on http://localhost:${PORT} — CORS origin: ${FRONTEND_ORIGIN_RAW}`)
   })
 }
 

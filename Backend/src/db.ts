@@ -17,9 +17,12 @@ export async function connectDB(): Promise<void> {
   if (!cached) {
     console.log('Connecting to MongoDB...', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'))
     cached = mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
-      bufferCommands: false,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      // Allow Mongoose to buffer commands while the initial connection is being established.
+      // This prevents race conditions where incoming HTTP requests trigger DB ops before
+      // the initial connect has completed (which previously threw when bufferCommands=false).
+      bufferCommands: true,
       // ensure mongoose itself doesn't auto-create collections or indexes during connect
       autoIndex: false,
       autoCreate: false,
@@ -64,10 +67,43 @@ export async function seedOrganizers() {
     const count = await Organizer.countDocuments()
     if (count === 0) {
       console.log('Seeding default organizer...')
-      // Use the organizer credentials requested by the user for easy testing
-      await Organizer.create({ email: 'organizer@qa-kamp.be', password: 'Organizer123!', name: 'Organizer' })
-      await Organizer.create({ email: 'organizer@test.be', password: 'Test123!', name: 'Organizer' })
-      console.log('Default organizer created: organizer@qa-kamp.be / Organizer123!')
+
+      // Read credentials from environment variables to avoid committing plaintext passwords
+      const o1Email = process.env.ORGANIZER1_EMAIL
+      const o1Password = process.env.ORGANIZER1_PASSWORD
+      const o2Email = process.env.ORGANIZER2_EMAIL
+      const o2Password = process.env.ORGANIZER2_PASSWORD
+
+      // If no env vars provided, allow fallback for test/CI/local environments so unit tests can seed
+      const runningInTestOrCi = (process.env.NODE_ENV === 'test') || (process.env.CI === 'true') || (process.env.GITHUB_ACTIONS === 'true')
+      const mongoUri = process.env.MONGO_URI || ''
+      const runningOnLocalMongo = /127\.0\.0\.1|localhost/.test(mongoUri)
+
+      const shouldUseFallback = !o1Email && !o2Email && (runningInTestOrCi || runningOnLocalMongo)
+      if (shouldUseFallback) {
+        console.log('No ORGANIZER env vars found — using test fallback credentials for seeding (test/CI/local)')
+      }
+
+      let created = 0
+      if ((o1Email && o1Password) || shouldUseFallback) {
+        const email = (o1Email && o1Password) ? o1Email : 'organizer@qa-kamp.be'
+        const password = (o1Email && o1Password) ? o1Password : 'Organizer123!'
+        await Organizer.create({ email, password, name: 'Organizer' })
+        console.log(`Created organizer: ${email}`)
+        created++
+      }
+      if ((o2Email && o2Password) || shouldUseFallback) {
+        const email = (o2Email && o2Password) ? o2Email : 'organizer@test.be'
+        const password = (o2Email && o2Password) ? o2Password : 'Test123!'
+        await Organizer.create({ email, password, name: 'Organizer' })
+        console.log(`Created organizer: ${email}`)
+        created++
+      }
+
+      if (created === 0) {
+        console.warn('No ORGANIZERx_EMAIL/PASSWORD env vars found — skipping seeding of default organizers.')
+        console.warn('To seed organizers, set ORGANIZER1_EMAIL, ORGANIZER1_PASSWORD (and optionally ORGANIZER2_...) in your .env file.')
+      }
     } else {
       console.log('Organizers already exist, skipping seed')
     }

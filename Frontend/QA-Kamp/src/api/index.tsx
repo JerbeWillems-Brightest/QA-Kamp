@@ -1,8 +1,47 @@
 // Base URL from environment, strip trailing /api if present
-let API_URL = import.meta.env.VITE_API_URL || ''
-if (API_URL.endsWith('/api')) {
-  API_URL = API_URL.slice(0, -4)
+let API_URL = ''
+
+export function computeApiUrlFromEnv(env: { VITE_API_URL?: string; DEV?: boolean }, _locationOrigin?: string) {
+  // mark unused param as used to satisfy lint rule when callers pass a second arg in tests
+  void _locationOrigin
+  // derive raw value: only consider the production API URL (VITE_API_URL)
+  const rawApi = env && typeof env.VITE_API_URL !== 'undefined' ? (env.VITE_API_URL || '') : (import.meta.env.VITE_API_URL || '')
+
+  let computed = rawApi || ''
+  try {
+    if (computed.endsWith('/api')) computed = computed.slice(0, -4)
+  } catch {
+    // ignore
+  }
+
+  return computed
 }
+
+// initialize using real import.meta.env
+API_URL = computeApiUrlFromEnv(import.meta.env as unknown as { VITE_API_URL?: string; DEV?: boolean })
+
+    // Expose test helpers so unit tests can exercise the environment-based branches
+    // without having to reload the module under different build-time envs.
+    export function __test_recomputeApiUrl(env?: { VITE_API_URL?: string; VITE_API_URL_DEV?: string; VITE_FRONTEND_DEV?: string; DEV?: boolean }, _locationOrigin?: string) {
+          // mark optional param used to satisfy lint when tests pass two args
+          void _locationOrigin
+          // Use provided values or fall back to current import.meta.env
+          const apiUrlRaw = env && typeof env.VITE_API_URL !== 'undefined' ? (env.VITE_API_URL || '') : (import.meta.env.VITE_API_URL || '')
+
+          let computed = apiUrlRaw || ''
+          try {
+            if (computed.endsWith('/api')) computed = computed.slice(0, -4)
+          } catch {
+            // ignore
+          }
+
+          API_URL = computed
+          return API_URL
+        }
+
+    export function __test_getApiUrl() {
+      return API_URL
+    }
 
 export interface LoginResponse {
   message: string;
@@ -39,6 +78,34 @@ export async function loginOrganizer(email: string, password: string): Promise<L
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
+  })
+}
+
+export async function joinSession(code: string): Promise<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }> {
+  const url = `${API_URL}/api/sessions/join`
+  return safeFetch<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code }),
+  })
+}
+
+export async function getActiveSession(): Promise<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }> {
+  const url = `${API_URL}/api/sessions/active`
+  return safeFetch<{ session?: { id: string; organizerId?: string; name?: string; code?: string } }>(url, {
+    method: 'GET',
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+
+// Join the currently active session using only the player's number.
+// Returns { session, player } on success.
+export async function joinActiveSession(playerNumber: string): Promise<{ session?: { id: string; code?: string; name?: string }, player?: ApiPlayer | unknown }> {
+  const url = `${API_URL}/api/sessions/active/join`
+  return safeFetch<{ session?: { id: string; code?: string; name?: string }, player?: ApiPlayer | unknown }>(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ playerNumber }),
   })
 }
 
@@ -171,6 +238,41 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
   return { players }
 }
 
+// Fetch raw backend player objects for cases where we need custom fields
+// (e.g. score_passwordzapper, score_printerslaatophol) preserved.
+export async function fetchPlayersRawForSession(sessionId: string): Promise<{ players: Record<string, unknown>[] }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  const list = (json.players || []) as Record<string, unknown>[]
+  return { players: list }
+}
+
+// Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
+export async function fetchOnlinePlayers(sessionId: string): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  // The server now treats online/offline as explicit state changed by
+  // login (online) and logout (offline). There is no recency cutoff to
+  // apply client-side — always request the authoritative list.
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${encodeURIComponent(sessionId)}/online-players`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+        const list = (json.onlinePlayers || []).map((p: unknown) => {
+          const obj = p as Record<string, unknown>
+          const pn = String(obj['playerNumber'] ?? obj['nummer'] ?? '')
+          const lastSeen = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
+          return { playerNumber: pn.padStart(3, '0'), lastSeen }
+        })
+  return { onlinePlayers: list }
+}
+
 export async function addPlayersToSession(sessionId: string, players: ApiPlayer[], overwrite = false): Promise<{ created?: ApiPlayer[] }> {
   const q = overwrite ? '?overwrite=true' : ''
   const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players${q}`, {
@@ -222,11 +324,126 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
     const category = typeof bp['category'] === 'string' ? String(bp['category']) : ''
     const lastSeen = bp && bp['lastSeen'] ? String(bp['lastSeen']) : null
     const out: ApiPlayer & { score?: number } = { playerNumber, name, age, category, lastSeen }
-    const scoreVal = bp['score']
-    if (typeof scoreVal === 'number') out.score = scoreVal as number
+    // Aggregate any numeric score/highscore fields. Different backend versions
+    // may use different keys (legacy `score`, per-game fields like
+    // `score_passwordzapper`/`score_printerslaatophol`, or category keys like
+    // `pz_highscore_passwordzapper_11-13`). To be robust, sum any property
+    // whose key contains 'score' or 'highscore' and whose value is numeric.
+    let total = 0
+    for (const key of Object.keys(bp)) {
+      try {
+        const lk = key.toLowerCase()
+        if (lk.includes('score') || lk.includes('highscore')) {
+          const raw = bp[key]
+          const n = Number(raw)
+          if (!Number.isNaN(n)) {
+            total += n
+          }
+        }
+      } catch {
+        // ignore non-enumerable or weird keys
+      }
+    }
+    // Always expose a numeric score (0 when nothing found) so UI/scoreboard
+    // components can reliably render a total.
+    out.score = Number.isNaN(total) ? 0 : total
     return out
   })
   return { leaderboard: list }
 }
 
-// heartbeat endpoint is intentionally not exported for now; if needed implement and enable.
+export async function setActiveGameInfo(sessionId: string, info: Record<string, unknown> | null | undefined): Promise<{ success?: boolean; activeGameInfo?: unknown }> {
+  const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
+  // Avoid sending the literal JSON "null" (JSON.stringify(null) -> "null") because
+  // body-parser in strict mode rejects non-object/array JSON (it treats "null" as invalid).
+  // If info is null we'll omit the body so the server sees no body and we can interpret
+  // that as a request to clear the activeGameInfo (the backend code uses `req.body || null`).
+  const opts: RequestInit = { method: 'POST' }
+  if (info !== null && typeof info !== 'undefined') {
+    opts.headers = { 'Content-Type': 'application/json' }
+    opts.body = JSON.stringify(info)
+  }
+  const res = await fetch(url, opts)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function getActiveGameInfo(sessionId: string): Promise<{ activeGameInfo?: unknown }> {
+  const url = `${API_URL || ''}/api/sessions/${sessionId}/active-game`
+  const res = await fetch(url)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  return res.json()
+}
+
+export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // Heartbeat endpoint was removed on the server; map heartbeat calls to the
+  // explicit "online" setter so existing callers (and tests) continue to work.
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/online`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    const msg = parseErrorMessage(err, `HTTP ${res.status}`)
+    const e = new Error(msg) as Error & { status?: number }
+    e.status = res.status
+    throw e
+  }
+  return res.json()
+}
+
+// Explicit online/offline controls
+export async function setPlayerOnline(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // If this client/tab already holds a local 'online lock' (set during login),
+  // avoid calling the server again to prevent 409 races when multiple tabs
+  // attempt to mark the same player online. This guard is safe because the
+  // local lock is set only after a successful server-side setPlayerOnline.
+  try {
+    if (typeof window !== 'undefined') {
+      const locked = sessionStorage.getItem('playerOnlineLocked') === 'true'
+      const sid = sessionStorage.getItem('playerSessionId') || ''
+      const pn = sessionStorage.getItem('playerNumber') || ''
+      if (locked && sid && pn && sid === String(sessionId) && pn === String(playerNumber)) {
+        return { success: true }
+      }
+    }
+  } catch {
+    // ignore and fall through to network call
+  }
+
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/online`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    // If backend returns 409 Conflict for "already online", treat as non-fatal
+    // and return success so callers don't have to special-case thrown errors.
+    if (res.status === 409) {
+      // try to read body for additional info but ignore parse failures
+      const body = await res.json().catch(() => null)
+      return { success: true, player: body?.player ?? undefined }
+    }
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    const msg = parseErrorMessage(err, `HTTP ${res.status}`)
+    const e = new Error(msg) as Error & { status?: number }
+    e.status = res.status
+    throw e
+  }
+  return res.json()
+}
+
+export async function setPlayerOffline(sessionId: string, playerNumber: string): Promise<{ success?: boolean }> {
+  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/players/${encodeURIComponent(playerNumber)}/offline`
+  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    const msg = parseErrorMessage(err, `HTTP ${res.status}`)
+    const e = new Error(msg) as Error & { status?: number }
+    e.status = res.status
+    throw e
+  }
+  return res.json()
+}

@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose'
+import bcrypt from 'bcryptjs'
 
 export interface IOrganizer extends Document {
   email: string
@@ -16,5 +17,13 @@ const OrganizerSchema = new Schema<IOrganizer>(
   { timestamps: true }
 )
 
-export const Organizer = mongoose.model<IOrganizer>('Organizer', OrganizerSchema)
+// Pre-save hook: hash the password if it's new or was modified
+OrganizerSchema.pre<IOrganizer>('save', function () {
+  const doc = this
+  if (!doc.isModified('password')) return undefined
+  return bcrypt.hash(doc.password, 10).then((h) => {
+    doc.password = h
+  })
+})
 
+export const Organizer = mongoose.model<IOrganizer>('Organizer', OrganizerSchema)

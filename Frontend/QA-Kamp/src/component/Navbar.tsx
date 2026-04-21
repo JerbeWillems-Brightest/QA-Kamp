@@ -9,9 +9,49 @@ export default function Navbar() {
 
   function handleLogout(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
+    // If a player is logged in via sessionStorage, clear player session
+    const playerNumber = sessionStorage.getItem('playerNumber')
+    if (playerNumber) {
+      try {
+        const sess = sessionStorage.getItem('playerSessionId') ?? localStorage.getItem('currentSessionId')
+        if (sess) {
+          try { void import('../api').then(m => m.setPlayerOffline(sess, playerNumber)).catch(() => {}) } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+      try {
+        const raw = localStorage.getItem('onlinePlayers')
+        if (raw) {
+          const arr = JSON.parse(raw) as string[]
+          // remove both plain and padded forms
+          const plain = String(playerNumber)
+          const padded = plain.padStart(3, '0')
+          const filtered = arr.filter(n => String(n) !== plain && String(n) !== padded)
+          localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+          try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
+        }
+      } catch {
+        // ignore
+      }
+      try {
+        sessionStorage.removeItem('playerNumber')
+        sessionStorage.removeItem('playerSessionId')
+        sessionStorage.removeItem('playerOnlineLocked')
+      } catch {
+          // ignore error
+      }
+      // Also remove the currentsessionid so a subsequent login will re-fetch the active session
+      try { localStorage.removeItem('currentSessionId'); try { window.dispatchEvent(new StorageEvent('storage', { key: 'currentSessionId', newValue: null })) } catch { /* ignore */ } } catch { /* ignore */ }
+      navigate('/')
+      return
+    }
+
+    // Otherwise assume organizer logout -> send to organizer login page
     auth.logout()
     navigate('/organizer-login')
   }
+
+  // Show logout button when organizer logged in or player session present
+  const playerNumber = typeof window !== 'undefined' ? sessionStorage.getItem('playerNumber') : null
 
   return (
     <nav className="navbar" style={{ display: 'flex', alignItems: 'center', padding: '8px 16px' }}>
@@ -22,7 +62,7 @@ export default function Navbar() {
       </div>
 
       <div style={{ marginLeft: 'auto', paddingRight: 16 }}>
-        {auth.user ? (
+        {auth.user || playerNumber ? (
           <button
             onClick={handleLogout}
             className="logout-button"

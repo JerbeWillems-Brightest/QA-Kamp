@@ -19,6 +19,8 @@ describe('AuthContext', () => {
     localStorage.clear()
   })
 
+  // Test: controleert dat de context standaard geen ingelogde gebruiker bevat
+  // wanneer er niets in localStorage staat.
   it('defaults to null user when nothing in localStorage', () => {
     render(
       <AuthProvider>
@@ -29,6 +31,8 @@ describe('AuthContext', () => {
     expect(screen.getByTestId('user').textContent).toBe('null')
   })
 
+  // Test: als er een user-object in localStorage staat, wordt deze
+  // bij initialisatie van de provider geladen in de context.
   it('loads initial user from localStorage', () => {
     const u: User = { id: '42', email: 'load@me', name: 'Loaded' }
     localStorage.setItem('user', JSON.stringify(u))
@@ -44,6 +48,8 @@ describe('AuthContext', () => {
     expect(JSON.parse(displayed)).toMatchObject({ id: '42', email: 'load@me' })
   })
 
+  // Test: wanneer login() wordt aangeroepen via useAuth, wordt de context
+  // bijgewerkt en wordt de gebruiker ook in localStorage opgeslagen.
   it('login() updates context and localStorage', () => {
     render(
       <AuthProvider>
@@ -61,6 +67,8 @@ describe('AuthContext', () => {
     expect(JSON.parse(stored!)).toMatchObject({ email: 'a@b.com', id: '1' })
   })
 
+  // Test: wanneer logout() wordt aangeroepen, wordt de context geleegd
+  // en wordt de opgeslagen user uit localStorage verwijderd.
   it('logout() clears context and localStorage', () => {
     // seed localStorage and render
     localStorage.setItem('user', JSON.stringify({ id: '9', email: 'bye@me', name: 'Bye' }))
@@ -80,6 +88,8 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('user')).toBeNull()
   })
 
+  // Test: controleert dat useAuth een fout gooit als het buiten
+  // een AuthProvider wordt gebruikt (protectie tegen verkeerd gebruik).
   it('useAuth throws when used outside of provider', () => {
     // create a component that calls useAuth during render
     function Bad() {

@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useParams, Link, useLocation } from 'react-router-dom'
 import Navbar from '../../Navbar.tsx'
 import { useSession } from '../../../context/SessionContext.tsx'
-import { fetchPlayersForSession, fetchLeaderboard } from '../../../api'
+import { fetchPlayersForSession, fetchLeaderboard, fetchOnlinePlayers } from '../../../api'
 import { useState } from 'react'
 // import images so the bundler (Vite) resolves their URLs
 import KRAAK_IMG from '../../../assets/KraakHetWachtwoord.png'
@@ -322,22 +322,90 @@ type LeaderboardItem = {
   score?: number
 }
 
-export default function DayDashboard(){
+function DayDashboard(){
   const { day } = useParams<{ day: string }>()
   const loc = useLocation()
   const { currentSession } = useSession()
   // sessionId logic unchanged
   const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
   const [players, setPlayers] = useState<Player[]>([])
+  // track which playerNumbers are currently online (synchronized via localStorage)
+  const [onlinePlayers, setOnlinePlayers] = useState<string[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loading, setLoading] = useState(false)
 
   // popup state
   const [selectedGame, setSelectedGame] = useState<string | null>(null)
-  const [selectedAges, setSelectedAges] = useState<string[]>([])
   // global running state for the day dashboard: which game is active
   const [isGameRunning, setIsGameRunning] = useState(false)
   const [activeGame, setActiveGame] = useState<string | null>(null)
+
+  // helper to read onlinePlayers from localStorage safely
+  function readOnlinePlayersFromStorage(): string[] {
+    try {
+      const raw = localStorage.getItem('onlinePlayers')
+      if (!raw) return []
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) return parsed.map((v) => String(v).padStart(3,'0'))
+      // back-compat: comma-separated
+      if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean).map(s => String(s).padStart(3,'0'))
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  // initialize and subscribe to localStorage changes for onlinePlayers
+  useEffect(() => {
+    // initial read
+    setOnlinePlayers(readOnlinePlayersFromStorage())
+    // storage event listener to sync across tabs
+    const onStorage = (ev: StorageEvent) => {
+      if (ev.key === 'onlinePlayers') {
+        setOnlinePlayers(readOnlinePlayersFromStorage())
+      }
+    }
+    window.addEventListener('storage', onStorage)
+
+    // Poll server for authoritative onlinePlayers every 5s while this component is mounted
+    let cancelled = false
+    let timer: number | null = null
+    async function pollOnline() {
+      if (cancelled) return
+      try {
+        const sessId = sessionId
+        if (!sessId) return
+        const resp = await fetchOnlinePlayers(sessId)
+        const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3,'0'))
+        // update localStorage only if changed (helps avoid redundant storage events)
+        try {
+          const raw = localStorage.getItem('onlinePlayers')
+          const cur = raw ? (JSON.parse(raw) as string[]) : []
+          const same = Array.isArray(cur) && cur.length === list.length && cur.every((v, i) => String(v) === String(list[i]))
+          if (!same) {
+            localStorage.setItem('onlinePlayers', JSON.stringify(list))
+            // transient key to ensure same-tab listeners also react
+            try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
+            // notify other tabs explicitly in case some browsers don't fire storage for same-tab writes
+            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(list) })) } catch { /* ignore */ }
+          }
+          setOnlinePlayers(list)
+        } catch { /* ignore localStorage errors */ }
+      } catch {
+        // ignore polling errors; will retry
+      } finally {
+        if (!cancelled) timer = window.setTimeout(pollOnline, 5000)
+      }
+    }
+    // start polling
+    pollOnline().catch(() => {})
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [sessionId])
 
   // initialize running state from localStorage so it persists across navigation/tabs
   useEffect(() => {
@@ -376,63 +444,19 @@ export default function DayDashboard(){
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
-  const gameDetails: Record<string, { title: string; rules: string; ages?: string[]; ageDescriptions?: Record<string,string> }> = {
-    'kraakhetwachtwoord': { title: 'Kraak het wachtwoord', rules: 'Ontcijfer het wachtwoord binnen de tijd. Punten worden gegeven per juist antwoord.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-      '8-10': 'Je krijgt een computer die niet meer werkt na een vreemde USB-stick. Zoek hints in de kamer en raad het wachtwoord. Leer hoe je sterke wachtwoorden maakt en hackers slim af bent!',
-      '11-13': 'Een computer is geblokkeerd na een verdachte USB-stick. Gebruik slimme hints (zoals foto’s en info) om het wachtwoord te achterhalen. Ontdek hoe makkelijk zwakke wachtwoorden te kraken zijn en hoe je ze beter maakt.',
-      '14-16': 'Een computer raakt besmet na het gebruik van een onbekende USB-stick. Analyseer de omgeving en gebruik indirecte hints om het wachtwoord te achterhalen. Leer waarom voorspelbare wachtwoorden onveilig zijn en hoe je ze sterker maakt.'
-    }},
-    'passwordzapper': { title: 'Password Zapper', rules: 'Verwijder de kwetsbare wachtwoorden door correcte keuzes te maken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-      '8-10': 'Vlieg met je ruimteschip en schiet slechte wachtwoorden kapot. Laat de goede wachtwoorden met rust. Leer spelenderwijs wat een sterk wachtwoord is!',
-      '11-13': 'Bestuur je schip en zap zwakke wachtwoorden met duidelijke patronen. Let goed op, want sommige lijken sterk maar zijn dat niet. Ontdek hoe je betere wachtwoorden herkent!',
-      '14-16': 'Zweef door de ruimte en analyseer complexe wachtwoorden voordat je ze zapt. Vermijd fouten en denk na over veiligheid en patronen. Leer hoe hackers zwakke wachtwoorden kunnen kraken.'
-    }},
-     'bugcleanup': { title: 'Bug Cleanup', rules: 'Verwijder bugs uit de code. Hoe sneller, hoe meer punten.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Klik de bugs weg en maak je computer weer snel. Hoe meer je er weghaalt, hoe beter alles werkt. Werk rustig en precies!',
-             '11-13': 'Verwijder bugs terwijl je muis traag reageert. Hoe beter je mikt, hoe sneller je systeem wordt. Let op snelheid én controle!',
-             '14-16': 'Ruim zoveel mogelijk bugs op in een traag systeem. Kleine en bewegende bugs maken het moeilijker. Optimaliseer je prestaties door efficiënt te werken.'
-         }},
-     'getalrace': { title: 'Getalrace', rules: 'Zoek het juiste getal. Sneller is beter.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zoek de getallen in de juiste volgorde zo snel mogelijk. Klik ze één voor één aan. Hoe sneller, hoe beter!',
-             '11-13': 'Klik de juiste cijfers in volgorde onder tijdsdruk. Fouten kosten je tijd. Blijf gefocust!',
-             '14-16': 'Werk door een chaotisch raster en vind alle getallen in volgorde. Snelheid en nauwkeurigheid zijn cruciaal. Hoe laag is jouw tijd?'
-         }},
-     'reactietijdtest': { title: 'Reactietijd Test', rules: 'Klik zo snel mogelijk wanneer het signaal verschijnt.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Klik zo snel mogelijk wanneer je het signaal ziet. Test hoe snel jij reageert. Kan jij supersnel zijn?',
-             '11-13': 'Reageer zo snel mogelijk op onverwachte signalen. Vergelijk jouw score met anderen. Hoe scherp zijn jouw reflexen?',
-             '14-16': 'Meet je reactietijd tot op milliseconden. Snelle beslissingen maken het verschil. Analyseer hoe jij scoort tegenover de norm.'
-         }},
-     'whackthebug': { title: 'Whack the bug', rules: 'Sla de bugs die opduiken met de grootste nauwkeurigheid.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Sla op de bugs die verschijnen. Wees snel en raak zoveel mogelijk! Pas op dat je niets verkeerd raakt.',
-             '11-13': 'Klik snel op bugs die willekeurig opduiken. Soms verschijnen er foute targets. Blijf scherp!',
-             '14-16': 'Hoge snelheid en misleidende targets maken dit uitdagend. Sla alleen de echte bugs. Precisie is key.'
-         }},
-     'printerslaatophol': { title: 'Printer Slaat Op Hol', rules: 'Los de printopdracht puzzels op zodat de printer stopt.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zoek wat niet past op het papier. Klik de foutjes aan. Help de printer stoppen!',
-             '11-13': 'Vind subtiele verschillen in de prints. Kijk goed naar details. Elke fout telt!',
-             '14-16': 'Analyseer complexe patronen en vind afwijkingen. Details maken het verschil. Denk logisch en snel.'
-         }},
-     'printerkraken': { title: 'Printer Kraken', rules: 'Vind de juiste sequentie om de printer te herstellen.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Tel de juiste dingen en maak de code. Voer de code in om de printer te openen. Goed kijken is belangrijk!',
-             '11-13': 'Zoek en tel objecten in de ruimte. Gebruik de juiste aantallen als code. Let op verborgen details!',
-             '14-16': 'Analyseer de ruimte en vermijd afleidingen. Combineer aantallen tot de juiste code. Nauwkeurigheid is cruciaal.'
-         }},
-     'herstartdepc': { title: 'Herstart de PC', rules: 'Herstart en herstel de systemen in de juiste volgorde.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zoek wat er mis is met de computer. Los het stap voor stap op. Dan werkt hij weer!',
-             '11-13': 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!',
-             '14-16': 'Analyseer meerdere problemen en los ze in de juiste volgorde op. Vermijd foute keuzes. Denk als een echte IT’er.'
-         }},
-     'slimmethermostaat': { title: 'Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zet de juiste dingen bij elkaar zodat alles werkt. Gebruik simpele plaatjes. Maak de thermostaat slim!',
-             '11-13': 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!',
-             '14-16': 'Debug en verbeter foutieve logica. Werk met regels en voorwaarden. Begrijp hoe systemen beslissingen nemen.'
-         }},
-     'fightthebug': { title: 'Fight the bug', rules: 'Versla de grote bug door de juiste acties te kiezen.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Versla de grote bug door juiste keuzes te maken. Kies het juiste antwoord. Red de dag!',
-             '11-13': 'Beantwoord vragen en voer acties uit om de bug te verslaan. Fouten kosten je punten. Blijf scherp!',
-             '14-16': 'Ga de strijd aan met complexe vragen en scenario’s. Denk snel en correct. Gebruik alles wat je geleerd hebt!'
-         }},
-   }
+  const gameDetails: Record<string, { title: string; rules: string }> = {
+    'kraakhetwachtwoord': { title: 'Kraak het wachtwoord', rules: 'Een computer is geblokkeerd na een verdachte USB-stick. Gebruik slimme hints (zoals foto’s en info) om het wachtwoord te achterhalen. Ontdek hoe makkelijk zwakke wachtwoorden te kraken zijn en hoe je ze beter maakt.' },
+    'passwordzapper': { title: 'Password Zapper', rules: 'De speler moet zwakke wachtwoorden op voorbijvliegende asteroïden wegzappen en sterke laten staan. Hoe meer correcte keuzes, hoe hoger de score!' },
+    'bugcleanup': { title: 'Bug Cleanup', rules: 'Verwijder bugs terwijl je muis traag reageert. Hoe beter je mikt, hoe sneller je systeem wordt. Let op snelheid én controle!' },
+    'getalrace': { title: 'Getalrace', rules: 'Klik de juiste cijfers in volgorde onder tijdsdruk. Fouten kosten je tijd. Blijf gefocust!' },
+    'reactietijdtest': { title: 'Reactietijd Test', rules: 'Reageer zo snel mogelijk op onverwachte signalen. Vergelijk jouw score met anderen. Hoe scherp zijn jouw reflexen?' },
+    'whackthebug': { title: 'Whack the bug', rules: 'Klik snel op bugs die willekeurig opduiken. Soms verschijnen er foute targets. Blijf scherp!' },
+    'printerslaatophol': { title: 'Printer Slaat Op Hol', rules: 'Vind subtiele verschillen in de prints. Kijk goed naar details. Elke fout telt!' },
+    'printerkraken': { title: 'Printer Kraken', rules: 'Zoek en tel objecten in de ruimte. Gebruik de juiste aantallen als code. Let op verborgen details!' },
+    'herstartdepc': { title: 'Herstart de PC', rules: 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!' },
+    'slimmethermostaat': { title: '(Niet zo) Slimme Thermostaat', rules: 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!' },
+    'fightthebug': { title: 'Fight the bug', rules: 'Beantwoord vragen en voer acties uit om de bug te verslaan. Fouten kosten je punten. Blijf scherp!' },
+  }
 
   function normalizeKey(s: string){ return s.toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'') }
   function openGameModal(label: string){
@@ -442,29 +466,43 @@ export default function DayDashboard(){
       window.alert(`Kan ${label} niet openen — ${activeGame} is momenteel actief.`)
       return
     }
-    setSelectedGame(label); setSelectedAges([])
+    setSelectedGame(label)
   }
-  function closeModal(){ setSelectedGame(null); setSelectedAges([]) }
-  // when the popup selects an age, sync it here as a single-selection
-  function handleSelectAgeFromPopup(a: string){ setSelectedAges([a]) }
-  function startGame(){
+  function closeModal(){ setSelectedGame(null) }
+  async function startGame(){
     if (!selectedGame) return
     setIsGameRunning(true)
     setActiveGame(selectedGame)
     // show alert with game name
     try { window.alert(`${selectedGame} is gestart`) } catch { /* ignore if alert unavailable */ }
     // keep the popup open so the organizer can stop the game from the popup
-    console.log('Starting', selectedGame, selectedAges)
+    console.log('Starting', selectedGame)
     // persist running game so other pages know a game is active
     try {
       // derive day key from the current path (e.g. /day/maandag)
       const p = typeof window !== 'undefined' ? window.location.pathname : ''
       const m = p.match(/\/day\/(\w+)/i)
       const dayKeyForPersist = m && m[1] ? m[1].toLowerCase() : ''
-      localStorage.setItem('activeGameInfo', JSON.stringify({ game: selectedGame, day: dayKeyForPersist }))
+      const info = { game: selectedGame, day: dayKeyForPersist }
+      localStorage.setItem('activeGameInfo', JSON.stringify(info))
+      // dispatch custom event for same-tab listeners
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
+      // also persist to server so remote clients can poll
+      try {
+        const sid = sessionId
+        if (sid) {
+          // import API lazily to avoid circular imports
+          const api = await import('../../../api')
+          try { await api.setActiveGameInfo(sid, info) } catch (err) { console.warn('Failed to set activeGameInfo on server', err) }
+        }
+      } catch (err) { console.warn('Failed to notify server of activeGameInfo', err) }
     } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
+
+    // Do NOT navigate the organizer to the minigame. Players are redirected from the
+    // waiting room when the organizer starts the game (we persist activeGameInfo to
+    // localStorage and dispatch a custom event so player UIs will react).
   }
-  function stopGame(){
+  async function stopGame(){
     if (!selectedGame) return
     setIsGameRunning(false)
     // capture name before clearing
@@ -474,7 +512,44 @@ export default function DayDashboard(){
     console.log('Stopping', name)
     // close the modal after stopping
     closeModal()
-    try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+    // First: clear localStorage and notify same-tab and other tabs so the
+    // organizer's browser (and other tabs in this browser) react immediately.
+    try {
+      try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
+      // same-tab listeners: dispatch custom event with null detail
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
+      // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
+      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
+    } catch (e) {
+      console.warn('Failed to notify clients of stop', e)
+    }
+
+    // Ensure any modal-open class applied to the dashboard is removed so the UI returns
+    // to normal (this guards against cases where popup logic left the class behind).
+    try {
+      const root = typeof document !== 'undefined' ? document.querySelector('.day-dashboard') : null
+      if (root && root.classList.contains('modal-open')) root.classList.remove('modal-open')
+    } catch {
+      // ignore
+    }
+
+    // Then persist the cleared state to the server so remote devices polling
+    // the server will observe the cleared state. We do this after clearing
+    // localStorage to avoid duplicate fallback calls from popup logic that may
+    // also attempt a server update when the local key still exists.
+    try {
+      const sid = sessionId
+      if (sid) {
+        const api = await import('../../../api')
+        try {
+          await api.setActiveGameInfo(sid, null)
+        } catch (err) {
+          console.warn('Failed to clear activeGameInfo on server', err)
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to clear activeGameInfo on server', err)
+    }
   }
 
   // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
@@ -525,6 +600,26 @@ export default function DayDashboard(){
   const currentDayKey = (inferredDay || day || '').toString().toLowerCase()
   const gamesForDay = gamesByDay[currentDayKey] ?? gamesByDay['maandag']
 
+  // helper to find the gameDetails entry for a given label robustly. Handles labels like
+  // '(Niet zo) slimme thermostaat' which normalize to 'nietzoslimmethermostaat' while
+  // the gameDetails key may be 'slimmethermostaat'. We try exact normalized match, strip
+  // common prefixes like 'nietzo', and fall back to partial matches.
+  function findGameDetailsByLabel(label: string | null | undefined) {
+    if (!label) return undefined
+    const key = normalizeKey(label)
+    if (gameDetails[key]) return gameDetails[key]
+    // try stripping a leading 'nietzo' (handles '(Niet zo) slimme thermostaat')
+    if (key.startsWith('nietzo')) {
+      const alt = key.replace(/^nietzo/, '')
+      if (gameDetails[alt]) return gameDetails[alt]
+    }
+    // try fuzzy partial matches: either direction
+    for (const k of Object.keys(gameDetails)) {
+      if (k.includes(key) || key.includes(k)) return gameDetails[k]
+    }
+    return undefined
+  }
+
   useEffect(() => {
     // only run effect when we have a session id
     if (!sessionId) {
@@ -570,41 +665,38 @@ export default function DayDashboard(){
         if (!mounted) return
         const pResp = (p as { players?: unknown } | null) ?? null
         const rawPlayers = Array.isArray(pResp?.players) ? pResp!.players as unknown[] : []
+        const currentOnline = new Set(readOnlinePlayersFromStorage())
         const parsedPlayers: Player[] = rawPlayers.map((it) => {
            const obj = (it ?? {}) as Record<string, unknown>
            const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
-           const playerNumberStr = String(playerNumber ?? '').trim()
+           // normalize playerNumber to 3-digit string so it matches onlinePlayers format
+           const playerNumberStr = String(playerNumber ?? '').trim().padStart(3,'0')
            const name = typeof obj.name === 'string' ? obj.name : (typeof obj.naam === 'string' ? obj.naam : '')
            const scoreVal = obj.score ?? obj.points ?? obj.punten
            const score = typeof scoreVal === 'number' ? scoreVal : Number(scoreVal ?? 0) || 0
           // try several possible fields for the age/category column coming from different backends
-          const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
-            : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
-            : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
-            : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
-            : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
-            : '-'
+           const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
+             : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
+             : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
+             : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
+             : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
+             : '-'
 
-          // status detection: boolean flags or string values
-          const rawStatus = obj.status ?? obj.online ?? obj.isOnline ?? obj.actief
-          // Priority rules:
-          // - If the player has NOT entered a playerNumber => Offline
-          // - Otherwise, if a boolean/string status exists, use it
-          // - If no explicit status but playerNumber exists => Online
-          let status: string
-          if (!playerNumberStr) {
-            status = 'Offline'
-          } else if (typeof rawStatus === 'boolean') {
-            status = rawStatus ? 'Online' : 'Offline'
-          } else if (typeof rawStatus === 'string') {
-            status = /off/i.test(rawStatus) ? 'Offline' : 'Online'
-          } else {
-            status = 'Offline'
+          // derive status from localStorage onlinePlayers set OR server lastSeen presence
+          // A non-null lastSeen is considered authoritative 'online'; there is no
+          // client-side heartbeat cutoff — offline should only happen on explicit logout.
+          let status = 'Offline'
+          try {
+            const lastSeenRaw = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
+            const hasLastSeen = !!lastSeenRaw
+            if (playerNumberStr && (currentOnline.has(playerNumberStr) || hasLastSeen)) status = 'Online'
+          } catch {
+            status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
           }
 
           return { playerNumber: playerNumberStr, name: String(name), score, category, status }
-        })
-        setPlayers(parsedPlayers)
+         })
+         setPlayers(parsedPlayers)
       } catch {
         console.warn('Failed to fetch players')
       }
@@ -612,6 +704,14 @@ export default function DayDashboard(){
     })()
     return () => { mounted = false }
   }, [sessionId])
+
+  // whenever onlinePlayers updates, refresh players' status in state
+  useEffect(() => {
+    if (!players || players.length === 0) return
+    const onlineSet = new Set(onlinePlayers.map(s => String(s)))
+    setPlayers(prev => prev.map(p => ({ ...p, status: p.playerNumber && onlineSet.has(p.playerNumber) ? 'Online' : 'Offline' })))
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onlinePlayers])
 
   return (
     <main className="day-dashboard">
@@ -737,36 +837,40 @@ export default function DayDashboard(){
       </div>
 
       {/* Render the reusable MinigamePopup */}
-      <MinigamePopup
-         isOpen={!!selectedGame}
-         title={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.title ?? selectedGame) : ''}
-         rules={selectedGame ? (gameDetails[normalizeKey(selectedGame)]?.rules ?? 'Geen spelregels beschikbaar.') : ''}
-         image={selectedGame ? ((): string | undefined => {
-          const key = normalizeKey(selectedGame)
-          switch (key) {
-            case 'kraakhetwachtwoord': return KRAAK_IMG
-            case 'passwordzapper': return PASS_IMG
-            case 'bugcleanup': return BUG_IMG
-            case 'getalrace': return GETAL_IMG
-            case 'reactietijdtest': return REACTIE_IMG
-            case 'whackthebug': return WHACK_IMG
-            case 'printerslaatophol': return PRINTER_SLAAT_IMG
-            case 'printerkraken': return PRINTER_KRAKEN_IMG
-            case 'herstartdepc': return HERSTART_IMG
-            case 'slimmethermostaat': return THERMOSTAAT_IMG
-            case 'fightthebug': return FIGHT_IMG
-            default: return undefined
-          }
-        })() : undefined}
-        ages={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ages : undefined}
-        ageDescriptions={selectedGame ? gameDetails[normalizeKey(selectedGame)]?.ageDescriptions : undefined}
-        initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
-        onSelectAge={handleSelectAgeFromPopup}
-        onStart={startGame}
-        onStop={stopGame}
-        onClose={closeModal}
-        running={isGameRunning && activeGame === selectedGame}
-       />
-    </main>
-  )
-}
+      {(() => {
+        const details = findGameDetailsByLabel(selectedGame)
+        const selectedKey = selectedGame ? normalizeKey(selectedGame) : ''
+        return (
+          <MinigamePopup
+            isOpen={!!selectedGame}
+            title={selectedGame ? (details?.title ?? selectedGame) : ''}
+            rules={selectedGame ? (details?.rules ?? 'Geen spelregels beschikbaar.') : ''}
+            image={selectedGame ? ((): string | undefined => {
+              switch (selectedKey) {
+                 case 'kraakhetwachtwoord': return KRAAK_IMG
+                 case 'passwordzapper': return PASS_IMG
+                 case 'bugcleanup': return BUG_IMG
+                 case 'getalrace': return GETAL_IMG
+                 case 'reactietijdtest': return REACTIE_IMG
+                 case 'whackthebug': return WHACK_IMG
+                 case 'printerslaatophol': return PRINTER_SLAAT_IMG
+                 case 'printerkraken': return PRINTER_KRAKEN_IMG
+                 case 'herstartdepc': return HERSTART_IMG
+                 case 'slimmethermostaat': return THERMOSTAAT_IMG
+                 case 'nietzoslimmethermostaat': return THERMOSTAAT_IMG
+                 case 'fightthebug': return FIGHT_IMG
+                 default: return undefined
+               }
+             })() : undefined}
+             onStart={startGame}
+             onStop={stopGame}
+             onClose={closeModal}
+             running={isGameRunning && activeGame === selectedGame}
+           />
+         )
+       })()}
+     </main>
+   )
+ }
+
+export default DayDashboard

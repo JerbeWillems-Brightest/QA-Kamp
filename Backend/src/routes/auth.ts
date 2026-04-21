@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import type { Request, Response } from 'express'
 import { Organizer } from '../models/Organizer'
+import bcrypt from 'bcryptjs'
 
 const router = Router()
 
@@ -13,8 +14,9 @@ router.post('/login', async (req: Request, res: Response) => {
     const user = await Organizer.findOne({ email: email.toLowerCase().trim() })
     if (!user) return res.status(401).json({ error: 'Foute logingegevens' })
 
-    // Plain text compare for now (we'll hash later)
-    if (user.password !== password) return res.status(401).json({ error: 'Foute logingegevens' })
+    // Compare given password with stored hash
+    const match = await bcrypt.compare(password, user.password)
+    if (!match) return res.status(401).json({ error: 'Foute logingegevens' })
 
     // Successful login
     res.json({ message: 'Succesvol ingelogd', user: { id: user._id, email: user.email, name: user.name } })
@@ -24,4 +26,3 @@ router.post('/login', async (req: Request, res: Response) => {
 })
 
 export default router
-
