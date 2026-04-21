@@ -17,9 +17,12 @@ export async function connectDB(): Promise<void> {
   if (!cached) {
     console.log('Connecting to MongoDB...', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'))
     cached = mongoose.connect(MONGO_URI, {
-      serverSelectionTimeoutMS: 10000,
-      connectTimeoutMS: 10000,
-      bufferCommands: false,
+      serverSelectionTimeoutMS: 15000,
+      connectTimeoutMS: 15000,
+      // Allow Mongoose to buffer commands while the initial connection is being established.
+      // This prevents race conditions where incoming HTTP requests trigger DB ops before
+      // the initial connect has completed (which previously threw when bufferCommands=false).
+      bufferCommands: true,
       // ensure mongoose itself doesn't auto-create collections or indexes during connect
       autoIndex: false,
       autoCreate: false,
