@@ -48,8 +48,8 @@
 }
 .printer-root .overlay { position:absolute; left:8px; top:8px; background: rgba(255, 255, 255, 0.85); padding:6px 8px; border-radius:6px; z-index:910 }
 
-.cell { background:#fff; display:flex; align-items:center; justify-content:center; font-size:24px; border-radius:8px; cursor:pointer; user-select:none; box-shadow: 0 6px 14px rgba(0,0,0,0.08); padding: 8px; height: 72px; }
-.cell.odd { outline:3px solid transparent; background: #fff9e6 }
+.cell { background:#fff; display:flex; align-items:center; justify-content:center; font-size:28px; border-radius:8px; cursor:pointer; user-select:none; box-shadow: none; padding: 4px; height: 96px; }
+.cell.odd { outline:3px solid transparent; background: #fff }
 
 /* Ensure page grid centers and cells are responsive squares */
 .page { display:block; box-sizing: border-box }
@@ -113,6 +113,70 @@
 .pz-start-btn:hover { background: #f0c200 }
 .pz-start-btn--large { font-size: 1.25rem; padding: 1rem 4rem; min-width: 360px }
 .printer-root .pz-start-modal button { font-family: inherit; color: #fff }
+
+/* Visual feedback pill (top-center) */
+.pz-feedback {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 18px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 1px 1px 4px #000a;
+  z-index: 980;
+  display: inline-block;
+  text-align: center;
+  box-sizing: border-box;
+  max-width: min(80%, 520px);
+  width: auto;
+  white-space: normal;
+  word-break: break-word;
+  padding: 0.45rem 0.9rem;
+}
+.pz-feedback--good {
+  background: linear-gradient(180deg, #4caf50, #388e3c);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 3px solid rgba(255,255,255,0.08);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+}
+.pz-feedback--bad {
+  background: linear-gradient(180deg, #f44336, #d32f2f);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 3px solid rgba(0,0,0,0.12);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+}
+
+/* time feedback sits under the timer; render as inline block below the timer */
+.pz-time-feedback {
+  display: inline-block;
+  margin-top: 10px;
+  left: 0 !important;
+  transform: none !important;
+  position: relative !important;
+  /* larger font and pill styling to match other feedback visuals */
+  font-size: 1.15rem;
+  font-weight: 800;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  text-align: center;
+}
+
+/* When modal is open, hide top-level controls (hint, pause, vraag) so only the modal is visible */
+body.pz-modal-open .pz-help,
+body.pz-modal-open .pz-controls {
+  display: none !important;
+}
+
+/* Also hide the same controls when the end screen is visible */
+body.pz-end-open .pz-help,
+body.pz-end-open .pz-controls {
+  display: none !important;
+}
 
 /* Score and progress styles (mirrors PasswordZapper) */
 .printer-root .pz-score, .printer-root .pz-progress { font-size: 1.1rem; margin: 0 }

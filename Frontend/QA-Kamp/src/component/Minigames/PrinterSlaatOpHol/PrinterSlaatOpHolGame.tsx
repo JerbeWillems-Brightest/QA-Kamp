@@ -16,12 +16,15 @@ try { if (typeof console !== 'undefined' && console && console.log) console.log(
 
 const bgStyle = resolvedBgUrl ? { backgroundImage: `url(${resolvedBgUrl})`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' } : undefined
 
+const GOOD_FEEDBACK_LIST = ['Goed!', 'Top!', 'Nice!', 'Super!']
+const BAD_FEEDBACK_LIST = ['Fout!', 'Helaas!', 'Probeer opnieuw']
+
 type AgeGroup = '8-10' | '11-13' | '14-16'
 
 interface EndResults { score: number; timeMs: number; mistakes: number }
 interface Props { ageGroup?: AgeGroup; onEnd?: (results: EndResults) => void }
 
-type Item = { id:number; text:string; x:number; y:number; isOdd?:boolean }
+type Item = { id:number; text?:string; icon?: string; x:number; y:number; isOdd?:boolean }
 
 const GRID_BY_AGE: Record<AgeGroup, number> = { '8-10': 3, '11-13': 4, '14-16': 5 }
 
@@ -41,7 +44,17 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
   const [isEntering, setIsEntering] = useState(false)
   const [showEnd, setShowEnd] = useState(false)
   const [showHint, setShowHint] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
+  const [paused, setPaused] = useState(false)
+  const [highScore, setHighScore] = useState<number | null>(null)
+  const [isNewHigh, setIsNewHigh] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
+  const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
+  const [timeFeedback, setTimeFeedback] = useState<string | null>(null)
+  const [timeFeedbackType, setTimeFeedbackType] = useState<'good' | 'bad' | null>(null)
   const hintAutoShownRef = useRef(false)
+  const penaltyIndexRef = useRef(0)
+  const penaltyScheduleRef = useRef<number[]>([])
   const startRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
   const gameContentRef = useRef<HTMLDivElement | null>(null)
@@ -58,16 +71,42 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
 
   const formatMs = useCallback((ms: number) => { const s = Math.floor(ms/1000); return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}` }, [])
 
-  const randomBaseText = useCallback(() => {
-    const words = ['A','B','C','D','E','F','G','H','I','J','K','L']
-    return words[Math.floor(Math.random() * words.length)]
+  const randomFrom = useCallback((arr: string[]) => arr[Math.floor(Math.random() * arr.length)], [])
+
+  // Load SVG assets using Vite's import.meta.glob at runtime. Using `any` here
+  // because TypeScript's built-in typing for import.meta.glob varies by
+  // environment. These calls return an object mapping file paths to URL strings.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const baseModules = (import.meta as any).glob('../../../assets/iconsPrinterSlaatOpHol/BaseIcons/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wrong810Modules = (import.meta as any).glob('../../../assets/iconsPrinterSlaatOpHol/Wrong810/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wrong1113Modules = (import.meta as any).glob('../../../assets/iconsPrinterSlaatOpHol/Wrong1113/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const base1416Modules = (import.meta as any).glob('../../../assets/iconsPrinterSlaatOpHol/BaseIcons1416/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const wrong1416Modules = (import.meta as any).glob('../../../assets/iconsPrinterSlaatOpHol/Wrong1416/*.svg', { eager: true, query: '?url', import: 'default' }) as Record<string, string>
+
+  const buildCoreMap = useCallback((modules: Record<string, string>, stripPrefixes?: string[]) => {
+    const m: Record<string, string> = {}
+    for (const p of Object.keys(modules)) {
+      const base = p.split('/').pop() || p
+      let core = base.replace(/\.[^/.]+$/, '')
+      // remove any known prefixes (Base, Wrong810, Wrong1113) to get the core name
+      if (stripPrefixes && stripPrefixes.length) {
+        for (const pref of stripPrefixes) core = core.replace(new RegExp('^' + pref, 'i'), '')
+      }
+      core = core.toLowerCase()
+      m[core] = modules[p]
+    }
+    return m
   }, [])
 
-  const generateOdd = useCallback((base: string, age: AgeGroup) => {
-    if (age === '8-10') return base + '!' // obvious
-    if (age === '11-13') return base.split('').reverse().join('') // subtle
-    return base + (Math.random() > 0.5 ? '1' : '0') // abstract
-  }, [])
+  const baseByCore = buildCoreMap(baseModules, ['Base'])
+  const base1416ByCore = buildCoreMap(base1416Modules, ['Base'])
+  const wrong810ByCore = buildCoreMap(wrong810Modules, ['Wrong810'])
+  const wrong1113ByCore = buildCoreMap(wrong1113Modules, ['Wrong1113'])
+  const wrong1416ByCore = buildCoreMap(wrong1416Modules, ['Wrong1416'])
 
   // Normalize/derive ageGroup using the same priority as PasswordZapper:
   // sessionStorage.playerCategory -> prop ageGroup -> URL ?age= param -> default '11-13'
@@ -99,17 +138,41 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
   const nextRound = useCallback(() => {
     const grid = GRID_BY_AGE[effectiveAge]
     const total = grid * grid
-    const baseText = randomBaseText()
     const nextItems: Item[] = []
+
+    // choose base and wrong maps based on age group
+    let baseMap: Record<string,string>
+    let wrongMap: Record<string,string>
+    if (effectiveAge === '8-10') {
+      baseMap = baseByCore
+      wrongMap = wrong810ByCore
+    } else if (effectiveAge === '11-13') {
+      baseMap = baseByCore
+      wrongMap = wrong1113ByCore
+    } else {
+      // 14-16 -> use the new 14-16 base and wrong folders
+      baseMap = Object.keys(base1416ByCore).length ? base1416ByCore : baseByCore
+      wrongMap = Object.keys(wrong1416ByCore).length ? wrong1416ByCore : wrong1113ByCore
+    }
+
+    // build list of candidate cores that have both a base and a wrong icon
+    const candidates = Object.keys(baseMap).filter(c => typeof wrongMap[c] === 'string')
+    // fallback: if none matched, use any base from baseMap
+    const baseKeys = Object.keys(baseMap)
+    const chosenCore = (candidates.length > 0) ? candidates[Math.floor(Math.random() * candidates.length)] : (baseKeys[Math.floor(Math.random() * Math.max(1, baseKeys.length))] || '')
+    const baseUrl = baseMap[chosenCore] || (baseKeys.length ? baseMap[baseKeys[Math.floor(Math.random() * baseKeys.length)]] : undefined)
+    const wrongValues = Object.values(wrongMap)
+    const wrongUrl = (chosenCore && wrongMap[chosenCore]) ? wrongMap[chosenCore] : (wrongValues.length ? wrongValues[Math.floor(Math.random() * wrongValues.length)] : undefined)
+
     const oddIndex = Math.floor(Math.random() * total)
     for (let i = 0; i < total; i++) {
       const isOdd = i === oddIndex
-      nextItems.push({ id: i + 1, text: isOdd ? generateOdd(baseText, effectiveAge) : baseText, x: (i % grid), y: Math.floor(i / grid), isOdd })
+      nextItems.push({ id: i + 1, icon: isOdd ? wrongUrl : baseUrl, x: (i % grid), y: Math.floor(i / grid), isOdd })
     }
     setItems(nextItems)
     // trigger enter animation for the fresh sheet
     setIsEntering(true)
-  }, [effectiveAge, randomBaseText, generateOdd])
+  }, [effectiveAge, baseByCore, base1416ByCore, wrong810ByCore, wrong1113ByCore, wrong1416ByCore])
 
   // grid size based on age group (used for layout)
   const grid = GRID_BY_AGE[effectiveAge] || 4
@@ -117,15 +180,33 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
   // compute cell size so the entire grid fits within the available game content area
   useEffect(() => {
     function computeSize() {
-      const gap = 12 // same as CSS gap used
-      const minCell = 48
-      // allow larger maximum cell so grid scales up on larger sheets
-      const maxCell = 200
+      // determine layout parameters based on age group
+      let gap: number
+      let minCell: number
+      let maxCell: number
+      let reservedVertical: number
+
+      if (effectiveAge === '11-13') {
+        gap = 24
+        minCell = 96
+        maxCell = 400
+        reservedVertical = 120
+      } else if (effectiveAge === '8-10') {
+        gap = 30
+        minCell = 120
+        maxCell = 500
+        reservedVertical = 150
+      } else {
+        // 14-16
+        gap = 18
+        minCell = 72
+        maxCell = 300
+        reservedVertical = 90
+      }
+
       const content = gameContentRef.current
       if (!content) return
       const rect = content.getBoundingClientRect()
-      // subtract some vertical space for header/controls inside game-content (slightly reduced)
-      const reservedVertical = 60
       const availableWidth = Math.max(120, rect.width)
       const availableHeight = Math.max(120, rect.height - reservedVertical)
       const cellByWidth = Math.floor((availableWidth - gap * (grid - 1)) / grid)
@@ -139,7 +220,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     const ro = new ResizeObserver(() => computeSize())
     if (gameContentRef.current) ro.observe(gameContentRef.current)
     return () => { window.removeEventListener('resize', computeSize); ro.disconnect() }
-  }, [grid])
+  }, [grid, effectiveAge])
 
   const startGame = useCallback(() => {
     setShowTutorial(false)
@@ -148,6 +229,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     setRound(0)
     setScore(0)
     setMistakes(0)
+    penaltyIndexRef.current = 0
     startRef.current = Date.now()
     // schedule next round to avoid impure work during render
     setTimeout(() => nextRound(), 0)
@@ -170,8 +252,49 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     setIsTransitioning(false)
     setShouldFinishAfterTransition(false)
     startRef.current = Date.now()
+    penaltyIndexRef.current = 0
     setTimeout(() => nextRound(), 0)
   }, [nextRound])
+
+  // Build penalty schedule (ms) based on age group
+  const buildPenaltySchedule = useCallback((age: AgeGroup) => {
+    const schedule: number[] = []
+    const toMs = (s: number) => s * 1000
+    if (age === '8-10') {
+      // 2:00, 3:00, then every 30s until 5:00
+      schedule.push(toMs(120), toMs(180))
+      for (let t = 210; t <= 300; t += 30) schedule.push(toMs(t))
+    } else {
+      // 11-13 & 14-16: 1:30, 2:00, 2:30, then every 30s until 5:00
+      schedule.push(toMs(90), toMs(120), toMs(150))
+      for (let t = 180; t <= 300; t += 30) schedule.push(toMs(t))
+    }
+    return schedule
+  }, [])
+
+  // Initialize penalty schedule when effectiveAge changes
+  useEffect(() => {
+    penaltyScheduleRef.current = buildPenaltySchedule(effectiveAge)
+    penaltyIndexRef.current = 0
+  }, [effectiveAge, buildPenaltySchedule])
+
+  // Apply time-based penalties when elapsedMs crosses schedule thresholds
+  useEffect(() => {
+    if (!running || showEnd) return
+    const schedule = penaltyScheduleRef.current || []
+    let idx = penaltyIndexRef.current
+    while (idx < schedule.length && elapsedMs >= schedule[idx]) {
+      // apply penalty: -2 points
+      setScore((s) => Math.max(0, s - 2))
+      try {
+        setTimeFeedback('Tijdstraf -2')
+        setTimeFeedbackType('bad')
+        setTimeout(() => { try { setTimeFeedback(null); setTimeFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      } catch { /* ignore */ }
+      idx += 1
+    }
+    penaltyIndexRef.current = idx
+  }, [elapsedMs, running, showEnd])
 
   const handleClick = useCallback((item: Item) => {
     if (!running || isTransitioning) return
@@ -185,12 +308,18 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
       setShouldFinishAfterTransition(willFinish)
       // trigger sheet fly-out animation; nextRound or finish will be called after animation ends
       setIsTransitioning(true)
+      setFeedback(`${randomFrom(GOOD_FEEDBACK_LIST)} +2`)
+      setFeedbackType('good')
+      setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
       // ensure we don't call nextRound here - animationend handler will do that
     } else {
       setMistakes(m => m + 1)
       setScore(s => Math.max(0, s - 1))
+      setFeedback(`${randomFrom(BAD_FEEDBACK_LIST)} -1`)
+      setFeedbackType('bad')
+      setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
     }
-  }, [running, round, isTransitioning])
+  }, [running, round, isTransitioning, randomFrom])
 
   // called when the top sheet finished flying out
   const handleSheetAnimationEnd = useCallback((e?: React.AnimationEvent<HTMLDivElement>) => {
@@ -232,6 +361,21 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     return () => { try { if (cleanup) cleanup() } catch { /* ignore */ } }
   }, [showEnd])
 
+  // Load persisted highscore for this minigame on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        const raw = localStorage.getItem('pz-highscore_printerslaatophol')
+        if (raw !== null) {
+          const n = Number(raw)
+          if (!Number.isNaN(n)) setHighScore(n)
+        }
+      }
+    } catch { /* ignore */ }
+  }, [])
+
+  // ...existing code...
+
   // Persist player's highscore when the end screen is shown so the organiser
   // scoreboard can pick it up. Mirrors the behavior in PasswordZapper.
   useEffect(() => {
@@ -239,12 +383,18 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     ;(async () => {
       try {
         const localKey = 'pz-highscore_printerslaatophol'
+        // derive authoritative final score from rounds and mistakes
+        const TOTAL_ROUNDS = 20
+        const totalCorrect = Math.min(Math.max(0, round), TOTAL_ROUNDS)
+        const appliedTimePenalties = (penaltyIndexRef.current || 0) * 2
+        const computedFinal = Math.max(0, (totalCorrect * 2) - mistakes - appliedTimePenalties)
         // Update local stored highscore (keep max)
         try {
           const existingRaw = localStorage.getItem(localKey)
           const existingNum = existingRaw ? (Number(existingRaw) || 0) : 0
-          const finalHigh = Math.max(existingNum || 0, score)
+          const finalHigh = Math.max(existingNum || 0, computedFinal, score)
           localStorage.setItem(localKey, String(finalHigh))
+          try { setHighScore(finalHigh); setIsNewHigh(finalHigh > (existingNum || 0)); } catch { /* ignore */ }
         } catch { /* ignore localStorage errors */ }
 
         // Attempt to persist to backend so organiser's leaderboard shows the player
@@ -337,11 +487,12 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
                 }
               } catch { /* ignore highscores */ }
             } catch { /* ignore */ }
-            const aggregated = score + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
+            const finalScoreForPayload = computedFinal
+            const aggregated = finalScoreForPayload + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
             // Send both legacy top-level keys and an explicit `highscores` object
             // so the backend will merge the per-game field into the stored
             // `highscores` document reliably.
-            const payload: Record<string, unknown> = { score_printerslaatophol: score, score: aggregated, highscores: { score_printerslaatophol: score } }
+            const payload: Record<string, unknown> = { score_printerslaatophol: finalScoreForPayload, score: aggregated, highscores: { score_printerslaatophol: finalScoreForPayload } }
             if (foundCategory) (payload as Record<string, unknown>)['category'] = foundCategory
             try {
               await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer)
@@ -370,7 +521,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
         console.warn('PrinterSlaatOpHol: persist highscore failed', err)
       }
     })()
-  }, [showEnd, score])
+  }, [showEnd, score, round, mistakes])
 
   // When end screen is open, add a global body class so top-level controls (hint/pause/help)
   // are hidden by global CSS (PasswordZapper uses body.pz-end-open for this).
@@ -382,6 +533,19 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     return () => { try { document.body.classList.remove('pz-end-open') } catch { /* ignore */ } }
   }, [showEnd])
 
+  // When any modal/popup is open (intro/tutorial/hint/pause), add a body class
+  // so top-level controls (hint, pause, spelregels) are hidden. This matches
+  // the PasswordZapper convention which uses `body.pz-modal-open` to hide
+  // those buttons while modals are shown.
+  useEffect(() => {
+    const cls = 'pz-modal-open'
+    try {
+      if (showIntro || showTutorial || showHint || showHelp || paused) document.body.classList.add(cls)
+      else document.body.classList.remove(cls)
+    } catch { /* ignore */ }
+    return () => { try { document.body.classList.remove(cls) } catch { /* ignore */ } }
+  }, [showIntro, showTutorial, showHint, showHelp, paused])
+
   // Listen for external hint requests (from top-level hint button)
   useEffect(() => {
     function onHintRequest() {
@@ -389,6 +553,32 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     }
     window.addEventListener('minigame:hint', onHintRequest)
     return () => window.removeEventListener('minigame:hint', onHintRequest)
+  }, [])
+
+  // Listen for top-level question/help button to show game rules (spelregels).
+  // The help popup should not pause the game; when closed the player continues.
+  useEffect(() => {
+    function onQuestion() {
+      try { setShowHelp(true) } catch { /* ignore */ }
+    }
+    window.addEventListener('minigame:question', onQuestion as EventListener)
+    return () => window.removeEventListener('minigame:question', onQuestion as EventListener)
+  }, [])
+
+  // Pause / help / hint handling: listen for global pause/question/hint events
+  // Consolidated like PasswordZapper so events are registered together.
+  useEffect(() => {
+    const onPause = () => { try { setPaused(true) } catch { /* ignore */ } }
+    const onHelp = () => { try { setShowHelp(true) } catch { /* ignore */ } }
+    const onHint = () => { try { setShowHint(true) } catch { /* ignore */ } }
+    window.addEventListener('minigame:pause', onPause as EventListener)
+    window.addEventListener('minigame:question', onHelp as EventListener)
+    window.addEventListener('minigame:hint', onHint as EventListener)
+    return () => {
+      window.removeEventListener('minigame:pause', onPause as EventListener)
+      window.removeEventListener('minigame:question', onHelp as EventListener)
+      window.removeEventListener('minigame:hint', onHint as EventListener)
+    }
   }, [])
 
   // Unlock and auto-show hint after 3 mistakes (same for all ages)
@@ -407,6 +597,29 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
       }
     } catch { /* ignore */ }
   }, [mistakes])
+
+  // Toggle a body-level class while paused so CSS can freeze animations if desired
+  useEffect(() => {
+    const cls = 'pz-paused'
+    try {
+      if (paused) document.body.classList.add(cls)
+      else document.body.classList.remove(cls)
+    } catch { /* ignore */ }
+    // when paused, also stop the running timer; when resuming, restore startRef
+    try {
+      if (paused) {
+        setRunning(false)
+      } else {
+        // only resume if game not finished
+        if (!showEnd) {
+          // preserve elapsed time by setting startRef such that Date.now() - startRef = elapsedMs
+          startRef.current = Date.now() - elapsedMs
+          setRunning(true)
+        }
+      }
+    } catch { /* ignore */ }
+    return () => { try { document.body.classList.remove(cls) } catch { /* ignore */ } }
+  }, [paused, showEnd, elapsedMs])
 
   // Show an intro popup first, then the PasswordZapper-style tutorial, then the game
   if (showIntro) {
@@ -468,6 +681,32 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     )
   }
 
+  // Help modal (triggered by question mark) - shows rules but does NOT pause the game
+  if (showHelp) {
+    return (
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+        <div className="game-area printer-area">
+          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+        </div>
+
+        <div className="pz-start-overlay" onClick={() => setShowHelp(false)}>
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 style={{ textAlign: 'left' }}>Speluitleg - Printer slaat op hol!</h2>
+            <ul className="pz-start-bullets" style={{ marginTop: 12, textAlign: 'left' }}>
+              <li>Op elk blad papier zit één ding dat er niet bij hoort.</li>
+              <li>Klik op het ding dat er niet bij hoort om deze weg te halen.</li>
+              <li>Klik je op het verkeerde? Dan moet je verder zoeken!</li>
+              <li>Je hebt maar 2 minuten de tijd!</li>
+            </ul>
+            <div style={{ marginTop: 18, textAlign: 'center' }}>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHelp(false)}>Verder spelen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Hint modal (auto-open after 3 mistakes or from hint button)
   if (showHint) {
     return (
@@ -493,22 +732,48 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
     )
   }
 
+
+  // Pause modal overlay (matches PasswordZapper behavior)
+  if (paused) {
+    return (
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+        <div className="game-area printer-area">
+          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+        </div>
+
+        <div className="pz-pause-overlay">
+          <div className="pz-pause-modal">
+            <h2>Pauze</h2>
+            <div className="pz-pause-actions">
+              <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
+              <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { try { window.location.reload() } catch { /* ignore */ } }}>Opnieuw beginnen</button>
+              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => { setPaused(false); setRunning(false); setShowEnd(true); }}>Stoppen</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // End screen (shown after finish) - use PasswordZapper end layout with fireworks
-  if (showEnd) {
+    if (showEnd) {
     // compute simple stats: correct vs wrong
     // Use `round` as the authoritative correct-count (each correct increments round).
     const totalRounds = 20
     const totalCorrect = Math.min(Math.max(0, round), totalRounds)
     const totalWrong = mistakes
-
-    // base percent based on how many rounds were correct (20 -> 100%)
-    const basePercent = totalRounds > 0 ? (totalCorrect / totalRounds) * 100 : 0
-    // each mistake deducts 2.5% (40 mistakes = 100% deduction)
-    const deductionPerMistake = 2.5
-    const rawPercent = basePercent - (totalWrong * deductionPerMistake)
-    // round up to integer percentage (no decimals) and clamp between 0 and 100
-    const roundedUpPercent = Math.ceil(rawPercent)
-    const clampedScorePercent = Math.max(0, Math.min(100, roundedUpPercent))
+    // compute final score deterministically from correct/wrong counts so
+    // mistakes always reduce the final displayed score
+    const appliedTimePenalties = (penaltyIndexRef.current || 0) * 2
+    const finalScore = Math.max(0, (totalCorrect * 2) - mistakes - appliedTimePenalties)
+    // Diagnostic logging to help debug any mismatch between runtime `score` and
+    // computed final score (derived from rounds/mistakes).
+    try { console.debug('[PrinterSlaatOpHol] endscreen', { score, round: totalCorrect, mistakes, finalScore }) } catch { /* ignore */ }
+    // compute percent based on finalScore
+    const maxPossibleScore = totalRounds * 2
+    const rawPercent = maxPossibleScore > 0 ? Math.round((finalScore / maxPossibleScore) * 100) : 0
+    const clampedScorePercent = Math.max(0, Math.min(100, rawPercent))
+    // stars: same thresholds as PasswordZapper (100% -> 3, >=66 -> 2, >=33 -> 1)
     const starCount = clampedScorePercent === 100 ? 3 : clampedScorePercent >= 66 ? 2 : clampedScorePercent >= 33 ? 1 : 0
     const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${clampedScorePercent}%` } as unknown) as React.CSSProperties
 
@@ -516,11 +781,16 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
       <div className="pz-end">
         <div className="pz-end-box">
           <canvas ref={fwCanvasRef} className="pz-fireworks-canvas" aria-hidden={true} />
+          <div className="pz-highscore" style={{ marginBottom: 18, textAlign: 'center' }}>
+            <span className="pz-highscore-label">Hoogste score:</span>
+            <span id="highScore" className="pz-highscore-value">{highScore ?? '-'}</span>
+            {isNewHigh && <span className="pz-new-record"> Nieuw record!</span>}
+          </div>
           <div className="pz-end-content">
             <div className="pz-end-left">
               <div className="pz-score-circle" aria-hidden style={circleStyle}>
                 <div className="pz-score-label">SCORE</div>
-                <div className="pz-score-number" id="score">{score}</div>
+                <div className="pz-score-number" id="score">{finalScore}</div>
                 <div className="pz-score-percent" id="percentage">{clampedScorePercent}%</div>
                 <div className="pz-score-stars" aria-hidden>
                   {Array.from({ length: 3 }).map((_, i) => (
@@ -550,8 +820,8 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
             <div className="pz-end-right">
               <div className="pz-tips-card">
                 <h3>Goed gedaan!</h3>
-                <div className="pz-tips">
-                  <p>Score: {score} — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
+                  <div className="pz-tips">
+                  <p>Score: {finalScore} — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
                 </div>
                 <div className="pz-end-actions">
                   <button id="btnPlayAgain" className="pz-play-again" onClick={() => { try { window.location.reload(); } catch { resetGame(); } }}>Opnieuw spelen</button>
@@ -581,7 +851,26 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
                 <div className="pz-score-stack">
                   <div className="pz-score">{`Score: ${score}`}</div>
                   <div className="pz-score pz-timer">{running ? formatMs(elapsedMs) : '00:00'}</div>
+                  {timeFeedback && (
+                    <div
+                      className={"pz-time-feedback " + (timeFeedbackType === 'good' ? 'pz-feedback--good' : timeFeedbackType === 'bad' ? 'pz-feedback--bad' : '')}
+                      role="status"
+                      aria-live="polite"
+                    >
+                      {timeFeedback}
+                    </div>
+                  )}
                 </div>
+                        {feedback && (
+                          <div
+                            id="feedback"
+                            className={"pz-feedback " + (feedbackType === 'good' ? 'pz-feedback--good' : feedbackType === 'bad' ? 'pz-feedback--bad' : '')}
+                            role="status"
+                            aria-live="polite"
+                          >
+                            {feedback}
+                          </div>
+                        )}
                 <div className="pz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fillPercent}>
                   <div className="pz-progress-fill" style={{ width: `${fillPercent}%` }} />
                   <div className="pz-progress-text">{displayed} / {totalRounds}</div>
@@ -615,7 +904,13 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
                 }}
               >
                 {items.map(it=> (
-                  <div key={it.id} className={`cell ${it.isOdd? 'odd':''}`} onClick={()=>handleClick(it)}>{it.text}</div>
+                  <div key={it.id} className={`cell ${it.isOdd? 'odd':''}`} onClick={()=>handleClick(it)}>
+                    {it.icon ? (
+                      <img src={it.icon} alt={it.isOdd ? 'Fout' : 'Normaal'} style={{ width: '92%', height: '92%', objectFit: 'contain', display: 'block', margin: 'auto' }} />
+                    ) : (
+                      (it.text ?? '')
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
