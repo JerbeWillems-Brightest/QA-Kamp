@@ -53,7 +53,10 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [items, setItems] = useState<Item[]>([])
   const [elapsedMs, setElapsedMs] = useState(0)
   // start a bit larger so grid appears larger on first render
-  const [cellSize, setCellSize] = useState<number>(100)
+  // start smaller so the grid is more compact by default
+  const [cellSize, setCellSize] = useState<number>(72)
+  // gap between cells (kept in state so render uses same value as computeSize)
+  const [cellGap, setCellGap] = useState<number>(8)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [shouldFinishAfterTransition, setShouldFinishAfterTransition] = useState(false)
   const [isEntering, setIsEntering] = useState(false)
@@ -202,21 +205,24 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       let reservedVertical: number
 
       if (effectiveAge === '11-13') {
-        gap = 24
-        minCell = 96
-        maxCell = 400
-        reservedVertical = 120
+        // slightly smaller and tighter layout for mid-group
+        gap = 16
+        minCell = 72
+        maxCell = 340
+        reservedVertical = 110
       } else if (effectiveAge === '8-10') {
-        gap = 30
-        minCell = 120
-        maxCell = 500
-        reservedVertical = 150
+        // make grid more compact for younger group
+        gap = 20
+        minCell = 88
+        maxCell = 360
+        reservedVertical = 140
       } else {
         // 14-16
-        gap = 18
-        minCell = 72
-        maxCell = 300
-        reservedVertical = 90
+        // make the oldest group's grid denser/smaller so a 5x5 fits comfortably
+        gap = 10
+        minCell = 52
+        maxCell = 200
+        reservedVertical = 82
       }
 
       const content = gameContentRef.current
@@ -228,6 +234,8 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       const cellByHeight = Math.floor((availableHeight - gap * (grid - 1)) / grid)
       let size = Math.max(minCell, Math.min(cellByWidth, cellByHeight))
       size = Math.min(maxCell, size)
+      // persist chosen gap for rendering so inline styles match the measurement
+      try { setCellGap(gap) } catch { /* ignore */ }
       setCellSize(size)
     }
     computeSize()
@@ -913,9 +921,13 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                   display: 'grid',
                   gridTemplateColumns: `repeat(${grid}, ${cellSize}px)`,
                   gridAutoRows: `${cellSize}px`,
-                  gap: 12,
+                  gap: `${cellGap}px`,
                   justifyContent: 'center',
-                  margin: '18px auto'
+                  margin: '18px auto',
+                  // set explicit width so the page always encloses the grid exactly
+                  width: `${grid * cellSize + (Math.max(0, grid - 1) * cellGap)}px`,
+                  maxWidth: '100%',
+                  boxSizing: 'border-box'
                 }}
               >
                 {items.map(it=> (

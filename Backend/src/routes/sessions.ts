@@ -511,17 +511,65 @@ router.get('/:id/leaderboard', async (req, res) => {
     const mapped = (docs || []).map((d: any) => {
       try {
         const out = { ...d }
+        // flatten highscores into top-level when not present
         if (out.highscores && typeof out.highscores === 'object') {
           for (const k of Object.keys(out.highscores)) {
-            // Do not overwrite existing top-level fields
             if (typeof out[k] === 'undefined') out[k] = out.highscores[k]
           }
         }
+
+        // compute aggregated total from any numeric key containing 'score'/'highscore'
+        let total = 0
+        const seen = new Set<string>()
+        for (const key of Object.keys(out)) {
+          try {
+            const lk = String(key).toLowerCase()
+            if (lk === 'highscores' || lk === 'score') continue
+            if (lk.includes('score') || lk.includes('highscore')) {
+              const raw = out[key]
+              const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+              if (!Number.isNaN(n)) {
+                total += Number(n)
+                seen.add(lk)
+              }
+            }
+          } catch {
+            /* ignore per-key */
+          }
+        }
+        // also include nested highscores entries that weren't present at top-level
+        try {
+          const hs = out.highscores as Record<string, unknown> | undefined
+          if (hs && typeof hs === 'object') {
+            for (const k of Object.keys(hs)) {
+              try {
+                const lk = String(k).toLowerCase()
+                if (seen.has(lk)) continue
+                const raw = hs[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) {
+                  total += Number(n)
+                }
+              } catch { /* ignore */ }
+            }
+          }
+        } catch { /* ignore highscores */ }
+
+        out.score = Number.isNaN(total) ? 0 : total
         return out
       } catch (e) {
-        // fallback to original doc on any error
         return d
       }
+    })
+
+    // sort by computed score desc then name
+    mapped.sort((a: any, b: any) => {
+      const sa = (a && typeof a.score === 'number') ? a.score : 0
+      const sb = (b && typeof b.score === 'number') ? b.score : 0
+      if (sa !== sb) return sb - sa
+      const na = String(a.name || '').toLowerCase()
+      const nb = String(b.name || '').toLowerCase()
+      return na.localeCompare(nb)
     })
 
     return res.json({ leaderboard: mapped })
