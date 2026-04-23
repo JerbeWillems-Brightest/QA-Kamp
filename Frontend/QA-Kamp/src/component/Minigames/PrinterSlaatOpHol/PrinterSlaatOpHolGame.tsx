@@ -22,13 +22,28 @@ const BAD_FEEDBACK_LIST = ['Fout!', 'Helaas!', 'Probeer opnieuw']
 type AgeGroup = '8-10' | '11-13' | '14-16'
 
 interface EndResults { score: number; timeMs: number; mistakes: number }
-interface Props { ageGroup?: AgeGroup; onEnd?: (results: EndResults) => void }
+interface Props { ageGroup?: AgeGroup; onEnd?: (results: EndResults) => void; networkKey?: string }
 
 type Item = { id:number; text?:string; icon?: string; x:number; y:number; isOdd?:boolean }
 
 const GRID_BY_AGE: Record<AgeGroup, number> = { '8-10': 3, '11-13': 4, '14-16': 5 }
 
-export default function PrinterSlaatOpHolGame({ ageGroup, onEnd }: Props) {
+export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: Props) {
+  // accept an optional networkKey prop (from ?key= in URL) so player and
+  // organiser on separate devices can pair. If provided, persist it to
+  // sessionStorage.playerActiveGame (merge with existing) so other parts of
+  // the app that read sessionStorage see the join key.
+  useEffect(() => {
+    try {
+      if (!networkKey) return
+      const raw = sessionStorage.getItem('playerActiveGame')
+      let obj: Record<string, unknown> = raw ? JSON.parse(raw) as Record<string, unknown> : {}
+      if (!obj || typeof obj !== 'object') obj = {}
+      // do not overwrite existing key unless explicitly provided
+      if (obj.key !== networkKey) obj.key = networkKey
+      try { sessionStorage.setItem('playerActiveGame', JSON.stringify(obj)) } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }, [networkKey])
   const [running, setRunning] = useState(false)
   const [showTutorial, setShowTutorial] = useState(true)
   const [showIntro, setShowIntro] = useState(true)

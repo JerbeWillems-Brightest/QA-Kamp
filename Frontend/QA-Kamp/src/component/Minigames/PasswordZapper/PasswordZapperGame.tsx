@@ -558,9 +558,23 @@ interface Props {
   ageGroup: "8-10" | "11-13" | "14-16";
   // optional testing hook: provide deterministic initial passwords
   initialPasswords?: PasswordItem[];
+  // optional network join key forwarded from MinigamePage (?key=)
+  networkKey?: string;
 }
 
-const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => {
+const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, networkKey }) => {
+  // accept optional network key forwarded from URL; persist into
+  // sessionStorage.playerActiveGame so cross-device pairing can find the key
+  useEffect(() => {
+    try {
+      if (!networkKey) return
+      const raw = sessionStorage.getItem('playerActiveGame')
+      let obj: Record<string, unknown> = raw ? JSON.parse(raw) as Record<string, unknown> : {}
+      if (!obj || typeof obj !== 'object') obj = {}
+      if (obj.key !== networkKey) obj.key = networkKey
+      try { sessionStorage.setItem('playerActiveGame', JSON.stringify(obj)) } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }, [networkKey])
   const [passwords, setPasswords] = useState<PasswordItem[]>([]);
   // currentIdx removed: we use per-lane indices and zapAt/skipAt handlers
   const [score, setScore] = useState(0);
