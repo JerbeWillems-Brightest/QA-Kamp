@@ -310,8 +310,53 @@ router.post('/:id/players', async (req, res) => {
         category: p.category || 'unknown',
         // imported players should start offline — lastSeen is null
         lastSeen: null,
-        // initial score is zero
-        score: 0,
+        // collect per-game highscores (if provided) and compute initial aggregated score
+        // Accept either a nested `highscores` object or flat per-game keys like `score_passwordzapper`.
+        highscores: (() => {
+          try {
+            const incoming: Record<string, number> = {}
+            if (p.highscores && typeof p.highscores === 'object') {
+              for (const k of Object.keys(p.highscores)) {
+                const raw = (p.highscores as Record<string, unknown>)[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) incoming[k] = Number(n)
+              }
+            }
+            for (const k of Object.keys(p)) {
+              const lk = String(k).toLowerCase()
+              if (lk.startsWith('score_') || lk.includes('highscore')) {
+                const raw = (p as Record<string, unknown>)[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) incoming[k] = Number(n)
+              }
+            }
+            return incoming
+          } catch {
+            return {}
+          }
+        })(),
+        // compute initial aggregated total from provided highscores (fallback 0)
+        score: (() => {
+          try {
+            let t = 0
+            const hs = p.highscores && typeof p.highscores === 'object' ? { ...(p.highscores as Record<string, unknown>) } : {}
+            // include any flat per-game keys too
+            for (const k of Object.keys(p)) {
+              const lk = String(k).toLowerCase()
+              if (lk.startsWith('score_') || lk.includes('highscore')) {
+                hs[k] = (p as Record<string, unknown>)[k]
+              }
+            }
+            for (const k of Object.keys(hs)) {
+              try {
+                const raw = hs[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) t += Number(n)
+              } catch { /* ignore per-key */ }
+            }
+            return Number.isNaN(t) ? 0 : t
+          } catch { return 0 }
+        })(),
       })
     }
 

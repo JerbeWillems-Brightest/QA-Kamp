@@ -556,6 +556,9 @@ describe('ManagePlayers (merged tests)', () => {
     mockFetchPlayers.mockResolvedValue({ players: allPlayers })
     localStorage.setItem('currentSessionId', 'sgenfail')
 
+    // force random to throw so generateUniqueNumber exits quickly instead of looping forever
+    const randSpy = vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('force random failure') })
+
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -569,6 +572,9 @@ describe('ManagePlayers (merged tests)', () => {
     // click add to trigger generation flow which will fail and produce an error message
     fireEvent.click(screen.getByText(/Spelers toevoegen/i))
     await waitFor(() => expect(screen.getByText(/Kon geen uniek spelersnummer genereren/i)).toBeDefined())
+
+    // restore Math.random for other tests
+    randSpy.mockRestore()
   })
 
   // New test: updatePlayerInSession rejection shows error message
@@ -1098,6 +1104,9 @@ describe('ManagePlayers additional tests', () => {
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'genfail2')
 
+        // force random to throw so generateUniqueNumber exits quickly instead of looping forever
+        const randSpy = vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('force random failure') })
+
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1107,6 +1116,8 @@ describe('ManagePlayers additional tests', () => {
         await waitFor(() => {
             expect(screen.getByText(/handmatig één toe/i)).toBeDefined()
         })
+
+        randSpy.mockRestore()
     })
 
     // ---------- localStorage fallback ----------

@@ -54,9 +54,11 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [elapsedMs, setElapsedMs] = useState(0)
   // start a bit larger so grid appears larger on first render
   // start smaller so the grid is more compact by default
-  const [cellSize, setCellSize] = useState<number>(72)
+  // start noticeably larger so the grid appears bigger on first render
+  const [cellSize, setCellSize] = useState<number>(96)
   // gap between cells (kept in state so render uses same value as computeSize)
-  const [cellGap, setCellGap] = useState<number>(8)
+  // slightly increased default gap to keep larger cells visually separated
+  const [cellGap, setCellGap] = useState<number>(10)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [shouldFinishAfterTransition, setShouldFinishAfterTransition] = useState(false)
   const [isEntering, setIsEntering] = useState(false)
@@ -77,6 +79,13 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const rafRef = useRef<number | null>(null)
   const gameContentRef = useRef<HTMLDivElement | null>(null)
   const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // track used 'cores' (logical icon groups) during the current playthrough; cleared on end
+  const usedCoresRef = useRef<Set<string>>(new Set())
+
+  // When end screen is shown, clear the used cores so a new playthrough can reuse icons
+  useEffect(() => {
+    try { if (showEnd) usedCoresRef.current.clear() } catch { /* ignore */ }
+  }, [showEnd])
 
   useEffect(() => {
     if (running) {
@@ -173,20 +182,43 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       wrongMap = Object.keys(wrong1416ByCore).length ? wrong1416ByCore : wrong1113ByCore
     }
 
-    // build list of candidate cores that have both a base and a wrong icon
-    const candidates = Object.keys(baseMap).filter(c => typeof wrongMap[c] === 'string')
-    // fallback: if none matched, use any base from baseMap
-    const baseKeys = Object.keys(baseMap)
-    const chosenCore = (candidates.length > 0) ? candidates[Math.floor(Math.random() * candidates.length)] : (baseKeys[Math.floor(Math.random() * Math.max(1, baseKeys.length))] || '')
-    const baseUrl = baseMap[chosenCore] || (baseKeys.length ? baseMap[baseKeys[Math.floor(Math.random() * baseKeys.length)]] : undefined)
-    const wrongValues = Object.values(wrongMap)
-    const wrongUrl = (chosenCore && wrongMap[chosenCore]) ? wrongMap[chosenCore] : (wrongValues.length ? wrongValues[Math.floor(Math.random() * wrongValues.length)] : undefined)
+    // Choose a core (matching base + wrong) per round and prefer unused cores.
+    const cores = Object.keys(baseMap)
+    const coresWithWrong = cores.filter(c => typeof wrongMap[c] === 'string')
 
+    // Prefer cores that haven't been used yet
+    const unusedCores = coresWithWrong.filter(c => !usedCoresRef.current.has(c))
+    let coreChoice: string | undefined
+    if (unusedCores.length > 0) coreChoice = unusedCores[Math.floor(Math.random() * unusedCores.length)]
+    else if (coresWithWrong.length > 0) coreChoice = coresWithWrong[Math.floor(Math.random() * coresWithWrong.length)]
+    else if (cores.length > 0) coreChoice = cores[Math.floor(Math.random() * cores.length)]
+
+    let baseChoice: string | undefined
+    let wrongChoice: string | undefined
+    if (coreChoice) {
+      baseChoice = baseMap[coreChoice]
+      wrongChoice = wrongMap[coreChoice]
+    }
+
+    // Fallbacks if the chosen core doesn't provide assets
+    if ((!baseChoice || !wrongChoice) && Object.keys(baseMap).length > 0) {
+      const baseUrls = Object.values(baseMap).filter(Boolean) as string[]
+      const wrongUrls = Object.values(wrongMap).filter(Boolean) as string[]
+      if (!baseChoice && baseUrls.length > 0) baseChoice = baseUrls[Math.floor(Math.random() * baseUrls.length)]
+      if (!wrongChoice && wrongUrls.length > 0) wrongChoice = wrongUrls[Math.floor(Math.random() * wrongUrls.length)]
+    }
+
+    // Build the grid: one random cell is the wrongChoice, rest are baseChoice
     const oddIndex = Math.floor(Math.random() * total)
     for (let i = 0; i < total; i++) {
       const isOdd = i === oddIndex
-      nextItems.push({ id: i + 1, icon: isOdd ? wrongUrl : baseUrl, x: (i % grid), y: Math.floor(i / grid), isOdd })
+      const iconUrl = isOdd ? wrongChoice : baseChoice
+      nextItems.push({ id: i + 1, icon: iconUrl, x: (i % grid), y: Math.floor(i / grid), isOdd })
     }
+
+    // Mark the core as used for this playthrough
+    try { if (coreChoice) usedCoresRef.current.add(coreChoice) } catch { /* ignore */ }
+
     setItems(nextItems)
     // trigger enter animation for the fresh sheet
     setIsEntering(true)
@@ -207,21 +239,25 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       if (effectiveAge === '11-13') {
         // slightly smaller and tighter layout for mid-group
         gap = 16
-        minCell = 72
-        maxCell = 340
+        // increase minimum cell so grid looks larger by default
+        minCell = 96
+        // increase maximum so large viewports allow visibly bigger cells
+        maxCell = 420
         reservedVertical = 110
       } else if (effectiveAge === '8-10') {
         // make grid more compact for younger group
         gap = 20
-        minCell = 88
-        maxCell = 360
+        // make cells larger for younger kids so items are easier to tap/see
+        minCell = 112
+        maxCell = 420
         reservedVertical = 140
       } else {
         // 14-16
         // make the oldest group's grid denser/smaller so a 5x5 fits comfortably
-        gap = 10
-        minCell = 52
-        maxCell = 200
+        gap = 12
+        // increase minCell moderately so 5x5 remains usable but larger than before
+        minCell = 72
+        maxCell = 260
         reservedVertical = 82
       }
 
@@ -397,8 +433,6 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     } catch { /* ignore */ }
   }, [])
 
-  // ...existing code...
-
   // Persist player's highscore when the end screen is shown so the organiser
   // scoreboard can pick it up. Mirrors the behavior in PasswordZapper.
   useEffect(() => {
@@ -411,11 +445,15 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         const totalCorrect = Math.min(Math.max(0, round), TOTAL_ROUNDS)
         const appliedTimePenalties = (penaltyIndexRef.current || 0) * 2
         const computedFinal = Math.max(0, (totalCorrect * 2) - mistakes - appliedTimePenalties)
-        // Update local stored highscore (keep max)
+        // Update local stored highscore (keep max) and compute the authoritative
+        // finalHigh value we will persist to the backend. Keep this value in
+        // scope so the same number is used for comparisons, payloads and
+        // signalling (matches PasswordZapper behaviour).
+        let finalHigh = computedFinal
         try {
           const existingRaw = localStorage.getItem(localKey)
           const existingNum = existingRaw ? (Number(existingRaw) || 0) : 0
-          const finalHigh = Math.max(existingNum || 0, computedFinal, score)
+          finalHigh = Math.max(existingNum || 0, computedFinal, score)
           localStorage.setItem(localKey, String(finalHigh))
           try { setHighScore(finalHigh); setIsNewHigh(finalHigh > (existingNum || 0)); } catch { /* ignore */ }
         } catch { /* ignore localStorage errors */ }
@@ -467,7 +505,10 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                 const existingScoreVal = typeof existingGameScore === 'number' ? existingGameScore : existingLegacy
                 if (typeof existingScoreVal === 'number' && !Number.isNaN(existingScoreVal)) {
                   const existingScoreNum = existingScoreVal as number
-                  if (existingScoreNum >= score) shouldUpdate = false
+                  // Compare against the authoritative finalHigh (not the
+                  // ephemeral `score` state) so we don't skip updates when the
+                  // computed final score would actually be higher.
+                  if (existingScoreNum >= finalHigh) shouldUpdate = false
                 }
                 const catVal = found['category']
                 if (typeof catVal === 'string' && catVal) foundCategory = catVal
@@ -510,7 +551,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                 }
               } catch { /* ignore highscores */ }
             } catch { /* ignore */ }
-            const finalScoreForPayload = computedFinal
+            // Use finalHigh (the same value we stored locally) for payload so
+            // comparisons and stored values remain consistent.
+            const finalScoreForPayload = finalHigh
             const aggregated = finalScoreForPayload + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
             // Send both legacy top-level keys and an explicit `highscores` object
             // so the backend will merge the per-game field into the stored
@@ -527,9 +570,11 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
             }
 
             // Notify other tabs/organiser UI quickly via localStorage key
-            try {
+              try {
               const key = 'pz_score_update'
-              const payload2 = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score, ts: Date.now() })
+              // Signal the authoritative persisted score (finalHigh) so
+              // listeners receive a consistent value.
+              const payload2 = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() })
               localStorage.setItem(key, payload2)
               // dispatch storage event for other tabs
               try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload2 })) } catch { /* ignore */ }
@@ -649,7 +694,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     return (
       <div
         className="pz-layout printer-root"
-        style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
+        style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
       >
         {/* blurred background so the popup matches the game's background */}
         <div className="game-area printer-area">
@@ -677,7 +722,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     return (
       <div
         className="pz-layout printer-root"
-        style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
+        style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
       >
         {/* blurred background so the popup matches the game's background */}
         <div className="game-area printer-area">
@@ -707,7 +752,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   // Help modal (triggered by question mark) - shows rules but does NOT pause the game
   if (showHelp) {
     return (
-      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
         <div className="game-area printer-area">
           <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         </div>
@@ -733,7 +778,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   // Hint modal (auto-open after 3 mistakes or from hint button)
   if (showHint) {
     return (
-      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
         <div className="game-area printer-area">
           <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         </div>
@@ -759,7 +804,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   // Pause modal overlay (matches PasswordZapper behavior)
   if (paused) {
     return (
-      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
         <div className="game-area printer-area">
           <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         </div>
@@ -860,7 +905,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   return (
     <div
       className="pz-layout printer-root"
-      style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'calc(var(--footer-height) + var(--bottombar-height))', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
+      style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
     >
         {/* Score and progress UI (matches PasswordZapper layout) */}
         { /* totalRounds: same as rounds used in game logic (finish at 10) */ }
