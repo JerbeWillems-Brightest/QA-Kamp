@@ -485,30 +485,32 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
               if (found) {
                 // The backend may store per-game values either as top-level
                 // keys (e.g. `score_printerslaatophol`) or inside the
-                // `highscores` object. Accept either location when checking
-                // an existing value so we don't overwrite a higher stored
-                // highscore.
+                // `highscores` object. Only consider the explicit per-game
+                // field when deciding whether to skip updating this game's
+                // highscore. Do NOT use the legacy aggregated `score` to
+                // prevent storing a missing per-game value.
                 let existingGameScore: number | undefined = undefined
                 try {
-                  if (typeof found['score_printerslaatophol'] === 'number') existingGameScore = Number(found['score_printerslaatophol'])
+                  const rawTop = (found as Record<string, unknown>)['score_printerslaatophol']
+                  if (typeof rawTop === 'number' && !Number.isNaN(rawTop)) existingGameScore = Number(rawTop)
+                  else if (typeof rawTop === 'string' && rawTop.trim() !== '' && !Number.isNaN(Number(rawTop))) existingGameScore = Number(rawTop)
                 } catch { /* ignore */ }
                 try {
-                  const hs = (found as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
-                  if (typeof existingGameScore !== 'number' && hs && typeof hs['score_printerslaatophol'] !== 'undefined') {
-                    const raw = hs['score_printerslaatophol']
-                    const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
-                    if (!Number.isNaN(n)) existingGameScore = Number(n)
+                  if (typeof existingGameScore !== 'number') {
+                    const hs = (found as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+                    if (hs && typeof hs['score_printerslaatophol'] !== 'undefined') {
+                      const raw = hs['score_printerslaatophol']
+                      const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                      if (!Number.isNaN(n)) existingGameScore = Number(n)
+                    }
                   }
                 } catch { /* ignore */ }
 
-                const existingLegacy = (typeof found['score'] === 'number') ? Number(found['score']) : undefined
-                const existingScoreVal = typeof existingGameScore === 'number' ? existingGameScore : existingLegacy
-                if (typeof existingScoreVal === 'number' && !Number.isNaN(existingScoreVal)) {
-                  const existingScoreNum = existingScoreVal as number
-                  // Compare against the authoritative finalHigh (not the
-                  // ephemeral `score` state) so we don't skip updates when the
-                  // computed final score would actually be higher.
-                  if (existingScoreNum >= finalHigh) shouldUpdate = false
+                if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore)) {
+                  // Compare against the authoritative finalHigh and skip only
+                  // when an explicit per-game highscore already exists and
+                  // is >= the new value.
+                  if (existingGameScore >= finalHigh) shouldUpdate = false
                 }
                 const catVal = found['category']
                 if (typeof catVal === 'string' && catVal) foundCategory = catVal
