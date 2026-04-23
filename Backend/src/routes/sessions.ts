@@ -498,8 +498,33 @@ router.get('/:id/leaderboard', async (req, res) => {
     res.set('Vary', 'Origin')
     const { id } = req.params
     // return players with name, playerNumber, category, score sorted by score desc
-    const list = await Player.find({ sessionId: id }).select('name playerNumber category score').sort({ score: -1 })
-    return res.json({ leaderboard: list })
+    // Also include per-game highscores so frontends can sum individual game
+    // values (e.g. score_passwordzapper / score_printerslaatophol). To be
+    // robust across backend/frontend versions we flatten the `highscores`
+    // object into top-level keys in the returned player objects while
+    // preserving existing top-level fields.
+    const docs = await Player.find({ sessionId: id })
+      .select('name playerNumber category score highscores')
+      .lean()
+      .sort({ score: -1 })
+
+    const mapped = (docs || []).map((d: any) => {
+      try {
+        const out = { ...d }
+        if (out.highscores && typeof out.highscores === 'object') {
+          for (const k of Object.keys(out.highscores)) {
+            // Do not overwrite existing top-level fields
+            if (typeof out[k] === 'undefined') out[k] = out.highscores[k]
+          }
+        }
+        return out
+      } catch (e) {
+        // fallback to original doc on any error
+        return d
+      }
+    })
+
+    return res.json({ leaderboard: mapped })
   /* istanbul ignore next */
   } catch (err) {
     console.error('Leaderboard error:', err)
