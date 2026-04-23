@@ -327,25 +327,67 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
     // Aggregate any numeric score/highscore fields. Different backend versions
     // may use different keys (legacy `score`, per-game fields like
     // `score_passwordzapper`/`score_printerslaatophol`, or category keys like
-    // `pz_highscore_passwordzapper_11-13`). To be robust, sum any property
-    // whose key contains 'score' or 'highscore' and whose value is numeric.
+    // `pz_highscore_passwordzapper_11-13`). Prefer summing explicit per-game
+    // keys and `highscores` entries when present. If no per-game/highscore
+    // fields exist, fall back to the legacy `score` field. This prevents
+    // double-counting when the backend returns both `score` (aggregated)
+    // and per-game keys.
     let total = 0
+    let foundPerGame = false
+
+    // include explicit per-key fields (e.g. score_passwordzapper)
+    const seenKeys = new Set<string>()
     for (const key of Object.keys(bp)) {
       try {
         const lk = key.toLowerCase()
+        // treat 'score' specially (legacy) — skip here and handle later
+        if (lk === 'score' || lk === 'highscores') continue
         if (lk.includes('score') || lk.includes('highscore')) {
           const raw = bp[key]
           const n = Number(raw)
           if (!Number.isNaN(n)) {
             total += n
+            foundPerGame = true
+            seenKeys.add(lk)
           }
         }
       } catch {
         // ignore non-enumerable or weird keys
       }
     }
-    // Always expose a numeric score (0 when nothing found) so UI/scoreboard
-    // components can reliably render a total.
+
+    // also include values stored inside a nested `highscores` object if present
+    try {
+      const hs = (bp as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+      if (hs && typeof hs === 'object') {
+        for (const k of Object.keys(hs)) {
+          try {
+            const lk = String(k).toLowerCase()
+            if (seenKeys.has(lk)) continue
+            const raw = hs[k]
+            const n = Number(raw)
+            if (!Number.isNaN(n)) {
+              total += n
+              foundPerGame = true
+              seenKeys.add(lk)
+            }
+          } catch {
+            /* ignore per-key */
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!foundPerGame) {
+      // No per-game/highscore keys found: use legacy `score` if present
+      const legacyRaw = (bp['score'] !== undefined) ? bp['score'] : undefined
+      const legacy = typeof legacyRaw === 'number' ? legacyRaw : (typeof legacyRaw === 'string' ? Number(legacyRaw) : NaN)
+      total = !Number.isNaN(legacy) ? legacy : 0
+    }
+
+    // Always expose a numeric score so UI/scoreboard components can reliably render a total.
     out.score = Number.isNaN(total) ? 0 : total
     return out
   })
