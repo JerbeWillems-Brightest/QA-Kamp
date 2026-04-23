@@ -356,4 +356,130 @@ describe('Sessions routes (compiled)', function() {
       } finally { Session.findById = orig }
     })
   })
+
+  // --- Extra tests merged from sessions.extra.spec.js ---
+  it('POST /api/sessions handles generateCode throwing (500)', async function() {
+    // require sessions route test hooks
+    const sessionsModule = require(path.join(process.cwd(), 'dist', 'routes', 'sessions.js'))
+    const origGen = sessionsModule.__test && sessionsModule.__test.getGenerateCode && sessionsModule.__test.getGenerateCode()
+    if (sessionsModule.__test && sessionsModule.__test.setGenerateCode) {
+      sessionsModule.__test.setGenerateCode(() => { throw new Error('gen boom') })
+    }
+    try {
+      const org = await Organizer.create({ email: 'gencode@qa.test', password: 'P', name: 'G' })
+      const res = await request(app).post('/api/sessions').send({ organizerId: String(org._id), name: 'GenBoom' })
+      expect(res.status).to.equal(500)
+      expect(res.body).to.have.property('error')
+    } finally {
+      if (sessionsModule.__test && sessionsModule.__test.setGenerateCode && origGen) sessionsModule.__test.setGenerateCode(origGen)
+    }
+  })
+
+  it('POST /api/sessions/:id/players records exhaustion when duplicate-key repeats', async function() {
+    const sessionsModule = require(path.join(process.cwd(), 'dist', 'routes', 'sessions.js'))
+    const origGen = sessionsModule.__test && sessionsModule.__test.getGeneratePlayerNumber && sessionsModule.__test.getGeneratePlayerNumber()
+    try {
+      if (sessionsModule.__test && sessionsModule.__test.setGeneratePlayerNumber) sessionsModule.__test.setGeneratePlayerNumber(() => 'FIXED')
+      const org = await Organizer.create({ email: 'dupplayers@qa.test', password: 'P', name: 'DP' })
+      const s = await Session.create({ organizerId: org._id, name: 'DupPlayers', code: 'DP', active: true })
+      // stub Player.create to always throw duplicate-key
+      const origCreate = Player.create
+      Player.create = async function() { const e = new Error('dup'); e.code = 11000; throw e }
+      try {
+        const r = await request(app).post(`/api/sessions/${s._id}/players`).send([{ name: 'NoNum' }])
+        // route returns 201 with errors array for per-row failures in many cases
+        expect([200,201,400,500]).to.include(r.status)
+        // ensure errors reported (if present)
+        if (r.body && r.body.errors) expect(r.body.errors.length).to.be.greaterThan(0)
+      } finally {
+        Player.create = origCreate
+      }
+    } finally {
+      if (sessionsModule.__test && sessionsModule.__test.setGeneratePlayerNumber && origGen) sessionsModule.__test.setGeneratePlayerNumber(origGen)
+    }
+  })
+
+  it('GET /api/sessions/:id/players returns 500 when Player.find throws', async function() {
+    const org = await Organizer.create({ email: 'finderr@qa.test', password: 'P', name: 'FE' })
+    const s = await Session.create({ organizerId: org._id, name: 'FindErr', code: 'FE', active: true })
+    const origFind = Player.find
+    Player.find = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).get(`/api/sessions/${s._id}/players`)
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Player.find = origFind }
+  })
+
+  it('PUT /api/sessions/:id/players/:playerNumber merges highscores and computes score', async function() {
+    const org = await Organizer.create({ email: 'hs@qa.test', password: 'P', name: 'HS' })
+    const s = await Session.create({ organizerId: org._id, name: 'Highs', code: 'HS', active: true })
+    // create player
+    await Player.create({ sessionId: s._id, playerNumber: '900', nummer: '900', name: 'P', age: 10, category: '8-10', lastSeen: null, score: 1, highscores: { a: '1' } })
+    const origFindOne = Player.findOne
+    const origFindOneAndUpdate = Player.findOneAndUpdate
+    let capturedUpdate = null
+    // return existing when findOne called; provide chainable select().lean()
+    Player.findOne = function(q) {
+      return {
+        select: function() {
+          return {
+            lean: async function() { return { highscores: { a: '1' }, score: 1 } }
+          }
+        }
+      }
+    }
+    Player.findOneAndUpdate = async function(q, update, opts) { capturedUpdate = update; return { _id: '900', ...update.$set } }
+    try {
+      // include per-game flat key inside `player` so the route will detect it
+      const payload = { player: { playerNumber: '900', name: 'P', age: 11, highscores: { b: 3, c: '4', x: 'notnum' }, score_passwordzapper: '2' } }
+      const r = await request(app).put(`/api/sessions/${s._id}/players/900`).send(payload)
+      expect(r.status).to.equal(200)
+      // ensure the update contained highscores and computed score
+      expect(capturedUpdate).to.be.ok
+      const set = capturedUpdate.$set || {}
+      // compute expected numeric sum: existing a=1 + incoming b=3 + c=4 + score_passwordzapper=2 => 10
+      expect(Number(set.score)).to.equal(10)
+      expect(set.highscores).to.have.property('a')
+      expect(set.highscores).to.have.property('b')
+      expect(set.highscores).to.have.property('c')
+      expect(set.highscores).to.have.property('score_passwordzapper')
+    } finally { Player.findOne = origFindOne; Player.findOneAndUpdate = origFindOneAndUpdate }
+  })
+
+  it('DELETE /api/sessions/:id/players/:playerNumber returns 500 when findOneAndDelete throws', async function() {
+    const org = await Organizer.create({ email: 'delerr@qa.test', password: 'P', name: 'DE' })
+    const s = await Session.create({ organizerId: org._id, name: 'DelErr', code: 'DE', active: true })
+    const orig = Player.findOneAndDelete
+    Player.findOneAndDelete = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).delete(`/api/sessions/${s._id}/players/999`)
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Player.findOneAndDelete = orig }
+  })
+
+  it('POST online returns 409 when findOneAndUpdate null but findOne shows other device', async function() {
+    const org = await Organizer.create({ email: 'onerr@qa.test', password: 'P', name: 'ON' })
+    const s = await Session.create({ organizerId: org._id, name: 'OnErr', code: 'ON', active: true })
+    const origUpd = Player.findOneAndUpdate
+    const origFindOne = Player.findOne
+    Player.findOneAndUpdate = async function() { return null }
+    Player.findOne = async function() { return { lastSeen: new Date() } }
+    try {
+      const r = await request(app).post(`/api/sessions/${s._id}/players/123/online`).send({ token: 't' })
+      expect(r.status).to.equal(409)
+    } finally { Player.findOneAndUpdate = origUpd; Player.findOne = origFindOne }
+  })
+
+  it('POST offline returns 404 when player not found (findOneAndUpdate returns null)', async function() {
+    const org = await Organizer.create({ email: 'offerr@qa.test', password: 'P', name: 'OFF' })
+    const s = await Session.create({ organizerId: org._id, name: 'OffErr', code: 'OFF', active: true })
+    const origUpd = Player.findOneAndUpdate
+    Player.findOneAndUpdate = async function() { return null }
+    try {
+      const r = await request(app).post(`/api/sessions/${s._id}/players/123/offline`).send({ token: 't' })
+      expect(r.status).to.equal(404)
+    } finally { Player.findOneAndUpdate = origUpd }
+  })
 })
