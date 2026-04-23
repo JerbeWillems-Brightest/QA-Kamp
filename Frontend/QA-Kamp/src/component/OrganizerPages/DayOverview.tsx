@@ -13,6 +13,7 @@ import ManagePlayers from './ManagePlayers'
 
 export default function DayOverview() {
   const [showManage, setShowManage] = useState(false)
+  const [showStopConfirm, setShowStopConfirm] = useState(false)
   const modalRef = useRef<HTMLDivElement | null>(null)
   const auth = useAuth()
   const navigate = useNavigate()
@@ -66,6 +67,25 @@ export default function DayOverview() {
   async function handleStop() {
     const sessionIdLocal = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sessionIdLocal) return setError('Geen actieve sessie gevonden')
+
+    // New validation: don't allow stopping the QA-kamp while a game is still active.
+    // We read directly from localStorage so we have the latest cross-tab state.
+    try {
+      const rawActive = localStorage.getItem('activeGameInfo')
+      if (rawActive) {
+        try {
+          const parsed = JSON.parse(rawActive) as { game?: string; day?: string } | null
+          if (parsed && parsed.game) {
+            setError('Er is nog een spel bezig — stop eerst het spel voordat je het QA-kamp stopt')
+            return
+          }
+        } catch {
+          // malformed JSON — ignore and proceed
+        }
+      }
+    } catch {
+      // localStorage may throw in some environments — ignore and continue
+    }
 
     try {
       await deleteSession(sessionIdLocal)
@@ -290,7 +310,14 @@ export default function DayOverview() {
             <div style={styles.buttonsWrap}>
               <button id="ScoreboardBtn" onClick={() => hasSession ? navigate('/scoreboard') : setError('Geen actieve sessie')} style={{ ...styles.btn, ...styles.yellow, ...( !hasSession ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>Scorebord</button>
               <button onClick={() => setShowManage(true)} style={{ ...styles.btn, ...styles.yellow }}>Spelers beheren</button>
-              <button onClick={handleStop} disabled={!hasSession} title={!hasSession ? 'Geen actieve sessie om te stoppen' : 'Stop het huidige QA-kamp'} style={{ ...styles.btn, ...styles.red, ...( !hasSession ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}>QA kamp stoppen</button>
+              <button
+                onClick={() => setShowStopConfirm(true)}
+                disabled={!hasSession}
+                title={!hasSession ? 'Geen actieve sessie om te stoppen' : 'Stop het huidige QA-kamp'}
+                style={{ ...styles.btn, ...styles.red, ...( !hasSession ? { opacity: 0.5, cursor: 'not-allowed' } : {}) }}
+              >
+                QA kamp stoppen
+              </button>
              </div>
           </div>
         </div>
@@ -327,7 +354,79 @@ export default function DayOverview() {
            </div>
          </div>
        )}
-     {/* Modal for ManagePlayers */}
+    {/* Confirmation modal for stopping the camp */}
+    {showStopConfirm && (
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.28)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2500,
+          padding: 20,
+        }}
+        onClick={() => setShowStopConfirm(false)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            width: 'min(820px, 96%)',
+            background: 'white',
+            borderRadius: 12,
+            padding: 20,
+            boxShadow: '0 10px 30px rgba(0,0,0,0.22)',
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: 24, marginBottom: 10 }}>Ben je zeker dat je het QA-kamp wilt stoppen?</h2>
+          <p style={{ margin: 0, color: '#555', marginBottom: 18, fontSize: 16}}>
+            Spelersgegevens zullen verwijderd worden en deze actie kan niet ongedaan gemaakt worden.
+          </p>
+
+          <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+            <button
+              onClick={() => setShowStopConfirm(false)}
+              style={{
+                  color: "white",
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: '1px solid rgba(0,0,0,0.1)',
+                background: '#f2c200',
+                cursor: 'pointer',
+                fontWeight: 700,
+                  fontSize: 18
+              }}
+            >
+              Annuleren
+            </button>
+            <button
+              onClick={async () => {
+                setShowStopConfirm(false)
+                await handleStop()
+              }}
+              disabled={!hasSession}
+              style={{
+                padding: '10px 16px',
+                borderRadius: 8,
+                border: 'none',
+                background: '#e53b3b',
+                color: '#fff',
+                cursor: hasSession ? 'pointer' : 'not-allowed',
+                fontWeight: 800,
+                  fontSize: 18
+              }}
+              title="Stop het QA-kamp"
+            >
+              Stoppen
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </main>
   )
 }
+

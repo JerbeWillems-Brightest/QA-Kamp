@@ -1,5 +1,5 @@
 import './App.css'
-import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import HomePage from './component/LoginPages/HomePage'
 import OrganizerLogin from './component/LoginPages/OrganizerLogin'
 import StartSession from './component/OrganizerPages/StartSession'
@@ -7,12 +7,12 @@ import DayOverview from './component/OrganizerPages/DayOverview'
 import ManagePlayers from './component/OrganizerPages/ManagePlayers'
 import Scoreboard from './component/OrganizerPages/Scoreboard'
 import DayDashboard from './component/OrganizerPages/MinigamePages/DayDashboard.tsx'
+import MinigameLoader from './component/Minigames/MinigameLoader'
 import BrightestLogo from './assets/BrightestLogo.png'
 import { AuthProvider } from './context/AuthContext'
 import { SessionProvider } from './context/SessionContext'
 import Navbar from './component/Navbar'
 import WaitingRoom from './component/PlayerPages/WaitingRoom'
-import PlayerGame from './component/PlayerPages/PlayerGame'
 
 function App() {
     return (
@@ -31,8 +31,9 @@ function App() {
               <Route path="/start-session" element={<StartSession />} />
               <Route path="/day-overview" element={<DayOverview />} />
               <Route path="/day/:day" element={<DayDashboard />} />
+              <Route path="/minigame" element={<MinigameLoader />} />
+              <Route path="/minigame/passwordzapper" element={<MinigameLoader />} />
               <Route path="/player/waiting" element={<WaitingRoom />} />
-              <Route path="/player/game" element={<PlayerGame />} />
               <Route path="/manage-players" element={<ManagePlayers />} />
               <Route path="/scoreboard" element={<Scoreboard />} />
             </Routes>
@@ -56,7 +57,7 @@ function App() {
 
                  <div>
                      <h3>Pagina's</h3>
-                     <p><Link to="/organizer-login" style={{ color: 'inherit', textDecoration: 'none' }}>Organisator Login</Link></p>
+                     <p>Organisator Login</p>
                      <p>Overzicht Spellen</p>
                      <p>Minigames</p>
                  </div>

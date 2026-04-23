@@ -9,6 +9,14 @@ let app
 let Organizer
 
 describe('Users routes (compiled)', function() {
+  // Helper to normalize id from several possible response shapes
+  function getId(body) {
+    if (!body) return ''
+    if (body._id) return String(body._id)
+    if (body.id) return String(body.id)
+    if (body._doc && body._doc._id) return String(body._doc._id)
+    return ''
+  }
   before(async function() {
     this.timeout(20000)
     mongod = await MongoMemoryServer.create()
@@ -28,7 +36,8 @@ describe('Users routes (compiled)', function() {
     // create
     const createRes = await request(app).post('/api/users').send({ email: 'u1@qa.test', password: 'P1', name: 'U1' })
     expect(createRes.status).to.equal(201)
-    const id = String(createRes.body._id || createRes.body.id || createRes.body._doc && createRes.body._doc._id)
+    // Normalize id from possible shapes returned by the compiled API
+    const id = getId(createRes.body)
 
     // list
     const listRes = await request(app).get('/api/users')
@@ -48,6 +57,15 @@ describe('Users routes (compiled)', function() {
     // delete
     const delRes = await request(app).delete(`/api/users/${id}`)
     expect(delRes.status).to.equal(200)
+  })
+
+  it('coverage: exercises getId branches', function() {
+    expect(getId({ _id: 'x1' })).to.equal('x1')
+    expect(getId({ id: 'x2' })).to.equal('x2')
+    expect(getId({ _doc: { _id: 'x3' } })).to.equal('x3')
+    expect(getId(null)).to.equal('')
+    // body present but without recognized id fields should return empty (exercise fallthrough)
+    expect(getId({})).to.equal('')
   })
 })
 

@@ -1,0 +1,716 @@
+GAME 7: Printer slaat op hol
+EPIC 7 – Gameplay Design Document
+📖 1. Intro & Context
+User Story
+
+Als speler wil ik zien dat de printer op hol slaat en foutieve documenten print, zodat ik begrijp wat mijn opdracht is.
+
+Flow
+Speler start in een bureauruimte
+Printer begint automatisch documenten te printen
+Klik op printer/document opent uitleg pop-up
+Pop-up legt uit:
+Printer is defect
+Er zitten afwijkingen in documenten
+Doel: afwijkingen vinden
+Na sluiten start eerste level
+🧠 2. Core Gameplay – Afwijkingen vinden
+User Story
+
+Als speler wil ik het element dat niet in het patroon past kunnen aanklikken.
+
+Fit criteria
+Elk blad bevat exact 1 afwijking
+Klikbare elementen op het document
+Correcte klik
+Groene visuele feedback (highlight/cirkel)
+Positief geluid
+Volgend level wordt geladen
+Timer blijft lopen
+❌ 3. Foute klik feedback
+User Story
+
+Als speler wil ik feedback krijgen bij een foutieve klik.
+
+Fit criteria
+Geen level change bij fout
+Rood visueel effect (flits/shake)
+Optioneel foutgeluid
+Eventuele score-impact (indien actief)
+⏱️ 4. Tijdssysteem
+User Story
+
+Als speler wil ik onder tijdsdruk spelen.
+
+Fit criteria
+Timer zichtbaar of verborgen
+Start bij begin level
+Tijd op → level stopt
+Melding: “Te traag!”
+Totale speeltijd wordt bijgehouden
+📊 5. Moeilijkheidsgraad (leeftijdsgebonden)
+8–10 jaar
+Duidelijke verschillen
+Kleur / vormverschillen
+Grote objecten
+11–13 jaar
+Subtiele verschillen
+Lettertype / grootte / positie
+Visuele afleiding
+14–16 jaar
+Abstracte patronen
+Logische/structurele fouten
+Minimale visuele hints
+
+👉 Moeilijkheid wordt automatisch gekozen op basis van leeftijd
+
+🔁 6. Progressie & Rondes
+User Story
+
+Als speler wil ik meerdere documenten na elkaar oplossen.
+
+Fit criteria
+10 rondes totaal
+Na correcte klik → automatisch volgend document
+Moeilijkheid kan stijgen per level
+Na laatste ronde → eindscherm
+🏁 7. Eindscherm & Resultaten
+User Story
+
+Als speler wil ik mijn resultaat zien.
+
+Resultaten
+Aantal correcte afwijkingen
+Aantal fouten
+Totale tijd
+Extra
+Ranking/label:
+“Detail-expert”
+“Scherpe observator”
+Positieve afsluiting
+Knop: volgende game
+🧪 8. Spelregels & Startflow
+Startscenario
+Klik op printer om te starten
+Pop-up:
+“De printer is gek geworden!”
+Leeftijdsgebonden scenario
+Knop: Volgende
+🧩 9. Oefenronde
+Flow
+Pop-up: “Even oefenen!”
+Knoppen:
+Spelen
+Overslaan
+Oefenregels
+3 correcte antwoorden nodig
+Geen score tracking
+Einde oefenronde
+Pop-up:
+“Het echte spel begint nu”
+Knop: Spelen
+🎯 10. Puntensysteem (Echte game)
+Correcte keuze
++2 punten
+Volgend level
+Score update live
+Foute keuze
+-1 punt
+Blijf op zelfde level
+Score update live
+🎨 11. Visuele feedback
+Correct
+Groen highlight / animatie
+“Goed gedaan!”
+Verdwijnende feedback
+Fout
+Rood highlight / shake
+“Fout, probeer opnieuw”
+Blijft op hetzelfde scherm
+🧮 12. Grid & moeilijkheid
+Leeftijd	Grid	Aantal fouten
+8–10	3x3	15
+11–13	4x4	25
+14–16	5x5	30
+🧾 Samenvatting (Core Loop)
+Printer start → scenario
+Oefenronde (optioneel)
+10 levels
+Elke level:
+1 afwijking zoeken
+correct = next level
+fout = feedback + retry
+Eindscherm met score
+
+GAME 7: Printer slaat op hol
+EPIC 7 – Mini-game Design Document
+⏱️ 1. Duur van de mini-game
+Totale speeltijd: 10 minuten
+🧾 2. Beschrijving van het spel
+
+In dezelfde kantoorruimte als bij de “Wachtwoordkraker” is de printer door de Bug op hol geslagen en print honderden foutieve documenten.
+
+De speler moet voorkomen dat de baas dit merkt door de fouten uit de documenten te halen.
+
+Elke ronde krijgt de speler een rij objecten (beelden, symbolen of woorden) waarbij exact één element niet in het patroon past.
+
+👉 Doel: zo snel mogelijk alle afwijkingen vinden en aanklikken.
+
+🎯 3. Doelgroep & moeilijkheidsgraad
+Leeftijdsgroep	Aanpassing
+8–10 jaar	Eenvoudige visuele verschillen (kleur, vorm)
+11–13 jaar	Subtiele variaties (lettertype, grootte, positionering)
+14–16 jaar	Abstracte patronen (symmetrie, codepatronen, logische afwijkingen)
+🎮 4. Gameplay flow (stap-voor-stap)
+Speler start in bureauruimte met printer
+Printer begint automatisch documenten te printen
+Speler kan op printer klikken
+Intro pop-up verschijnt
+Uitleg over de situatie
+Doel van de game
+Gameplay start
+Speler ziet afgedrukt document
+Speler zoekt afwijking
+Correcte klik
+Volgend document (level) verschijnt
+Foute klik
+Geen progressie
+Eventueel foutgeluid / feedback
+🖱️ 5. Interactietype
+Click-to-select afwijkingen
+Timed challenge (timer actief)
+🎨 6. Design & UI-elementen
+Kantoorruimte met printer (setting)
+Afgedrukte pagina’s met:
+tekst
+logo’s
+afbeeldingen
+Exact 1 afwijking per pagina
+Visuele verschillen:
+kleur
+formaat
+oriëntatie
+Clickable hotspots op afwijkingen
+Timerbalk (zichtbaar of subtiel/verborgen)
+Feedbackanimaties:
+🟢 groen bij correct
+🔴 rood flash bij fout
+Geluidseffecten:
+klik
+fout
+success
+🧠 7. Spelregels & logica
+Actie	Gevolg	Feedback
+Klik op fout element	Volgende ronde start	✔ Goed – verder zoeken!
+Klik op lege/correcte plek	Blijft op zelfde ronde	✘ Niet correct
+📊 8. Progressie & structuur
+Elke pagina = 1 level
+1 afwijking per level
+Correct = automatisch next level
+Fout = retry huidige level
+Timer loopt door tijdens gameplay
+Eind na X rondes (bv. 10 levels)
+🧩 9. Oefening vs echte game
+Oefenfase
+3 correcte antwoorden nodig
+Geen score impact
+Uitleg wordt getoond
+Echte game
+Score actief
+Timer actief
+Fouten tellen mee
+🏁 10. Eindresultaat
+Aantal correcte afwijkingen
+Aantal fouten
+Totale tijd
+Ranking/label:
+“Detail-expert”
+“Scherpe observator”
+Eindscherm + doorgaan knop
+🧰 11. Assets & content nodig
+Printerruimte achtergrond (kantoor)
+Afgedrukte pagina templates
+Variaties per leeftijdsniveau
+Vooraf geplaatste afwijkingen
+Timer UI (balk of klok)
+Animaties:
+correct (groen)
+fout (rood)
+Geluiden:
+klik
+fout
+success
+Pop-up UI componenten
+⚙️ 12. Technische vereisten
+Level generator (random of preset)
+Detectie van klikbare hotspots
+Score tracking systeem
+Timer systeem (per level + totaal)
+Difficulty scaling op basis van leeftijd
+State management:
+oefenmodus
+actieve game
+eindscherm
+🔗 Inspiratie
+https://www.brainbashers.com/canyoufind1.asp
+https://www.brainbashers.com/oddoneout.asp
+
+
+
+
+
+
+
+GAME 3: BUG CLEANUP
+EPIC 3 – Core Game Design Document
+⏱️ 1. Doel van de game
+
+De speler ervaart een trage, geïnfecteerde computeromgeving waarin bugs (software fouten) verwijderd moeten worden om het systeem te herstellen.
+
+🎮 2. Gameplay concept
+
+De speler moet bugs aanklikken en verwijderen terwijl de interface traag reageert.
+
+👉 Kernmechanic:
+
+Cursor voelt “vertraagd” aan
+Bugs moeten fysiek geraakt worden door cursor/beweging
+Systeem herstelt stap voor stap
+🧠 3. Gameplay flow (high level)
+Start in Bug Cleanup omgeving
+Intro pop-up met speluitleg
+Oefenronde (optioneel)
+Echte game start
+Bugs verwijderen
+Score + penalties
+Eindscherm
+🖱️ 4. Cursor & movement mechanics
+Desktop
+Cursor volgt muis met vertraging
+Linkermuisknop ingedrukt = actief bewegen
+Bugs worden geraakt bij overlap
+Tablet / iPad
+Speler sleept vinger over scherm
+Tikt om bug te “verwijderen” wanneer overlap is bereikt
+Progressie effect
+Cursor wordt sneller na elke verwijderde bug
+🐞 5. Bugs mechanics
+User Story
+
+Als speler wil ik bugs kunnen aanklikken zodat de computer herstelt.
+
+Fit criteria
+Bugs verdwijnen bij klik/contact
+Nieuwe bugs verschijnen tot quota bereikt is
+Bij 0 bugs → herstelanimatie + einde level
+📊 6. Moeilijkheidsgraad
+Leeftijd	Aantal bugs	Zichtbaar tegelijk	Gedrag
+8–10	15	3	Groot + traag
+11–13	25	4	Kleiner + sneller
+14–16	30	4	Snelle kleine bugs + splitsing
+Extra gedrag (14–16)
+Grote bugs splitsen in 2 bij aanraking
+🧪 7. Oefenronde
+Start flow
+Pop-up:
+“Even oefenen!”
+Uitleg
+Knoppen:
+Spelen
+Overslaan
+Gameplay
+3 bugs correct verwijderen
+Geen score tracking
+Einde oefening
+Pop-up:
+“Het echte spel begint nu”
+“Punten tellen mee. Succes!”
+Knop: Spelen
+🏁 8. Game completion
+User Story
+
+Als speler wil ik dat het spel stopt wanneer alle bugs verwijderd zijn.
+
+Fit criteria
+Alle bugs verwijderd → game end
+Automatische redirect naar eindscherm
+Herstelanimatie zichtbaar
+🧮 9. Score systeem
+Correcte bug hit
++2 punten
+Bug verdwijnt
+Nieuwe bug spawns (indien beschikbaar)
+Score update live
+⏱️ 10. Performance penalties
+11–13 & 14–16 jaar
+1:30 → -2
+2:00 → -2
+2:30 → -2
+Elke 30 sec tot max 5:00
+8–10 jaar
+2:00 → -2
+3:00 → -2
+Daarna tot max 5:00
+Regels
+Elke penalty 1x per tijdsinterval
+Geen penalties na 5:00
+⚠️ 11. Feedback bij penalties
+Tekst: “-2”
+Rood boven timer
+Kort zichtbaar
+Score update direct
+🎨 12. UI & feedback design
+Correct bug removal
+Animatie bij verdwijnen
+“Goed gedaan!” popup
+Groen effect
+Fout / misclick (indien relevant)
+Subtiele feedback (optioneel rood flash)
+Geen progressie
+🖥️ 13. Intro & speluitleg flow
+Start game
+Speler komt in Bug Cleanup omgeving
+Klik start → pop-up:
+
+Titel: “Speluitleg - Bug Cleanup”
+
+Leeftijdsgebonden uitleg
+Knop: Volgende
+🧩 14. Assets nodig
+Bug sprites (verschillende types)
+Cursor smoothing system
+Delay movement system
+UI pop-ups
+Timer + penalty UI
+Animaties:
+bug death
+system restore
+Geluiden:
+click
+bug pop
+error
+success
+⚙️ 15. Technische vereisten
+Cursor interpolation (lag simulation)
+Touch + mouse input support
+Collision detection (cursor ↔ bug)
+Spawn system voor bugs
+Difficulty scaling engine
+Timer + penalty scheduler
+Score manager
+Game state machine:
+intro
+tutorial
+active game
+end screen
+🔗 Inspiratie
+(concept: latency / system cleanup gameplay)
+vergelijkbaar met “cursor lag simulation games”
+bug hunt / system repair mini-games
+🧾 Core loop samenvatting
+Intro + uitleg
+Oefenronde (3 bugs)
+Echte game
+Cursor traag → bugs zoeken
+Bugs verwijderen (+score)
+Penalties bij traagheid
+Alles weg → system restore
+Eindscore
+
+GAME 3: BUG CLEANUP
+EPIC 3 – Mini-game Design Document
+⏱️ 1. Duur van de mini-game
+10 – 15 minuten
+🧾 2. Beschrijving van het spel (educatief & technisch)
+
+De muis van de computer reageert plots heel traag en onnauwkeurig.
+
+Over het scherm zwermen verschillende “bugs” (blokjes, pixels of virussen) die de prestaties van het systeem verstoren.
+
+De speler moet met een trage, onnauwkeurige cursor bugs aanklikken om ze te verwijderen.
+
+👉 Hoe meer bugs worden verwijderd, hoe sneller en vloeiender de muis reageert.
+
+Zo leert de speler op speelse manier:
+
+impact van performanceproblemen
+systeemvervuiling
+optimalisatie door “cleanup”
+🎯 3. Doelgroep & moeilijkheidsgraad
+Leeftijdsgroep	Aanpassing
+8–10 jaar	Grote, duidelijke bugs – weinig tegelijk
+11–13 jaar	Middelgrote bugs – meer verspreid, meer beweging
+14–16 jaar	Kleine bugs – bewegen weg of splitsen bij klik
+🎮 4. Gameplay flow (stap-voor-stap)
+Start spel → bureaublad met trage muis
+Bugs verschijnen over het scherm
+Speler beweegt cursor (met vertraging)
+Klik op bugs om ze te verwijderen
+Elke succesvolle klik:
+muis wordt sneller
+movement wordt soepeler
+Bij 0 bugs:
+systeem is hersteld
+eindanimatie + prestatiefeedback
+🖱️ 5. Interactietype
+Click targets (bugs)
+Bewegende objecten
+Laggy cursor control
+🎨 6. Design & UI-elementen
+Bureaublad-achtergrond (rommelig / geïnfecteerd)
+Visuele “lag” in schermbeweging
+Bugs in verschillende vormen:
+pixels
+virussen
+blokjes / icoontjes
+Trage muiscursor (input delay)
+Performance recovery balk
+Eindscherm met success message
+🧠 7. Gameplay flow (technisch overzicht)
+Start → laggy cursor + bugs spawn
+Player movement → vertraagde respons
+Click bug → bug verwijderd
+System reward:
+cursor sneller
+betere respons
+Repeat tot 0 bugs
+System restore + end screen
+🧮 8. Spelregels & logica
+Actie	Gevolg	Feedback
+Bug correct geklikt	Bug verwijderd	Cursor wordt sneller
+Bug gemist / misclick	Geen effect	Geen penalty
+📊 9. Moeilijkheid & scaling
+8–10 jaar
+Grote bugs
+Weinig tegelijk zichtbaar
+Langzame beweging
+11–13 jaar
+Meer bugs
+Middelgrote objecten
+Meer beweging op scherm
+14–16 jaar
+Kleine bugs
+Snelle beweging
+Splitsende bugs bij klik
+🧩 10. Progressie systeem
+Elke bug → performance boost
+Cursor delay vermindert stap voor stap
+Systeem voelt “geleidelijk hersteld”
+Bij 0 bugs → volledige reset + animatie
+🏁 11. Eindresultaat
+System restored animatie
+Performance tip (educatief)
+Score / prestatie feedback (optioneel)
+🧪 12. Educatieve insteek
+
+De speler leert:
+
+performance = afhankelijk van “systeem rommel”
+cleanup verhoogt snelheid
+kleine optimalisaties verbeteren ervaring
+geduld + precisie = efficiëntie
+🧰 13. Assets & content nodig
+Bug sprites:
+pixel bugs
+virus icons
+glitch blocks
+Lag effect voor cursor
+Click animaties
+Progress bar (performance recovery)
+Background: desktop / corrupted system UI
+Sound effects:
+click
+bug removal
+system restore
+Optional:
+ambient “system lag” audio
+⚙️ 14. Technische vereisten
+Cursor delay system (input smoothing + lag simulation)
+Bug spawn system (dynamic scaling)
+Collision detection (cursor ↔ bug)
+Performance state system:
+slow → improving → normal
+Difficulty scaling engine (age-based)
+Progress bar controller
+Game state machine:
+intro
+active cleanup
+system restore
+end screen
+🔗 Inspiratie
+System cleanup / optimization simulaties
+Laggy cursor mechanics
+“virus removal” mini-games
+performance recovery gameplay loops
+🧾 Core gameplay loop
+Laggy system start
+Bugs verschijnen
+Player klikt bugs
+Systeem wordt sneller
+Alle bugs weg
+System restored + feedback
+
+
+
+
+
+
+ALGEMENE FUNCTIONALITEITEN (SHARED GAME SYSTEM)
+🧩 Algemene regel (belangrijk)
+
+Alle games (Bug Cleanup, Printer Slaagt Op Hol, etc.) maken gebruik van dezelfde basiscomponenten uit Game 1 (Password Zapper / Wachtwoordkraker systeem).
+
+👉 Dit betekent:
+
+❌ Geen nieuwe componentlogica ontwikkelen
+✅ Enkel hergebruik + configuratie
+✅ Content wordt aangepast per game
+❌ Layout, gedrag en interactielogica blijven identiek tenzij expliciet anders beschreven
+
+🎯 Doel:
+Een consistente UI/UX over alle games heen, waarbij alleen de gameplay verschilt.
+
+🧱 BASIS UI-DESIGN (GLOBAL LAYOUT RULE)
+
+Alle games volgen dezelfde layoutstructuur als Password Zapper:
+
+Centrale game area (main interaction zone)
+Top bar met:
+timer
+score (indien actief)
+hint button
+Pop-ups altijd gecentreerd
+Achtergrond = context van game (enige visuele variatie)
+Consistente button styles:
+primaire actie (groen/blauw)
+destructieve actie (rood)
+neutraal (grijs)
+
+👉 Alleen de “content layer” verandert per game, niet de UI structuur.
+
+⏸️ 1. PAUZE COMPONENT (HERBRUIKBAAR)
+Functionaliteit
+
+De bestaande pauzecomponent wordt hergebruikt in alle games.
+
+Gedrag:
+Game kan op elk moment gepauzeerd worden
+Gameplay stopt volledig
+Pauze pop-up bevat:
+▶ Verder spelen
+🔁 Opnieuw beginnen
+⛔ Spel stoppen
+State handling:
+Game state wordt bevroren
+Hervatten = exact hetzelfde moment
+📘 2. SPEL UITLEG COMPONENT (HERBRUIKBAAR)
+Functionaliteit
+
+Zelfde uitleg-systeem als Game 1 wordt hergebruikt.
+
+Gedrag:
+Kan tijdens gameplay geopend worden
+Game pauzeert automatisch
+Inhoud:
+Aangepast per game (Bug Cleanup / Printer / etc.)
+Aangepast per leeftijdscategorie:
+8–10: simpel + visueel
+11–13: normaal + uitleg
+14–16: abstract + technisch
+💡 3. HINT COMPONENT (GAME-AFHANKELIJK GEDRAG)
+Functionaliteit
+
+Herbruikbare hint-component met game-specifieke logica.
+
+Gedrag:
+Hintknop is altijd zichtbaar
+Content varieert per game + leeftijd
+🐛 Bug Cleanup (Game 2)
+Hint altijd beschikbaar vanaf start
+Popup toont hint + “Verder spelen”
+🖨️ Printer Game (Game 3)
+
+Hint unlock systeem:
+
+Leeftijd	Fouten nodig voor hint
+8–10	1 fout
+11–13	2 fouten
+14–16	3 fouten
+Gedrag:
+Bij drempel → automatische hint pop-up
+Daarna vrij heropenbaar
+Content aangepast per leeftijd
+🏁 4. EINDSCHERM COMPONENT (HERBRUIKBAAR)
+Functionaliteit
+
+Zelfde eindschermstructuur voor alle games.
+
+Gedrag:
+Wordt getriggerd na game end
+Toont resultaten + performance data
+📊 Standaard data (alle games)
+Score
+Percentage
+Tijd
+Prestatie feedback
+🐛 Bug Cleanup specifiek
+Performance tip
+Snelste tijd
+🖨️ Printer Game specifiek
+Hoogste score
+Snelste tijd
+Ranking label (bv. “Detail-expert”)
+⏱️ 5. TIMER COMPONENT (GLOBAL SYSTEM)
+Functionaliteit
+
+Timer is een globale UI component.
+
+Gedrag:
+Altijd zichtbaar tijdens gameplay
+Format: mm:ss
+Start bij:
+begin echte game
+Stopt bij:
+game end
+Belangrijk:
+Niet actief tijdens oefenronde
+Niet resetten bij pauze (pauze stopt tijd logisch)
+🎮 6. CONSISTENTIE PRINCIPLE (BELANGRIJK)
+
+Alle games moeten voldoen aan:
+
+UI consistency
+Zelfde layout (Password Zapper stijl)
+Zelfde pop-up design
+Zelfde button gedrag
+Logic consistency
+Zelfde component gedrag
+Alleen game rules veranderen
+Content layering
+Alleen deze dingen veranderen per game:
+teksten
+visuals
+game mechanics
+difficulty parameters
+
+
+REFERENTIE GAME (PASSWORD ZAPPER STYLE)
+
+Alle UI/UX volgt het design van:
+
+Wachtwoordkraker / Password Zapper
+
+Kenmerken:
+
+Simpele pop-ups
+Focus op één interactie per scherm
+Minimalistische kantoor/tech stijl
+Clean feedback (groen/rood)
+Geen overbodige UI clutter
+🧾 SAMENVATTING
+
+✔ Shared components (no duplication)
+✔ Game = only logic + content differences
+✔ UI blijft 100% consistent
+✔ Cursor-ready architecture
+✔ Password Zapper = base template
