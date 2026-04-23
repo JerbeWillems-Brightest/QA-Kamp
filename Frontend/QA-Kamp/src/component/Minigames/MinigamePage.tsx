@@ -1,6 +1,7 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
+import PrinterSlaatOpHolGame from './PrinterSlaatOpHol/PrinterSlaatOpHolGame.tsx'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
 import VRAAG_IMG from '../../assets/vraag.png'
@@ -81,7 +82,12 @@ export function MinigamePage() {
     try {
       const existing = sessionStorage.getItem('playerActiveGame')
       if (!existing) {
-        const info = { gameName: game || undefined, category: ageGroup || undefined, sessionId: localStorage.getItem('currentSessionId') || undefined }
+        const info: Record<string, unknown> = { gameName: game || undefined, category: ageGroup || undefined, sessionId: localStorage.getItem('currentSessionId') || undefined }
+        try {
+          // include optional network join key when present in URL
+          const keyParam = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('key')
+          if (keyParam) info.key = keyParam
+        } catch { /* ignore */ }
         try { sessionStorage.setItem('playerActiveGame', JSON.stringify(info)) } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
@@ -258,7 +264,7 @@ export function MinigamePage() {
   // render fullscreen container. We intentionally omit the back button and title
   return (
     <div className="pz-root">
-      {game === 'passwordzapper' ? (
+      {game === 'passwordzapper' || game === 'printerslaatophol' ? (
         <>
           <div className="pz-controls">
             <button
@@ -274,7 +280,11 @@ export function MinigamePage() {
               <img src={PAUSE_IMG} alt="pause" />
             </button>
           </div>
-          <PasswordZapperGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
+          {game === 'printerslaatophol' ? (
+            <PrinterSlaatOpHolGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
+          ) : (
+            <PasswordZapperGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
+          )}
           <button className="pz-help" aria-label="Vraag" onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:question')) } catch { void 0 } }}>
             <img src={VRAAG_IMG} alt="vraag" />
           </button>

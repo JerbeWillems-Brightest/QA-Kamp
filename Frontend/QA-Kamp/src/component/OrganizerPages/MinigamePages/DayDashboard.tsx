@@ -336,7 +336,6 @@ function DayDashboard(){
 
   // popup state
   const [selectedGame, setSelectedGame] = useState<string | null>(null)
-  const [selectedAges, setSelectedAges] = useState<string[]>([])
   // global running state for the day dashboard: which game is active
   const [isGameRunning, setIsGameRunning] = useState(false)
   const [activeGame, setActiveGame] = useState<string | null>(null)
@@ -376,7 +375,7 @@ function DayDashboard(){
       try {
         const sessId = sessionId
         if (!sessId) return
-        const resp = await fetchOnlinePlayers(sessId, 15000)
+        const resp = await fetchOnlinePlayers(sessId)
         const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3,'0'))
         // update localStorage only if changed (helps avoid redundant storage events)
         try {
@@ -445,63 +444,19 @@ function DayDashboard(){
     return () => window.removeEventListener('storage', onStorage)
   }, [])
 
-  const gameDetails: Record<string, { title: string; rules: string; ages?: string[]; ageDescriptions?: Record<string,string> }> = {
-    'kraakhetwachtwoord': { title: 'Kraak het wachtwoord', rules: 'Ontcijfer het wachtwoord binnen de tijd. Punten worden gegeven per juist antwoord.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-      '8-10': 'Je krijgt een computer die niet meer werkt na een vreemde USB-stick. Zoek hints in de kamer en raad het wachtwoord. Leer hoe je sterke wachtwoorden maakt en hackers slim af bent!',
-      '11-13': 'Een computer is geblokkeerd na een verdachte USB-stick. Gebruik slimme hints (zoals foto’s en info) om het wachtwoord te achterhalen. Ontdek hoe makkelijk zwakke wachtwoorden te kraken zijn en hoe je ze beter maakt.',
-      '14-16': 'Een computer raakt besmet na het gebruik van een onbekende USB-stick. Analyseer de omgeving en gebruik indirecte hints om het wachtwoord te achterhalen. Leer waarom voorspelbare wachtwoorden onveilig zijn en hoe je ze sterker maakt.'
-    }},
-    'passwordzapper': { title: 'Password Zapper', rules: 'Verwijder de kwetsbare wachtwoorden door correcte keuzes te maken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-      '8-10': 'Vlieg met je ruimteschip en schiet slechte wachtwoorden kapot. Laat de goede wachtwoorden met rust. Leer spelenderwijs wat een sterk wachtwoord is!',
-      '11-13': 'Bestuur je schip en zap zwakke wachtwoorden met duidelijke patronen. Let goed op, want sommige lijken sterk maar zijn dat niet. Ontdek hoe je betere wachtwoorden herkent!',
-      '14-16': 'Zweef door de ruimte en analyseer complexe wachtwoorden voordat je ze zapt. Vermijd fouten en denk na over veiligheid en patronen. Leer hoe hackers zwakke wachtwoorden kunnen kraken.'
-    }},
-     'bugcleanup': { title: 'Bug Cleanup', rules: 'Verwijder bugs uit de code. Hoe sneller, hoe meer punten.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Klik de bugs weg en maak je computer weer snel. Hoe meer je er weghaalt, hoe beter alles werkt. Werk rustig en precies!',
-             '11-13': 'Verwijder bugs terwijl je muis traag reageert. Hoe beter je mikt, hoe sneller je systeem wordt. Let op snelheid én controle!',
-             '14-16': 'Ruim zoveel mogelijk bugs op in een traag systeem. Kleine en bewegende bugs maken het moeilijker. Optimaliseer je prestaties door efficiënt te werken.'
-         }},
-     'getalrace': { title: 'Getalrace', rules: 'Zoek het juiste getal. Sneller is beter.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zoek de getallen in de juiste volgorde zo snel mogelijk. Klik ze één voor één aan. Hoe sneller, hoe beter!',
-             '11-13': 'Klik de juiste cijfers in volgorde onder tijdsdruk. Fouten kosten je tijd. Blijf gefocust!',
-             '14-16': 'Werk door een chaotisch raster en vind alle getallen in volgorde. Snelheid en nauwkeurigheid zijn cruciaal. Hoe laag is jouw tijd?'
-         }},
-     'reactietijdtest': { title: 'Reactietijd Test', rules: 'Klik zo snel mogelijk wanneer het signaal verschijnt.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Klik zo snel mogelijk wanneer je het signaal ziet. Test hoe snel jij reageert. Kan jij supersnel zijn?',
-             '11-13': 'Reageer zo snel mogelijk op onverwachte signalen. Vergelijk jouw score met anderen. Hoe scherp zijn jouw reflexen?',
-             '14-16': 'Meet je reactietijd tot op milliseconden. Snelle beslissingen maken het verschil. Analyseer hoe jij scoort tegenover de norm.'
-         }},
-     'whackthebug': { title: 'Whack the bug', rules: 'Sla de bugs die opduiken met de grootste nauwkeurigheid.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Sla op de bugs die verschijnen. Wees snel en raak zoveel mogelijk! Pas op dat je niets verkeerd raakt.',
-             '11-13': 'Klik snel op bugs die willekeurig opduiken. Soms verschijnen er foute targets. Blijf scherp!',
-             '14-16': 'Hoge snelheid en misleidende targets maken dit uitdagend. Sla alleen de echte bugs. Precisie is key.'
-         }},
-     'printerslaatophol': { title: 'Printer Slaat Op Hol', rules: 'Los de printopdracht puzzels op zodat de printer stopt.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zoek wat niet past op het papier. Klik de foutjes aan. Help de printer stoppen!',
-             '11-13': 'Vind subtiele verschillen in de prints. Kijk goed naar details. Elke fout telt!',
-             '14-16': 'Analyseer complexe patronen en vind afwijkingen. Details maken het verschil. Denk logisch en snel.'
-         }},
-     'printerkraken': { title: 'Printer Kraken', rules: 'Vind de juiste sequentie om de printer te herstellen.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Tel de juiste dingen en maak de code. Voer de code in om de printer te openen. Goed kijken is belangrijk!',
-             '11-13': 'Zoek en tel objecten in de ruimte. Gebruik de juiste aantallen als code. Let op verborgen details!',
-             '14-16': 'Analyseer de ruimte en vermijd afleidingen. Combineer aantallen tot de juiste code. Nauwkeurigheid is cruciaal.'
-         }},
-     'herstartdepc': { title: 'Herstart de PC', rules: 'Herstart en herstel de systemen in de juiste volgorde.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zoek wat er mis is met de computer. Los het stap voor stap op. Dan werkt hij weer!',
-             '11-13': 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!',
-             '14-16': 'Analyseer meerdere problemen en los ze in de juiste volgorde op. Vermijd foute keuzes. Denk als een echte IT’er.'
-         }},
-     'slimmethermostaat': { title: '(Niet zo) Slimme Thermostaat', rules: 'Kalibreer de slimme thermostaat zonder de instellingen te breken.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Zet de juiste dingen bij elkaar zodat alles werkt. Gebruik simpele plaatjes. Maak de thermostaat slim!',
-             '11-13': 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!',
-             '14-16': 'Debug en verbeter foutieve logica. Werk met regels en voorwaarden. Begrijp hoe systemen beslissingen nemen.'
-         }},
-     'fightthebug': { title: 'Fight the bug', rules: 'Versla de grote bug door de juiste acties te kiezen.', ages: ['8-10','11-13','14-16'], ageDescriptions: {
-             '8-10': 'Versla de grote bug door juiste keuzes te maken. Kies het juiste antwoord. Red de dag!',
-             '11-13': 'Beantwoord vragen en voer acties uit om de bug te verslaan. Fouten kosten je punten. Blijf scherp!',
-             '14-16': 'Ga de strijd aan met complexe vragen en scenario’s. Denk snel en correct. Gebruik alles wat je geleerd hebt!'
-         }},
-   }
+  const gameDetails: Record<string, { title: string; rules: string }> = {
+    'kraakhetwachtwoord': { title: 'Kraak het wachtwoord', rules: 'Een computer is geblokkeerd na een verdachte USB-stick. Gebruik slimme hints (zoals foto’s en info) om het wachtwoord te achterhalen. Ontdek hoe makkelijk zwakke wachtwoorden te kraken zijn en hoe je ze beter maakt.' },
+    'passwordzapper': { title: 'Password Zapper', rules: 'De speler moet zwakke wachtwoorden op voorbijvliegende asteroïden wegzappen en sterke laten staan. Hoe meer correcte keuzes, hoe hoger de score!' },
+    'bugcleanup': { title: 'Bug Cleanup', rules: 'Verwijder bugs terwijl je muis traag reageert. Hoe beter je mikt, hoe sneller je systeem wordt. Let op snelheid én controle!' },
+    'getalrace': { title: 'Getalrace', rules: 'Klik de juiste cijfers in volgorde onder tijdsdruk. Fouten kosten je tijd. Blijf gefocust!' },
+    'reactietijdtest': { title: 'Reactietijd Test', rules: 'Reageer zo snel mogelijk op onverwachte signalen. Vergelijk jouw score met anderen. Hoe scherp zijn jouw reflexen?' },
+    'whackthebug': { title: 'Whack the bug', rules: 'Klik snel op bugs die willekeurig opduiken. Soms verschijnen er foute targets. Blijf scherp!' },
+    'printerslaatophol': { title: 'Printer Slaat Op Hol', rules: 'Vind subtiele verschillen in de prints. Kijk goed naar details. Elke fout telt!' },
+    'printerkraken': { title: 'Printer Kraken', rules: 'Zoek en tel objecten in de ruimte. Gebruik de juiste aantallen als code. Let op verborgen details!' },
+    'herstartdepc': { title: 'Herstart de PC', rules: 'Herstel de pc door de juiste acties te kiezen. Denk logisch na over het probleem. Elke stap telt!' },
+    'slimmethermostaat': { title: '(Niet zo) Slimme Thermostaat', rules: 'Bouw logische regels met blokken. Test of alles correct werkt. Denk goed na!' },
+    'fightthebug': { title: 'Fight the bug', rules: 'Beantwoord vragen en voer acties uit om de bug te verslaan. Fouten kosten je punten. Blijf scherp!' },
+  }
 
   function normalizeKey(s: string){ return s.toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'') }
   function openGameModal(label: string){
@@ -511,11 +466,9 @@ function DayDashboard(){
       window.alert(`Kan ${label} niet openen — ${activeGame} is momenteel actief.`)
       return
     }
-    setSelectedGame(label); setSelectedAges([])
+    setSelectedGame(label)
   }
-  function closeModal(){ setSelectedGame(null); setSelectedAges([]) }
-  // when the popup selects an age, sync it here as a single-selection
-  function handleSelectAgeFromPopup(a: string){ setSelectedAges([a]) }
+  function closeModal(){ setSelectedGame(null) }
   async function startGame(){
     if (!selectedGame) return
     setIsGameRunning(true)
@@ -523,7 +476,7 @@ function DayDashboard(){
     // show alert with game name
     try { window.alert(`${selectedGame} is gestart`) } catch { /* ignore if alert unavailable */ }
     // keep the popup open so the organizer can stop the game from the popup
-    console.log('Starting', selectedGame, selectedAges)
+    console.log('Starting', selectedGame)
     // persist running game so other pages know a game is active
     try {
       // derive day key from the current path (e.g. /day/maandag)
@@ -569,6 +522,15 @@ function DayDashboard(){
       try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
     } catch (e) {
       console.warn('Failed to notify clients of stop', e)
+    }
+
+    // Ensure any modal-open class applied to the dashboard is removed so the UI returns
+    // to normal (this guards against cases where popup logic left the class behind).
+    try {
+      const root = typeof document !== 'undefined' ? document.querySelector('.day-dashboard') : null
+      if (root && root.classList.contains('modal-open')) root.classList.remove('modal-open')
+    } catch {
+      // ignore
     }
 
     // Then persist the cleared state to the server so remote devices polling
@@ -720,15 +682,14 @@ function DayDashboard(){
              : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
              : '-'
 
-          // derive status from localStorage onlinePlayers set OR server lastSeen timestamp
+          // derive status from localStorage onlinePlayers set OR server lastSeen presence
+          // A non-null lastSeen is considered authoritative 'online'; there is no
+          // client-side heartbeat cutoff — offline should only happen on explicit logout.
           let status = 'Offline'
           try {
-            const now = Date.now()
             const lastSeenRaw = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
-            const lastSeenMs = lastSeenRaw ? new Date(lastSeenRaw).getTime() : 0
-            const RECENT_MS = 15000 // consider recent within 15s as online (matches heartbeat interval)
-            const seenRecently = lastSeenMs && (now - lastSeenMs) <= RECENT_MS
-            if (playerNumberStr && (currentOnline.has(playerNumberStr) || seenRecently)) status = 'Online'
+            const hasLastSeen = !!lastSeenRaw
+            if (playerNumberStr && (currentOnline.has(playerNumberStr) || hasLastSeen)) status = 'Online'
           } catch {
             status = playerNumberStr && currentOnline.has(playerNumberStr) ? 'Online' : 'Offline'
           }
@@ -901,10 +862,6 @@ function DayDashboard(){
                  default: return undefined
                }
              })() : undefined}
-            ages={details?.ages}
-             ageDescriptions={details?.ageDescriptions}
-             initialAge={selectedAges && selectedAges.length ? selectedAges[0] : null}
-             onSelectAge={handleSelectAgeFromPopup}
              onStart={startGame}
              onStop={stopGame}
              onClose={closeModal}

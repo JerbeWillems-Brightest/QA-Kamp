@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-// Local payload type for update call (includes score and category)
-type UpdatePlayerPayload = { score?: number; category?: string }
+// Local payload type for update call (includes legacy `score`, game-specific
+// score fields and category). We allow optional game-specific fields so
+// multiple minigames can persist highscores without conflicting.
+type UpdatePlayerPayload = { score?: number; score_passwordzapper?: number; score_printerslaatophol?: number; category?: string }
 import type { ApiPlayer } from '../../../api'
 import { useNavigate } from 'react-router-dom'
 import "./PasswordZapperGame.css";
@@ -556,9 +558,23 @@ interface Props {
   ageGroup: "8-10" | "11-13" | "14-16";
   // optional testing hook: provide deterministic initial passwords
   initialPasswords?: PasswordItem[];
+  // optional network join key forwarded from MinigamePage (?key=)
+  networkKey?: string;
 }
 
-const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => {
+const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, networkKey }) => {
+  // accept optional network key forwarded from URL; persist into
+  // sessionStorage.playerActiveGame so cross-device pairing can find the key
+  useEffect(() => {
+    try {
+      if (!networkKey) return
+      const raw = sessionStorage.getItem('playerActiveGame')
+      let obj: Record<string, unknown> = raw ? JSON.parse(raw) as Record<string, unknown> : {}
+      if (!obj || typeof obj !== 'object') obj = {}
+      if (obj.key !== networkKey) obj.key = networkKey
+      try { sessionStorage.setItem('playerActiveGame', JSON.stringify(obj)) } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }, [networkKey])
   const [passwords, setPasswords] = useState<PasswordItem[]>([]);
   // currentIdx removed: we use per-lane indices and zapAt/skipAt handlers
   const [score, setScore] = useState(0);
@@ -1197,46 +1213,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     };
   }, [markOnline, setPlayerStatus]);
 
-  // Keep the player alive on the server while the minigame is running so the
-  // authoritative onlinePlayers list (used by organizer/waiting-room) still
-  // contains this player's number. This mirrors the heartbeat logic in
-  // `PlayerGame`/`WaitingRoom` but runs only while the minigame is started.
-  useEffect(() => {
-    if (!started) return
-    const sessionStorageId = sessionStorage.getItem('playerSessionId')
-    const localStorageId = localStorage.getItem('currentSessionId')
-    const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
-    const playerNumber = sessionStorage.getItem('playerNumber') || ''
-    if (!sid || !playerNumber) return
-
-    let cancelled = false
-    const intervalMs = 5000
-    const tick = () => {
-      if (cancelled) return
-      void import('../../../api').then(m => m.postPlayerHeartbeat(sid, String(playerNumber))).catch((err: unknown) => {
-        const info = getErrorInfo(err)
-        const status = info.status
-        const msg = info.message
-        if (status === 404 || /player not found/i.test(msg) || /session not found/i.test(msg) || /not found/i.test(msg)) {
-          // organizer removed this player on server; stop polling and force logout
-          cancelled = true
-          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
-          try { navigate('/') } catch { /* ignore */ }
-        }
-        // for 409 or other errors, keep trying; 409 usually means "already online" and is non-fatal
-      })
-    }
-
-    tick()
-    const id = window.setInterval(tick, intervalMs)
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
-  }, [started, navigate])
+  // Heartbeat polling removed — online state is set on login and cleared on logout.
 
   // While the minigame is started, periodically ensure localStorage.onlinePlayers
   // contains our padded player number and update a freshness timestamp. This
@@ -1658,15 +1635,21 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
             // overwriting a player's highscore with a lower value.
             let shouldUpdate = true
             let foundCategory: string | undefined = undefined
+            let found: Record<string, unknown> | undefined = undefined
+            let otherGame = 0
             try {
-              const pResp = await api.fetchPlayersForSession(sid)
+              // Use raw players API to preserve game-specific score fields
+              const pResp = await api.fetchPlayersRawForSession(sid)
               const list = (pResp && (pResp as { players?: unknown[] }).players) || []
-              const found = (list as Record<string, unknown>[]).find((p) => {
+              found = (list as Record<string, unknown>[]).find((p) => {
                 const pn = String(p['playerNumber'] ?? p['nummer'] ?? '')
                 return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
               })
               if (found) {
-                const existingScoreVal = found['score']
+                // Prefer game-specific stored highscore when present
+                const existingGameScore = (typeof found['score_passwordzapper'] === 'number') ? Number(found['score_passwordzapper']) : undefined
+                const existingLegacy = (typeof found['score'] === 'number') ? Number(found['score']) : undefined
+                const existingScoreVal = typeof existingGameScore === 'number' ? existingGameScore : existingLegacy
                 if (typeof existingScoreVal === 'number' && !Number.isNaN(existingScoreVal)) {
                   const existingScoreNum = existingScoreVal as number
                   // Compare against finalHigh (the player's stored highscore) instead of the run score
@@ -1678,6 +1661,19 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
                 // backend defaulting it to 'unknown' on partial updates
                 const catVal = found['category']
                 if (typeof catVal === 'string' && catVal) foundCategory = catVal as string
+                // compute other-game total by summing any numeric fields that look like scores
+                try {
+                  for (const k of Object.keys(found)) {
+                    const lk = k.toLowerCase()
+                    if (lk.includes('score') || lk.includes('highscore')) {
+                      // skip this game's own score field
+                      if (lk.includes('passwordzapper')) continue
+                      const raw = found[k]
+                      const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                      if (!Number.isNaN(n)) otherGame += Number(n)
+                    }
+                  }
+                } catch { /* ignore */ }
               }
             } catch (readErr) {
               // If reading the existing player entry fails, attempt the update
@@ -1699,13 +1695,18 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               // update only the score field on the player document
               // Retry once on transient failure
               try {
-                const payload: UpdatePlayerPayload = { score: finalHigh }
+                // Persist under a game-specific score field so multiple games' highscores
+                // can be stored independently and aggregated by the scoreboard.
+                // Also update legacy `score` to the aggregated total so older UIs
+                // or scoreboard implementations that prefer `score` see the combined value.
+                const aggregated = finalHigh + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
+                const payload: UpdatePlayerPayload = { score_passwordzapper: finalHigh, score: aggregated }
                 if (typeof foundCategory === 'string' && foundCategory) payload.category = foundCategory
                 await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer)
                 try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] DB update succeeded', { sid, normalizedPlayerNumber, finalHigh }) } catch { /* ignore */ }
               } catch {
                 await new Promise((r) => setTimeout(r, 250))
-                const payload2: UpdatePlayerPayload = { score: finalHigh }
+                const payload2: UpdatePlayerPayload = { score_passwordzapper: finalHigh }
                 if (typeof foundCategory === 'string' && foundCategory) payload2.category = foundCategory
                 await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload2 as unknown as ApiPlayer)
                 try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] DB update succeeded after retry', { sid, normalizedPlayerNumber, finalHigh }) } catch { /* ignore */ }
@@ -1717,6 +1718,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
                 const payload = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() })
                 localStorage.setItem(key, payload)
                 try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload })) } catch { /* ignore */ }
+                try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() } })) } catch { /* ignore */ }
               } catch { /* ignore */ }
             } else {
               try { if (typeof console !== 'undefined') console.log('[PasswordZapper] Skipping DB update because existing stored score is higher or equal', { sid, normalizedPlayerNumber, score }) } catch { /* ignore */ }

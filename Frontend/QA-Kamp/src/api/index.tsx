@@ -238,9 +238,26 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
   return { players }
 }
 
+// Fetch raw backend player objects for cases where we need custom fields
+// (e.g. score_passwordzapper, score_printerslaatophol) preserved.
+export async function fetchPlayersRawForSession(sessionId: string): Promise<{ players: Record<string, unknown>[] }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  const list = (json.players || []) as Record<string, unknown>[]
+  return { players: list }
+}
+
 // Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
-export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
-  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/online-players?cutoffMs=${encodeURIComponent(String(cutoffMs))}`
+export async function fetchOnlinePlayers(sessionId: string): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  // The server now treats online/offline as explicit state changed by
+  // login (online) and logout (offline). There is no recency cutoff to
+  // apply client-side — always request the authoritative list.
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${encodeURIComponent(sessionId)}/online-players`
   const res = await fetch(url)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -307,8 +324,29 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
     const category = typeof bp['category'] === 'string' ? String(bp['category']) : ''
     const lastSeen = bp && bp['lastSeen'] ? String(bp['lastSeen']) : null
     const out: ApiPlayer & { score?: number } = { playerNumber, name, age, category, lastSeen }
-    const scoreVal = bp['score']
-    if (typeof scoreVal === 'number') out.score = scoreVal as number
+    // Aggregate any numeric score/highscore fields. Different backend versions
+    // may use different keys (legacy `score`, per-game fields like
+    // `score_passwordzapper`/`score_printerslaatophol`, or category keys like
+    // `pz_highscore_passwordzapper_11-13`). To be robust, sum any property
+    // whose key contains 'score' or 'highscore' and whose value is numeric.
+    let total = 0
+    for (const key of Object.keys(bp)) {
+      try {
+        const lk = key.toLowerCase()
+        if (lk.includes('score') || lk.includes('highscore')) {
+          const raw = bp[key]
+          const n = Number(raw)
+          if (!Number.isNaN(n)) {
+            total += n
+          }
+        }
+      } catch {
+        // ignore non-enumerable or weird keys
+      }
+    }
+    // Always expose a numeric score (0 when nothing found) so UI/scoreboard
+    // components can reliably render a total.
+    out.score = Number.isNaN(total) ? 0 : total
     return out
   })
   return { leaderboard: list }
@@ -344,8 +382,10 @@ export async function getActiveGameInfo(sessionId: string): Promise<{ activeGame
 }
 
 export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // Heartbeat endpoint was removed on the server; map heartbeat calls to the
+  // explicit "online" setter so existing callers (and tests) continue to work.
   const base = API_URL || ''
-  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/online`
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
