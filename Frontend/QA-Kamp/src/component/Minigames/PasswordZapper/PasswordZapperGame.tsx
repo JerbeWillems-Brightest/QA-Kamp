@@ -1646,14 +1646,22 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
                 return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
               })
               if (found) {
-                // Prefer game-specific stored highscore when present
-                const existingGameScore = (typeof found['score_passwordzapper'] === 'number') ? Number(found['score_passwordzapper']) : undefined
-                const existingLegacy = (typeof found['score'] === 'number') ? Number(found['score']) : undefined
-                const existingScoreVal = typeof existingGameScore === 'number' ? existingGameScore : existingLegacy
-                if (typeof existingScoreVal === 'number' && !Number.isNaN(existingScoreVal)) {
-                  const existingScoreNum = existingScoreVal as number
-                  // Compare against finalHigh (the player's stored highscore) instead of the run score
-                  if (existingScoreNum >= finalHigh) {
+                // Prefer game-specific stored highscore when present. Accept either a
+                // number or a numeric string. Do NOT use the legacy aggregated `score`
+                // field to decide whether to update this game's per-player highscore;
+                // `score` contains sums of other games and will incorrectly prevent
+                // updating if it's higher than this game's new highscore.
+                let existingGameScore: number | undefined = undefined
+                try {
+                  const rawG = found['score_passwordzapper']
+                  if (typeof rawG === 'number' && !Number.isNaN(rawG)) existingGameScore = Number(rawG)
+                  else if (typeof rawG === 'string' && rawG.trim() !== '' && !Number.isNaN(Number(rawG))) existingGameScore = Number(rawG)
+                } catch { /* ignore parse errors */ }
+                if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore)) {
+                  // Compare against finalHigh (the player's stored highscore) and
+                  // skip update only when an explicit per-game highscore already
+                  // exists and is >= the new high.
+                  if (existingGameScore >= finalHigh) {
                     shouldUpdate = false
                   }
                 }
