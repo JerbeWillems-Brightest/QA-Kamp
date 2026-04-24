@@ -62,7 +62,11 @@ describe('PrinterSlaatOpHolGame', () => {
     render(<PrinterSlaatOpHolGame />)
     
     expect(screen.getByText('De printer is gek geworden!')).toBeInTheDocument()
-    expect(screen.getByText(/De gemene Bug heeft de printer gehackt/)).toBeInTheDocument()
+    // The intro bullet varies by inferred age group. Accept either the
+    // 8-10 specific wording or the default wording used for older groups.
+    expect(
+      screen.getByText(/(De gemene Bug heeft de printer gehackt|De Bug heeft een virus in de printer gestopt\.)/)
+    ).toBeInTheDocument()
     expect(screen.getByText('Volgende')).toBeInTheDocument()
   })
 
