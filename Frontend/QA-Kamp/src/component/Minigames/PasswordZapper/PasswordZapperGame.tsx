@@ -687,7 +687,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   // examples per age group used in the start modal
   const examples: { weak: string; strong: string } = (() => {
     switch (normalizedAgeGroup) {
-      case '8-10': return { weak: '🧾✨', strong: 'Zon!Maan9' };
+      case '8-10': return { weak: 'hond123', strong: 'Zon!Maan9' };
       case '11-13': return { weak: 'abc123', strong: 'Hond!Kat5' };
       case '14-16': return { weak: 'qwerty123', strong: 'T!jger@8' };
       default: return { weak: '🧾✨', strong: 'Zon!Maan9' };
