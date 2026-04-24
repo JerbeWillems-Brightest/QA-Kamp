@@ -310,8 +310,53 @@ router.post('/:id/players', async (req, res) => {
         category: p.category || 'unknown',
         // imported players should start offline — lastSeen is null
         lastSeen: null,
-        // initial score is zero
-        score: 0,
+        // collect per-game highscores (if provided) and compute initial aggregated score
+        // Accept either a nested `highscores` object or flat per-game keys like `score_passwordzapper`.
+        highscores: (() => {
+          try {
+            const incoming: Record<string, number> = {}
+            if (p.highscores && typeof p.highscores === 'object') {
+              for (const k of Object.keys(p.highscores)) {
+                const raw = (p.highscores as Record<string, unknown>)[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) incoming[k] = Number(n)
+              }
+            }
+            for (const k of Object.keys(p)) {
+              const lk = String(k).toLowerCase()
+              if (lk.startsWith('score_') || lk.includes('highscore')) {
+                const raw = (p as Record<string, unknown>)[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) incoming[k] = Number(n)
+              }
+            }
+            return incoming
+          } catch {
+            return {}
+          }
+        })(),
+        // compute initial aggregated total from provided highscores (fallback 0)
+        score: (() => {
+          try {
+            let t = 0
+            const hs = p.highscores && typeof p.highscores === 'object' ? { ...(p.highscores as Record<string, unknown>) } : {}
+            // include any flat per-game keys too
+            for (const k of Object.keys(p)) {
+              const lk = String(k).toLowerCase()
+              if (lk.startsWith('score_') || lk.includes('highscore')) {
+                hs[k] = (p as Record<string, unknown>)[k]
+              }
+            }
+            for (const k of Object.keys(hs)) {
+              try {
+                const raw = hs[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) t += Number(n)
+              } catch { /* ignore per-key */ }
+            }
+            return Number.isNaN(t) ? 0 : t
+          } catch { return 0 }
+        })(),
       })
     }
 
@@ -498,8 +543,81 @@ router.get('/:id/leaderboard', async (req, res) => {
     res.set('Vary', 'Origin')
     const { id } = req.params
     // return players with name, playerNumber, category, score sorted by score desc
-    const list = await Player.find({ sessionId: id }).select('name playerNumber category score').sort({ score: -1 })
-    return res.json({ leaderboard: list })
+    // Also include per-game highscores so frontends can sum individual game
+    // values (e.g. score_passwordzapper / score_printerslaatophol). To be
+    // robust across backend/frontend versions we flatten the `highscores`
+    // object into top-level keys in the returned player objects while
+    // preserving existing top-level fields.
+    const docs = await Player.find({ sessionId: id })
+      .select('name playerNumber category score highscores')
+      .lean()
+      .sort({ score: -1 })
+
+    const mapped = (docs || []).map((d: any) => {
+      try {
+        const out = { ...d }
+        // flatten highscores into top-level when not present
+        if (out.highscores && typeof out.highscores === 'object') {
+          for (const k of Object.keys(out.highscores)) {
+            if (typeof out[k] === 'undefined') out[k] = out.highscores[k]
+          }
+        }
+
+        // compute aggregated total from any numeric key containing 'score'/'highscore'
+        let total = 0
+        const seen = new Set<string>()
+        for (const key of Object.keys(out)) {
+          try {
+            const lk = String(key).toLowerCase()
+            if (lk === 'highscores' || lk === 'score') continue
+            if (lk.includes('score') || lk.includes('highscore')) {
+              const raw = out[key]
+              const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+              if (!Number.isNaN(n)) {
+                total += Number(n)
+                seen.add(lk)
+              }
+            }
+          } catch {
+            /* ignore per-key */
+          }
+        }
+        // also include nested highscores entries that weren't present at top-level
+        try {
+          const hs = out.highscores as Record<string, unknown> | undefined
+          if (hs && typeof hs === 'object') {
+            for (const k of Object.keys(hs)) {
+              try {
+                const lk = String(k).toLowerCase()
+                if (seen.has(lk)) continue
+                const raw = hs[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) {
+                  total += Number(n)
+                }
+              } catch { /* ignore */ }
+            }
+          }
+        } catch { /* ignore highscores */ }
+
+        out.score = Number.isNaN(total) ? 0 : total
+        return out
+      } catch (e) {
+        return d
+      }
+    })
+
+    // sort by computed score desc then name
+    mapped.sort((a: any, b: any) => {
+      const sa = (a && typeof a.score === 'number') ? a.score : 0
+      const sb = (b && typeof b.score === 'number') ? b.score : 0
+      if (sa !== sb) return sb - sa
+      const na = String(a.name || '').toLowerCase()
+      const nb = String(b.name || '').toLowerCase()
+      return na.localeCompare(nb)
+    })
+
+    return res.json({ leaderboard: mapped })
   /* istanbul ignore next */
   } catch (err) {
     console.error('Leaderboard error:', err)

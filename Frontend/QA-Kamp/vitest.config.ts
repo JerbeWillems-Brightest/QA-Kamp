@@ -10,7 +10,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    testTimeout: 20000,
+    testTimeout: 10000,
     setupFiles: ['src/setupTests.ts'],
     // when not using c8, enable vitest's internal coverage collection
     ...(useC8 ? {} : {
