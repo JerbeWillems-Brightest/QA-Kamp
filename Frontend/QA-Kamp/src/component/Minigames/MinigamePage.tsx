@@ -82,7 +82,12 @@ export function MinigamePage() {
     try {
       const existing = sessionStorage.getItem('playerActiveGame')
       if (!existing) {
-        const info = { gameName: game || undefined, category: ageGroup || undefined, sessionId: localStorage.getItem('currentSessionId') || undefined }
+        const info: Record<string, unknown> = { gameName: game || undefined, category: ageGroup || undefined, sessionId: localStorage.getItem('currentSessionId') || undefined }
+        try {
+          // include optional network join key when present in URL
+          const keyParam = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('key')
+          if (keyParam) info.key = keyParam
+        } catch { /* ignore */ }
         try { sessionStorage.setItem('playerActiveGame', JSON.stringify(info)) } catch { /* ignore */ }
       }
     } catch { /* ignore */ }

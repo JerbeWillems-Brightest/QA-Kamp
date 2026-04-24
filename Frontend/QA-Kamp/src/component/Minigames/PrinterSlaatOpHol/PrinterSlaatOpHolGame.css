@@ -216,3 +216,16 @@ body.pz-end-open .pz-controls {
 .printer-root .pz-progress-text { position: absolute; left: 0; right: 0; top: 0; bottom: 0; display:flex; align-items:center; justify-content:center; font-weight:800; color:#fff; text-shadow: 0 1px 0 rgba(0,0,0,0.25); pointer-events: none }
 
 /* Fallback: in case the imported URL isn't resolved, try absolute path from project root */
+
+/* Per-cell status backgrounds (show green for correct, red for wrong)
+   Scoped to the top sheet when it's not animating so we don't interfere
+   with the sheet's transforms. This will be applied per-round and reset
+   when the next sheet is created. */
+.sheet--top:not(.is-flying):not(.is-entering) .pz-cell--bad {
+  background: linear-gradient(180deg,#fdecea,#f8cfcf);
+  border: 2px solid #f44336;
+}
+
+/* Ensure the image inside the cell remains visible and not tinted */
+.pz-cell--bad img { filter: none; }
+
