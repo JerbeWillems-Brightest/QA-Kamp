@@ -48,7 +48,8 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [showTutorial, setShowTutorial] = useState(true)
   const [showIntro, setShowIntro] = useState(true)
   const [round, setRound] = useState(0)
-  const [score, setScore] = useState(0)
+  // score is computed from total elapsed time at the end (0-100). Do not
+  // keep incremental score state during play; compute on demand.
   const [mistakes, setMistakes] = useState(0)
   const [items, setItems] = useState<Item[]>([])
   const [elapsedMs, setElapsedMs] = useState(0)
@@ -68,13 +69,15 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [paused, setPaused] = useState(false)
   const [highScore, setHighScore] = useState<number | null>(null)
   const [isNewHigh, setIsNewHigh] = useState(false)
+  const [stoppedByUser, setStoppedByUser] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
-  const [timeFeedback, setTimeFeedback] = useState<string | null>(null)
-  const [timeFeedbackType, setTimeFeedbackType] = useState<'good' | 'bad' | null>(null)
+  // Per-round status for cells: only 'bad' (wrong clicked) is kept; green/good coloring removed
+  const [cellStatuses, setCellStatuses] = useState<Record<number, 'bad'>>({})
+  const [timeFeedback] = useState<string | null>(null)
+  const [timeFeedbackType] = useState<'good' | 'bad' | null>(null)
   const hintAutoShownRef = useRef(false)
-  const penaltyIndexRef = useRef(0)
-  const penaltyScheduleRef = useRef<number[]>([])
+  // ...existing code... (removed penalty schedule refs)
   const startRef = useRef<number | null>(null)
   const rafRef = useRef<number | null>(null)
   const gameContentRef = useRef<HTMLDivElement | null>(null)
@@ -99,6 +102,18 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const formatMs = useCallback((ms: number) => { const s = Math.floor(ms/1000); return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}` }, [])
 
   const randomFrom = useCallback((arr: string[]) => arr[Math.floor(Math.random() * arr.length)], [])
+
+  // Compute final time-based score (0-100) according to user story.
+  // 0:00–2:00 => 100, 2:00–2:30 => 90, then every 30s after 2:30 -10 until 0.
+  const computeTimeScore = useCallback((ms: number) => {
+    const s = Math.floor(ms / 1000)
+    if (s <= 120) return 100
+    if (s <= 150) return 90
+    // after 150s (2:30) every 30s -> -10 points
+    const bucketsAfter = Math.floor((s - 150) / 30) // 0..n
+    const score = 90 - (bucketsAfter + 1) * 10
+    return Math.max(0, Math.min(100, score))
+  }, [])
 
   // Load SVG assets using Vite's import.meta.glob at runtime. Using `any` here
   // because TypeScript's built-in typing for import.meta.glob varies by
@@ -162,7 +177,43 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const candidatePriority = sessionCat || (ageGroup as string | null) || urlAge || null
   const effectiveAge: AgeGroup = inferAgeGroupFromString(candidatePriority)
 
+  // Intro bullets that vary by age group. Keep messages simpler for 8-10.
+  const introBullets: string[] = (() => {
+    if (effectiveAge === '8-10') {
+      return [
+        'De gemene Bug heeft de printer gehackt en nu print hij alleen maar foute papieren!',
+        'De baas mag dit NOOIT zien... Zoek heel snel alle fouten!'
+      ]
+    }
+    // 11-13 and 14-16 use the same (more detailed) wording
+    return [
+      'De Bug heeft een virus in de printer gestopt.',
+      'Hij spuugt honderden foutieve documenten uit en de baas is onderweg!',
+      'Kijk elk blad na, klik op alles wat er niet thuishoort en ruim de boel op voor hij binnenkomt!'
+    ]
+  })()
+
+  // Tutorial bullets (speluitleg) that vary by age group
+  const tutorialBullets: string[] = (() => {
+    if (effectiveAge === '8-10') {
+      return [
+        'Op elk blad staat één ding dat anders is (kleur of vorm)',
+        'Klik Op het icoontje dat anders is om het weg te halen.',
+        'Klik je fout? Dan krijg je extra tijd erbij!',
+        'Vind zo snel mogelijk alle fouten en red het kantoor!'
+      ]
+    }
+    return [
+      'Elk blad bevat één afwijking die er niet in thuishoort.',
+      'Klik op de afwijking om door te gaan naar het volgende blad.',
+      'Klik je fout? Dan kost het jou extra tijd!',
+      'Vind zo snel mogelijk alle afwijkingen en red het kantoor!'
+    ]
+  })()
+
   const nextRound = useCallback(() => {
+    // reset visual state for previous round
+    try { setCellStatuses({}) } catch { /* ignore */ }
     const grid = GRID_BY_AGE[effectiveAge]
     const total = grid * grid
     const nextItems: Item[] = []
@@ -286,9 +337,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     setRunning(true)
     // start with round 0 so progress shows 0/10 until the player acts
     setRound(0)
-    setScore(0)
     setMistakes(0)
-    penaltyIndexRef.current = 0
+    // clear any stopped flag when starting a fresh game
+    try { setStoppedByUser(false) } catch { /* ignore */ }
     startRef.current = Date.now()
     // schedule next round to avoid impure work during render
     setTimeout(() => nextRound(), 0)
@@ -297,68 +348,35 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const finish = useCallback(() => {
     setRunning(false)
     setShowEnd(true)
-    try { if (onEnd) onEnd({ score, timeMs: elapsedMs, mistakes }) } catch { /* ignore */ }
-  }, [onEnd, score, elapsedMs, mistakes])
+    try { setStoppedByUser(false) } catch { /* ignore */ }
+    try {
+      if (onEnd) {
+        const finalTimeScore = computeTimeScore(elapsedMs)
+        onEnd({ score: finalTimeScore, timeMs: elapsedMs, mistakes })
+      }
+    } catch { /* ignore */ }
+  }, [onEnd, computeTimeScore, elapsedMs, mistakes])
 
   const resetGame = useCallback(() => {
     // reset counters and start over
     setShowEnd(false)
     setRound(0)
-    setScore(0)
     setMistakes(0)
     setItems([])
     setRunning(true)
     setIsTransitioning(false)
     setShouldFinishAfterTransition(false)
+    // clear stopped flag on reset
+    try { setStoppedByUser(false) } catch { /* ignore */ }
     startRef.current = Date.now()
-    penaltyIndexRef.current = 0
     setTimeout(() => nextRound(), 0)
   }, [nextRound])
 
-  // Build penalty schedule (ms) based on age group
-  const buildPenaltySchedule = useCallback((age: AgeGroup) => {
-    const schedule: number[] = []
-    const toMs = (s: number) => s * 1000
-    if (age === '8-10') {
-      // 2:00, 3:00, then every 30s until 5:00
-      schedule.push(toMs(120), toMs(180))
-      for (let t = 210; t <= 300; t += 30) schedule.push(toMs(t))
-    } else {
-      // 11-13 & 14-16: 1:30, 2:00, 2:30, then every 30s until 5:00
-      schedule.push(toMs(90), toMs(120), toMs(150))
-      for (let t = 180; t <= 300; t += 30) schedule.push(toMs(t))
-    }
-    return schedule
-  }, [])
-
-  // Initialize penalty schedule when effectiveAge changes
-  useEffect(() => {
-    penaltyScheduleRef.current = buildPenaltySchedule(effectiveAge)
-    penaltyIndexRef.current = 0
-  }, [effectiveAge, buildPenaltySchedule])
-
-  // Apply time-based penalties when elapsedMs crosses schedule thresholds
-  useEffect(() => {
-    if (!running || showEnd) return
-    const schedule = penaltyScheduleRef.current || []
-    let idx = penaltyIndexRef.current
-    while (idx < schedule.length && elapsedMs >= schedule[idx]) {
-      // apply penalty: -2 points
-      setScore((s) => Math.max(0, s - 2))
-      try {
-        setTimeFeedback('Tijdstraf -2')
-        setTimeFeedbackType('bad')
-        setTimeout(() => { try { setTimeFeedback(null); setTimeFeedbackType(null) } catch { /* ignore */ } }, 1200)
-      } catch { /* ignore */ }
-      idx += 1
-    }
-    penaltyIndexRef.current = idx
-  }, [elapsedMs, running, showEnd])
+  // Time-based scoring is computed from elapsedMs; no penalty schedule.
 
   const handleClick = useCallback((item: Item) => {
     if (!running || isTransitioning) return
     if (item.isOdd) {
-      setScore(s => s + 2)
       // increment round count and then determine if we've reached the last round
       const next = round + 1
       setRound(next)
@@ -367,18 +385,44 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       setShouldFinishAfterTransition(willFinish)
       // trigger sheet fly-out animation; nextRound or finish will be called after animation ends
       setIsTransitioning(true)
-      setFeedback(`${randomFrom(GOOD_FEEDBACK_LIST)} +2`)
+      // Do not set a green background on correct items per user's request;
+      // keep textual positive feedback only.
+      setFeedback(randomFrom(GOOD_FEEDBACK_LIST))
       setFeedbackType('good')
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
       // ensure we don't call nextRound here - animationend handler will do that
     } else {
       setMistakes(m => m + 1)
-      setScore(s => Math.max(0, s - 1))
-      setFeedback(`${randomFrom(BAD_FEEDBACK_LIST)} -1`)
+      // mark clicked cell as wrong (red) for this round and clear after the feedback timeout
+      try { setCellStatuses(s => ({ ...(s || {}), [item.id]: 'bad' })) } catch { /* ignore */ }
+      setFeedback(randomFrom(BAD_FEEDBACK_LIST))
       setFeedbackType('bad')
+      // Penalty: add 10 seconds to the elapsed time when the player answers wrong.
+      try {
+        const TEN_SEC = 10 * 1000
+        if (startRef.current != null) {
+          // Move the start reference back by 10s so Date.now() - startRef increases
+          startRef.current = (startRef.current || 0) - TEN_SEC
+        } else {
+          // Fallback: derive a startRef from current elapsedMs if available
+          startRef.current = Date.now() - (elapsedMs || 0) - TEN_SEC
+        }
+        // Update elapsedMs immediately so UI reflects the added seconds without waiting for RAF
+        try { setElapsedMs(Date.now() - (startRef.current || Date.now())) } catch { /* ignore */ }
+      } catch { /* ignore */ }
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      // remove red background together with the textual feedback so the cell returns to white
+      setTimeout(() => {
+        try {
+          setCellStatuses(prev => {
+            const copy = { ...(prev || {}) }
+            try { delete copy[item.id] } catch { /* ignore */ }
+            return copy
+          })
+        } catch { /* ignore */ }
+      }, 1200)
     }
-  }, [running, round, isTransitioning, randomFrom])
+  }, [running, round, isTransitioning, randomFrom, elapsedMs])
 
   // called when the top sheet finished flying out
   const handleSheetAnimationEnd = useCallback((e?: React.AnimationEvent<HTMLDivElement>) => {
@@ -437,23 +481,20 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   // scoreboard can pick it up. Mirrors the behavior in PasswordZapper.
   useEffect(() => {
     if (!showEnd) return
+    // If the player stopped the game manually, do not persist or overwrite highscores.
+    if (stoppedByUser) return
     ;(async () => {
       try {
         const localKey = 'pz-highscore_printerslaatophol'
-        // derive authoritative final score from rounds and mistakes
-        const TOTAL_ROUNDS = 20
-        const totalCorrect = Math.min(Math.max(0, round), TOTAL_ROUNDS)
-        const appliedTimePenalties = (penaltyIndexRef.current || 0) * 2
-        const computedFinal = Math.max(0, (totalCorrect * 2) - mistakes - appliedTimePenalties)
+        // derive authoritative final score from elapsed time (0-100)
+        const finalTimeScore = computeTimeScore(elapsedMs)
         // Update local stored highscore (keep max) and compute the authoritative
-        // finalHigh value we will persist to the backend. Keep this value in
-        // scope so the same number is used for comparisons, payloads and
-        // signalling (matches PasswordZapper behaviour).
-        let finalHigh = computedFinal
+        // finalHigh value we will persist to the backend.
+        let finalHigh = finalTimeScore
         try {
           const existingRaw = localStorage.getItem(localKey)
           const existingNum = existingRaw ? (Number(existingRaw) || 0) : 0
-          finalHigh = Math.max(existingNum || 0, computedFinal, score)
+          finalHigh = Math.max(existingNum || 0, finalTimeScore)
           localStorage.setItem(localKey, String(finalHigh))
           try { setHighScore(finalHigh); setIsNewHigh(finalHigh > (existingNum || 0)); } catch { /* ignore */ }
         } catch { /* ignore localStorage errors */ }
@@ -581,7 +622,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
               // dispatch storage event for other tabs
               try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload2 })) } catch { /* ignore */ }
               // also dispatch a same-tab custom event so in-tab listeners react immediately
-              try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score, ts: Date.now() } })) } catch { /* ignore */ }
+              try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() } })) } catch { /* ignore */ }
             } catch { /* ignore */ }
           }
         } catch (err) {
@@ -591,7 +632,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         console.warn('PrinterSlaatOpHol: persist highscore failed', err)
       }
     })()
-  }, [showEnd, score, round, mistakes])
+  }, [showEnd, elapsedMs, round, mistakes, computeTimeScore, stoppedByUser])
 
   // When end screen is open, add a global body class so top-level controls (hint/pause/help)
   // are hidden by global CSS (PasswordZapper uses body.pz-end-open for this).
@@ -708,8 +749,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>De printer is gek geworden!</h2>
             <ul className="pz-start-bullets" style={{ marginTop: 12, textAlign: 'left' }}>
-              <li>De gemene Bug heeft de printer gehackt en nu print hij alleen maar foute papieren!</li>
-              <li>De baas mag dit NOOIT zien... Zoek snel de fouten op elk blad en klik ze aan voordat de tijd op is!</li>
+              {introBullets.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
             </ul>
             <div style={{ marginTop: 18, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowIntro(false) }}>Volgende</button>
@@ -736,11 +778,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Speluitleg - Printer slaat op hol!</h2>
             <ul className="pz-start-bullets" style={{ marginTop: 12, textAlign: 'left' }}>
-              <li>Op elk blad papier zit één ding dat er niet bij hoort.</li>
-              <li>Klik op het ding dat er niet bij hoort om deze weg te halen.</li>
-              <li>Klik je op het verkeerde? Dan moet je verder zoeken!</li>
-              <li>Je hebt maar 2 minuten de tijd!</li>
-              <li>Vind zoveel mogelijk fouten en red het kantoor!</li>
+              {tutorialBullets.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
             </ul>
             <div style={{ marginTop: 18, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => { startGame() }}>Volgende</button>
@@ -763,10 +803,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ textAlign: 'left' }}>Speluitleg - Printer slaat op hol!</h2>
             <ul className="pz-start-bullets" style={{ marginTop: 12, textAlign: 'left' }}>
-              <li>Op elk blad papier zit één ding dat er niet bij hoort.</li>
-              <li>Klik op het ding dat er niet bij hoort om deze weg te halen.</li>
-              <li>Klik je op het verkeerde? Dan moet je verder zoeken!</li>
-              <li>Je hebt maar 2 minuten de tijd!</li>
+              {tutorialBullets.slice(0, 4).map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
             </ul>
             <div style={{ marginTop: 18, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHelp(false)}>Verder spelen</button>
@@ -789,9 +828,8 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Hint</h2>
             <ul className="pz-start-bullets">
-              <li>Zoek naar het item dat niet bij de rest past.</li>
-              <li>Klik op het foute item om het blad te laten verdwijnen.</li>
-              <li>Je krijgt hulp bij 3 fouten. Daarna kun je de hint-knop gebruiken om deze popup opnieuw te kijken.</li>
+              <li>Let op kleine verschillen(grootte,kleur,vorm,positie,letters)</li>
+              <li>Klik niet te snel, fouten kosten tijd!</li>
             </ul>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHint(false)}>Verder spelen</button>
@@ -817,7 +855,16 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
             <div className="pz-pause-actions">
               <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
               <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { try { window.location.reload() } catch { /* ignore */ } }}>Opnieuw beginnen</button>
-              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => { setPaused(false); setRunning(false); setShowEnd(true); }}>Stoppen</button>
+              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
+                try {
+                  setPaused(false)
+                  setRunning(false)
+                  setStoppedByUser(true)
+                  setShowEnd(true)
+                  // notify parent that game ended with 0 score
+                  try { if (onEnd) onEnd({ score: 0, timeMs: elapsedMs, mistakes }) } catch { /* ignore */ }
+                } catch { /* ignore */ }
+              }}>Stoppen</button>
             </div>
           </div>
         </div>
@@ -828,22 +875,14 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   // End screen (shown after finish) - use PasswordZapper end layout with fireworks
     if (showEnd) {
     // compute simple stats: correct vs wrong
-    // Use `round` as the authoritative correct-count (each correct increments round).
     const totalRounds = 20
     const totalCorrect = Math.min(Math.max(0, round), totalRounds)
     const totalWrong = mistakes
-    // compute final score deterministically from correct/wrong counts so
-    // mistakes always reduce the final displayed score
-    const appliedTimePenalties = (penaltyIndexRef.current || 0) * 2
-    const finalScore = Math.max(0, (totalCorrect * 2) - mistakes - appliedTimePenalties)
-    // Diagnostic logging to help debug any mismatch between runtime `score` and
-    // computed final score (derived from rounds/mistakes).
-    try { console.debug('[PrinterSlaatOpHol] endscreen', { score, round: totalCorrect, mistakes, finalScore }) } catch { /* ignore */ }
-    // compute percent based on finalScore
-    const maxPossibleScore = totalRounds * 2
-    const rawPercent = maxPossibleScore > 0 ? Math.round((finalScore / maxPossibleScore) * 100) : 0
-    const clampedScorePercent = Math.max(0, Math.min(100, rawPercent))
-    // stars: same thresholds as PasswordZapper (100% -> 3, >=66 -> 2, >=33 -> 1)
+    // compute final score from elapsed time per user story (0-100)
+    const finalScore = stoppedByUser ? 0 : computeTimeScore(elapsedMs)
+    try { console.debug('[PrinterSlaatOpHol] endscreen', { timeMs: elapsedMs, round: totalCorrect, mistakes, finalScore }) } catch { /* ignore */ }
+    const clampedScorePercent = Math.max(0, Math.min(100, finalScore))
+    // stars: simple thresholds (100 -> 3, >=66 -> 2, >=33 -> 1)
     const starCount = clampedScorePercent === 100 ? 3 : clampedScorePercent >= 66 ? 2 : clampedScorePercent >= 33 ? 1 : 0
     const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${clampedScorePercent}%` } as unknown) as React.CSSProperties
 
@@ -888,11 +927,48 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
             </div>
 
             <div className="pz-end-right">
-              <div className="pz-tips-card">
-                <h3>Goed gedaan!</h3>
-                  <div className="pz-tips">
-                  <p>Score: {finalScore} — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
-                </div>
+                <div className="pz-tips-card">
+                    {
+                      // Map finalScore to headline and subtitle per requested feedback
+                    }
+                    {
+                      (() => {
+                        const map: Record<number, { title: string; subtitle: string }> = {
+                          100: { title: 'Perfect gespeeld!', subtitle: 'Snel én foutloos!' },
+                          90: { title: 'Bijna perfect!', subtitle: 'Heel sterk gespeeld!' },
+                          80: { title: 'Sterk gedaan!', subtitle: 'Je zit goed op tempo!' },
+                          70: { title: 'Goed gespeeld!', subtitle: 'Nog iets sneller kan beter!' },
+                          60: { title: 'Niet slecht!', subtitle: 'Let op je snelheid en fouten!' },
+                          50: { title: 'Gemiddeld resultaat', subtitle: 'Probeer wat sneller te werken!' },
+                          40: { title: 'Kan beter', subtitle: 'Fouten kosten je te veel tijd!' },
+                          30: { title: 'Moeilijk gehad?', subtitle: 'Blijf oefenen en focus!' },
+                          20: { title: 'Veel tijd verloren', subtitle: 'Probeer rustiger en gerichter te spelen!' },
+                          10: { title: 'Bijna niet gelukt', subtitle: 'Let beter op en vermijd fouten!' },
+                          0:  { title: 'Niet gelukt', subtitle: 'Probeer opnieuw en blijf gefocust!' }
+                        }
+                        if (stoppedByUser) {
+                          return (
+                            <>
+                              <h3>Spel gestopt, geen score</h3>
+                              <div className="pz-tips">
+                                <p>Score: 0 — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
+                              </div>
+                            </>
+                          )
+                        }
+                        const key = Math.max(0, Math.min(100, Math.round(finalScore / 10) * 10))
+                        const fb = map[key] || { title: 'Goed gedaan!', subtitle: '' }
+                        return (
+                          <>
+                            <h3>{fb.title}</h3>
+                            <div className="pz-tips">
+                              {fb.subtitle && <p style={{ marginBottom: 8 }}>{fb.subtitle}</p>}
+                              <p>Score: {finalScore} — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
+                            </div>
+                          </>
+                        )
+                      })()
+                    }
                 <div className="pz-end-actions">
                   <button id="btnPlayAgain" className="pz-play-again" onClick={() => { try { window.location.reload(); } catch { resetGame(); } }}>Opnieuw spelen</button>
                 </div>
@@ -919,7 +995,6 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
             return (
               <>
                 <div className="pz-score-stack">
-                  <div className="pz-score">{`Score: ${score}`}</div>
                   <div className="pz-score pz-timer">{running ? formatMs(elapsedMs) : '00:00'}</div>
                   {timeFeedback && (
                     <div
@@ -978,7 +1053,11 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                 }}
               >
                 {items.map(it=> (
-                  <div key={it.id} className={`cell ${it.isOdd? 'odd':''}`} onClick={()=>handleClick(it)}>
+                  <div
+                    key={it.id}
+                    className={`cell ${it.isOdd ? 'odd' : ''} ${cellStatuses && cellStatuses[it.id] === 'bad' ? 'pz-cell--bad' : ''}`}
+                    onClick={()=>handleClick(it)}
+                  >
                     {it.icon ? (
                       <img src={it.icon} alt={it.isOdd ? 'Fout' : 'Normaal'} style={{ width: '92%', height: '92%', objectFit: 'contain', display: 'block', margin: 'auto' }} />
                     ) : (
