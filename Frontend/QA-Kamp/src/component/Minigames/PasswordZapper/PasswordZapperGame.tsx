@@ -558,9 +558,23 @@ interface Props {
   ageGroup: "8-10" | "11-13" | "14-16";
   // optional testing hook: provide deterministic initial passwords
   initialPasswords?: PasswordItem[];
+  // optional network join key forwarded from MinigamePage (?key=)
+  networkKey?: string;
 }
 
-const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => {
+const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, networkKey }) => {
+  // accept optional network key forwarded from URL; persist into
+  // sessionStorage.playerActiveGame so cross-device pairing can find the key
+  useEffect(() => {
+    try {
+      if (!networkKey) return
+      const raw = sessionStorage.getItem('playerActiveGame')
+      let obj: Record<string, unknown> = raw ? JSON.parse(raw) as Record<string, unknown> : {}
+      if (!obj || typeof obj !== 'object') obj = {}
+      if (obj.key !== networkKey) obj.key = networkKey
+      try { sessionStorage.setItem('playerActiveGame', JSON.stringify(obj)) } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }, [networkKey])
   const [passwords, setPasswords] = useState<PasswordItem[]>([]);
   // currentIdx removed: we use per-lane indices and zapAt/skipAt handlers
   const [score, setScore] = useState(0);
@@ -673,7 +687,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // examples per age group used in the start modal
   const examples: { weak: string; strong: string } = (() => {
     switch (normalizedAgeGroup) {
-      case '8-10': return { weak: '🧾✨', strong: 'Zon!Maan9' };
+      case '8-10': return { weak: 'hond123', strong: 'Zon!Maan9' };
       case '11-13': return { weak: 'abc123', strong: 'Hond!Kat5' };
       case '14-16': return { weak: 'qwerty123', strong: 'T!jger@8' };
       default: return { weak: '🧾✨', strong: 'Zon!Maan9' };
@@ -767,10 +781,28 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   const [showHelp, setShowHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const navigate = useNavigate()
+  // track initial mount so a refresh doesn't immediately navigate away; instead
+  // we return the player to the start modal (like PrinterSlaatOpHol behavior)
+  const initialMountRef = React.useRef(true)
 
   // React to organizer stopping the game: listen for custom events, storage
   // events (same browser), and poll the server (different machines).
   useEffect(() => {
+    function safeNavigateHome() {
+      try {
+        if (initialMountRef.current) {
+          // soft reset on refresh: show the start modal rather than leaving the minigame
+          try { setStarted(false) } catch { /* ignore */ }
+          try { setShowPracticeIntro(false) } catch { /* ignore */ }
+          try { setShowHelp(false) } catch { /* ignore */ }
+          try { setShowHint(false) } catch { /* ignore */ }
+          try { setShowPracticeEnd(false) } catch { /* ignore */ }
+        } else {
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+
     function onCustom(ev: Event) {
       try {
         const ce = ev as CustomEvent
@@ -793,7 +825,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
             try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
-            try { navigate('/') } catch { /* ignore */ }
+            safeNavigateHome()
             return
           }
         }
@@ -812,7 +844,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
               try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
               try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
-              try { navigate('/') } catch { /* ignore */ }
+              safeNavigateHome()
             }
           } catch { /* ignore */ }
         }
@@ -835,7 +867,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               // notify other tabs about the change
               window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
             } catch { /* ignore */ }
-            try { navigate('/') } catch { /* ignore */ }
+            safeNavigateHome()
           }
           return
         }
@@ -879,6 +911,11 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     pollServer()
     return () => { window.removeEventListener('activeGameInfoChanged', onCustom); window.removeEventListener('storage', onStorage); mounted = false; if (timer) clearTimeout(timer) }
   }, [navigate])
+
+  // After the initial mount, mark that future storage events should navigate away
+  useEffect(() => {
+    initialMountRef.current = false
+  }, [])
 
   // Toggle a body-level class so other UI (hint/pause/question, score, progress, ship)
   // can be hidden via CSS while the start modal is visible.
@@ -1246,6 +1283,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         if (sid && playerNumber) {
           try {
             // prefer sendBeacon to signal offline to the session-specific endpoint
+            // NOTE: do NOT mutate localStorage here. Removing localStorage keys on
+            // beforeunload causes presence to disappear on a simple page refresh.
+            // We only attempt to notify the server; presence in localStorage is
+            // preserved so a reload keeps the player in the game.
             const url = `${(import.meta.env.VITE_API_URL || '')}/api/sessions/${encodeURIComponent(sid)}/players/${encodeURIComponent(playerNumber)}/offline`
             const payload = JSON.stringify({})
             if (navigator && typeof navigator.sendBeacon === 'function') {
@@ -1254,18 +1295,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               try { fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }) } catch { /* ignore */ }
             }
           } catch { /* ignore */ }
-        } else {
-          // fallback: update localStorage only
-          try {
-            const raw2 = localStorage.getItem('onlinePlayers')
-            const arr2 = raw2 ? JSON.parse(raw2) as string[] : []
-            const plain = String(playerNumber)
-            const padded = plain.padStart(3, '0')
-            const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
-            localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
-            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
-          } catch { /* ignore */ }
         }
+        // Otherwise: do not touch localStorage. Explicit logouts or navigation to
+        // the home page should clear presence and currentSessionId via the
+        // application's logout/navigation handlers (or server-driven events).
       } catch {
         // ignore
       }
@@ -1632,14 +1665,22 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
                 return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
               })
               if (found) {
-                // Prefer game-specific stored highscore when present
-                const existingGameScore = (typeof found['score_passwordzapper'] === 'number') ? Number(found['score_passwordzapper']) : undefined
-                const existingLegacy = (typeof found['score'] === 'number') ? Number(found['score']) : undefined
-                const existingScoreVal = typeof existingGameScore === 'number' ? existingGameScore : existingLegacy
-                if (typeof existingScoreVal === 'number' && !Number.isNaN(existingScoreVal)) {
-                  const existingScoreNum = existingScoreVal as number
-                  // Compare against finalHigh (the player's stored highscore) instead of the run score
-                  if (existingScoreNum >= finalHigh) {
+                // Prefer game-specific stored highscore when present. Accept either a
+                // number or a numeric string. Do NOT use the legacy aggregated `score`
+                // field to decide whether to update this game's per-player highscore;
+                // `score` contains sums of other games and will incorrectly prevent
+                // updating if it's higher than this game's new highscore.
+                let existingGameScore: number | undefined = undefined
+                try {
+                  const rawG = found['score_passwordzapper']
+                  if (typeof rawG === 'number' && !Number.isNaN(rawG)) existingGameScore = Number(rawG)
+                  else if (typeof rawG === 'string' && rawG.trim() !== '' && !Number.isNaN(Number(rawG))) existingGameScore = Number(rawG)
+                } catch { /* ignore parse errors */ }
+                if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore)) {
+                  // Compare against finalHigh (the player's stored highscore) and
+                  // skip update only when an explicit per-game highscore already
+                  // exists and is >= the new high.
+                  if (existingGameScore >= finalHigh) {
                     shouldUpdate = false
                   }
                 }
@@ -2276,13 +2317,26 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         <div className="pz-pause-overlay">
           <div className="pz-pause-modal">
             <h2>Pauze</h2>
-            <div className="pz-pause-actions">
-              <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
-              <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { try { window.location.reload() } catch { /* ignore */ } }}>Opnieuw beginnen</button>
-              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
-                setPaused(false); setGameOver(true); setShowEnd(true); try { setPlayerStatus('online'); } catch { /* ignore */ } void markOnline();
-              }}>Stoppen</button>
-            </div>
+              <div className="pz-pause-actions">
+                <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
+                <button
+                  id="btnRestartGame"
+                  className="pz-pause-action pz-pause-action--primary"
+                  onClick={() => {
+                    try {
+                      // Close pause overlay and perform an in-app reset so this matches the
+                      // end-screen "Opnieuw spelen" behavior (no full page reload).
+                      setPaused(false);
+                      resetGame();
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >Opnieuw beginnen</button>
+                <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
+                  setPaused(false); setGameOver(true); setShowEnd(true); try { setPlayerStatus('online'); } catch { /* ignore */ } void markOnline();
+                }}>Stoppen</button>
+              </div>
           </div>
         </div>
       </div>
