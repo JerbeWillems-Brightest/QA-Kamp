@@ -687,7 +687,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   // examples per age group used in the start modal
   const examples: { weak: string; strong: string } = (() => {
     switch (normalizedAgeGroup) {
-      case '8-10': return { weak: 'hond123', strong: 'Zon!Maan9' };
+      case '8-10': return { weak: 'laatmijbinnen', strong: 'Zon!Maan9' };
       case '11-13': return { weak: 'abc123', strong: 'Hond!Kat5' };
       case '14-16': return { weak: 'qwerty123', strong: 'T!jger@8' };
       default: return { weak: '🧾✨', strong: 'Zon!Maan9' };
@@ -2206,9 +2206,11 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
               <h2>Speluitleg - Password zapper</h2>
               <ul className="pz-start-bullets">
                 <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
-                <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
+                <li>Er vliegen kometen voorbij met wachtwoorden</li>
+                <li>Sommige wachtwoorden zijn slecht, zoals <b>{examples.weak}</b></li>
+                  <li>Sommige zijn goed, zoals <b>{examples.strong}</b></li>
                 <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
-                <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
+                <li>Laat de sterke wachtwoorden voorbijvliegen</li>
               </ul>
               <div style={{ marginTop: 12, textAlign: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -2230,10 +2232,12 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ textAlign: 'left' }}>Speluitleg - Password zapper</h2>
             <ul className="pz-start-bullets">
-              <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
-              <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
-              <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
-              <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
+                <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
+                <li>Er vliegen kometen voorbij met wachtwoorden</li>
+                <li>Sommige wachtwoorden zijn slecht, zoals <b>{examples.weak}</b></li>
+                <li>Sommige zijn goed, zoals <b>{examples.strong}</b></li>
+                <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
+                <li>Laat de sterke wachtwoorden voorbijvliegen</li>
             </ul>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHelp(false)}>Verder spelen</button>

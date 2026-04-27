@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom'
 import { vi, describe, it, beforeEach, expect, afterEach } from 'vitest'
@@ -1145,6 +1145,8 @@ describe('PrinterSlaatOpHolGame', () => {
 
   it('TC32-TC36: final score is computed from total play time and clamped 0..100 (100 @ <=2:00, 90 @ <=2:30, steps to 0) (TC32-TC36)', async () => {
     vi.useRealTimers()
+    // ensure a clean DOM before rendering
+    cleanup()
     render(<PrinterSlaatOpHolGame />)
 
     // Case A: fast completion -> score 100
@@ -1152,7 +1154,11 @@ describe('PrinterSlaatOpHolGame', () => {
     // complete 20 correct rounds quickly by clicking the odd cell and dispatching animationend
     for (let i = 0; i < 20; i++) {
       // wait for an odd cell to be present before interacting (avoid race)
-      await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+      await waitFor(() => {
+        if (document.querySelector('.cell.odd')) return true
+        if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+        throw new Error('waiting for odd cell or end screen')
+      }, { timeout: 10000 })
       const odd = document.querySelector('.cell.odd') as HTMLElement | null
       if (!odd) break
       fireEvent.click(odd)
@@ -1161,7 +1167,11 @@ describe('PrinterSlaatOpHolGame', () => {
       const top = document.querySelector('.sheet--top') as HTMLElement
       fireEvent.animationEnd(top, { animationName: 'pz-sheet-fly' })
       // wait until either a new odd cell appears or the end screen shows up
-      await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+      await waitFor(() => {
+        if (document.querySelector('.cell.odd')) return true
+        if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+        throw new Error('waiting for odd cell or end screen')
+      }, { timeout: 10000 })
     }
 
     // End screen should show
@@ -1175,6 +1185,7 @@ describe('PrinterSlaatOpHolGame', () => {
     // Case B: mid-range time -> ~90 points (simulate by adding ~130s via wrong clicks)
     // Reload fresh component for independent state
     vi.resetModules()
+    cleanup()
     render(<PrinterSlaatOpHolGame />)
     await advanceToRunning()
 
@@ -1205,14 +1216,22 @@ describe('PrinterSlaatOpHolGame', () => {
 
     // Now finish quickly with 20 correct rounds
     for (let i = 0; i < 20; i++) {
-      await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+      await waitFor(() => {
+        if (document.querySelector('.cell.odd')) return true
+        if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+        throw new Error('waiting for odd cell or end screen')
+      }, { timeout: 10000 })
       const odd = document.querySelector('.cell.odd') as HTMLElement | null
       if (!odd) break
       fireEvent.click(odd)
       await waitFor(() => expect(document.querySelector('.sheet--top')).not.toBeNull())
       const top = document.querySelector('.sheet--top') as HTMLElement
       fireEvent.animationEnd(top, { animationName: 'pz-sheet-fly' })
-      await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+      await waitFor(() => {
+        if (document.querySelector('.cell.odd')) return true
+        if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+        throw new Error('waiting for odd cell or end screen')
+      }, { timeout: 10000 })
     }
 
     await screen.findByRole('button', { name: /Opnieuw spelen/i })
@@ -1244,6 +1263,7 @@ describe('PrinterSlaatOpHolGame', () => {
 
     // Case C: very long time results in 0 (simulate many wrong clicks)
     vi.resetModules()
+    cleanup()
     render(<PrinterSlaatOpHolGame />)
     await advanceToRunning()
     const cellsC = Array.from(document.querySelectorAll('.cell')) as HTMLElement[]
@@ -1253,14 +1273,22 @@ describe('PrinterSlaatOpHolGame', () => {
     for (let i = 0; i < 40; i++) fireEvent.click(wrongCellC!)
 
     for (let i = 0; i < 20; i++) {
-      await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+      await waitFor(() => {
+        if (document.querySelector('.cell.odd')) return true
+        if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+        throw new Error('waiting for odd cell or end screen')
+      }, { timeout: 10000 })
       const odd = document.querySelector('.cell.odd') as HTMLElement | null
       if (!odd) break
       fireEvent.click(odd)
-      await waitFor(() => expect(document.querySelector('.sheet--top')).not.toBeNull())
+      await waitFor(() => expect(document.querySelector('.sheet--top')).not.toBeNull(), { timeout: 10000 })
       const top = document.querySelector('.sheet--top') as HTMLElement
       fireEvent.animationEnd(top, { animationName: 'pz-sheet-fly' })
-      await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+      await waitFor(() => {
+        if (document.querySelector('.cell.odd')) return true
+        if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+        throw new Error('waiting for odd cell or end screen')
+      }, { timeout: 10000 })
     }
 
     await screen.findByRole('button', { name: /Opnieuw spelen/i })
@@ -1286,7 +1314,9 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     const ages: Array<{ age: any; grid: number }> = [{ age: '8-10', grid: 3 }, { age: '11-13', grid: 4 }, { age: '14-16', grid: 5 }]
     for (const a of ages) {
+      // reset module state and DOM between iterations
       vi.resetModules()
+      cleanup()
       render(<PrinterSlaatOpHolGame ageGroup={a.age} />)
       await advanceToRunning()
 
@@ -1296,21 +1326,29 @@ describe('PrinterSlaatOpHolGame', () => {
 
       // finish immediately to get 100 score for fast plays
       for (let i = 0; i < 20; i++) {
-        await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+        await waitFor(() => {
+          if (document.querySelector('.cell.odd')) return true
+          if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+          throw new Error('waiting for odd cell or end screen')
+        }, { timeout: 10000 })
         const odd = document.querySelector('.cell.odd') as HTMLElement | null
         if (!odd) break
         fireEvent.click(odd)
-        await waitFor(() => expect(document.querySelector('.sheet--top')).not.toBeNull())
+        await waitFor(() => expect(document.querySelector('.sheet--top')).not.toBeNull(), { timeout: 10000 })
         const top = document.querySelector('.sheet--top') as HTMLElement
         fireEvent.animationEnd(top, { animationName: 'pz-sheet-fly' })
-        await waitFor(() => (document.querySelector('.cell.odd') !== null) || (screen.queryByRole('button', { name: /Opnieuw spelen/i }) !== null))
+        await waitFor(() => {
+          if (document.querySelector('.cell.odd')) return true
+          if (screen.queryByRole('button', { name: /Opnieuw spelen/i })) return true
+          throw new Error('waiting for odd cell or end screen')
+        }, { timeout: 10000 })
       }
 
       await screen.findByRole('button', { name: /Opnieuw spelen/i })
       const scoreEl = document.getElementById('score')
       expect(Number(scoreEl?.textContent || '')).toBe(100)
-      // unmount before next iteration
-      try { const root = screen.getByText('Opnieuw spelen').closest('.pz-end')?.parentElement; if (root) root.remove() } catch { /* ignore */ }
+      // unmount DOM before next iteration to avoid leftover nodes affecting next render
+      cleanup()
     }
   })
 

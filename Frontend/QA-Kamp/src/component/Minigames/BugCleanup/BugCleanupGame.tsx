@@ -124,7 +124,6 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const [score, setScore] = useState(0)
   const [mistakes, setMistakes] = useState(0)
   const [elapsedMs, setElapsedMs] = useState(0)
-  const [timeFeedback, setTimeFeedback] = useState<string | null>(null)
   const [bugsRemoved, setBugsRemoved] = useState(0)
   const [bugs, setBugs] = useState<Bug[]>([])
   const [cursorPos, setCursorPos] = useState({ x: 100, y: 100 })
@@ -140,17 +139,13 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef<number | null>(null)
   const nextBugIdRef = useRef(1)
-  const penaltiesGivenRef = useRef(0)
-  const penaltiesScheduleRef = useRef<number[]>([])
+  // ...existing code...
   const shouldFinishRef = useRef(false)
 
   const introText = INTRO_BY_AGE[effectiveAge]
   const hintText = HINT_BY_AGE[effectiveAge]
 
-  const buildPenaltySchedule = useCallback((age: AgeGroup) => {
-    if (age === '8-10') return [120_000, 180_000, 210_000, 240_000, 270_000, 300_000]
-    return [90_000, 120_000, 150_000, 180_000, 210_000, 240_000, 270_000, 300_000]
-  }, [])
+  // penalty schedule removed — no time/score penalties applied
 
   const totalBugsForProgress = useMemo(() => cfg.totalBugs, [cfg.totalBugs])
 
@@ -167,13 +162,12 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     setElapsedMs(0)
     setBugsRemoved(0)
     setFeedback(null)
-    penaltiesGivenRef.current = 0
-    penaltiesScheduleRef.current = buildPenaltySchedule(effectiveAge)
+    // penalties removed
     lagFactorRef.current = cfg.startLag
     elapsedRef.current = 0
     shouldFinishRef.current = false
     lastFrameRef.current = null
-  }, [buildPenaltySchedule, cfg.startLag, cfg.visibleMax, effectiveAge])
+  }, [cfg.startLag, cfg.visibleMax, effectiveAge])
 
   const finishGame = useCallback(() => {
     // Ensure any modal/pause state is cleared so overlays don't remain visible
@@ -256,7 +250,6 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   }, [cfg.lagGain, cfg.maxLag, cfg.splitOnHit, cfg.visibleMax, effectiveAge, paused, running, showEnd, showHelp, showHint, showIntro, totalBugsForProgress])
 
   // handle clicks inside the game area — if the user clicks and it's not on a bug
-  // apply a 10 second penalty and show feedback
   const handleAreaClick = useCallback((ev: React.MouseEvent<HTMLDivElement>) => {
     if (!running || paused || showIntro || showHelp || showHint || showEnd) return
     const rect = gameAreaRef.current?.getBoundingClientRect()
@@ -280,28 +273,10 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
 
     // miss: increment mistakes, add 10 seconds and show feedback
     setMistakes((m) => m + 1)
-    // add 10 seconds to the elapsed timer (milliseconds)
-    elapsedRef.current += 10_000
-    const nextElapsed = Math.floor(elapsedRef.current)
-    setElapsedMs(nextElapsed)
-    // show time feedback under the timer
-    setTimeFeedback('+10 seconden')
-    // keep same timeout duration as other time feedbacks (1500ms)
-    window.setTimeout(() => setTimeFeedback(null), 1500)
+    // miss: increment mistakes (no time/score penalty)
   }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro])
 
-  const applyPenaltyIfNeeded = useCallback((timeMs: number) => {
-    const schedule = penaltiesScheduleRef.current
-    const idx = penaltiesGivenRef.current
-    if (idx >= schedule.length) return
-    if (timeMs >= schedule[idx]) {
-      penaltiesGivenRef.current += 1
-      setScore((s) => s - 2)
-      // show penalty feedback under the timer for a bit longer so players see it
-      setTimeFeedback('Tijdstraf -2')
-      window.setTimeout(() => setTimeFeedback(null), 1500)
-    }
-  }, [])
+  // penalties/minpunten logic removed
 
   useEffect(() => {
     if (!running || paused || showEnd) return
@@ -318,7 +293,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       elapsedRef.current += dt * 1000
       const elapsed = Math.floor(elapsedRef.current)
       setElapsedMs(elapsed)
-      applyPenaltyIfNeeded(elapsed)
+      // no penalty logic
 
       cursorRef.current.x += (mouseRef.current.x - cursorRef.current.x) * lagFactorRef.current
       cursorRef.current.y += (mouseRef.current.y - cursorRef.current.y) * lagFactorRef.current
@@ -366,7 +341,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
       rafRef.current = null
     }
-  }, [applyPenaltyIfNeeded, finishGame, paused, removeBugByHover, running, showEnd])
+  }, [finishGame, paused, removeBugByHover, running, showEnd])
 
   useEffect(() => {
     const onMove = (ev: MouseEvent) => {
@@ -481,7 +456,6 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       {!showEnd && (
         <div className="bc-score-stack">
           <div className="bc-pill">{running ? formatMs(elapsedMs) : '00:00'}</div>
-          {timeFeedback && <div className="bc-time-feedback">{timeFeedback}</div>}
         </div>
       )}
 
