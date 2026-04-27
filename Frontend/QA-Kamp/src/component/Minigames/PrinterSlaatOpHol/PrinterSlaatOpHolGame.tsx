@@ -297,12 +297,14 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         maxCell = 420
         reservedVertical = 110
       } else if (effectiveAge === '8-10') {
-        // make grid more compact for younger group
-        gap = 20
-        // make cells larger for younger kids so items are easier to tap/see
-        minCell = 112
-        maxCell = 420
-        reservedVertical = 140
+        // make grid more spacious for younger group so figures are easier to see
+        gap = 40
+        // increase minimum cell so items appear noticeably larger for 8-10 year olds
+        minCell = 140
+        // allow larger max so on big viewports the icons can scale up more for younger kids
+        maxCell = 520
+        // reserve a bit more vertical space for UI chrome on small viewports
+        reservedVertical = 160
       } else {
         // 14-16
         // make the oldest group's grid denser/smaller so a 5x5 fits comfortably
@@ -697,10 +699,10 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     }
   }, [])
 
-  // Unlock and auto-show hint after 3 mistakes (same for all ages)
+  // Unlock and auto-show hint after 1 mistake (same for all ages)
   useEffect(() => {
     try {
-      if (!hintAutoShownRef.current && mistakes >= 3) {
+      if (!hintAutoShownRef.current && mistakes >= 1) {
         hintAutoShownRef.current = true
         // set global transient flag and notify other UI
         try {
@@ -1064,7 +1066,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                     onClick={()=>handleClick(it)}
                   >
                     {it.icon ? (
-                      <img src={it.icon} alt={it.isOdd ? 'Fout' : 'Normaal'} style={{ width: '92%', height: '92%', objectFit: 'contain', display: 'block', margin: 'auto' }} />
+                      <img src={it.icon} alt={it.isOdd ? 'Fout' : 'Normaal'} style={{ width: (effectiveAge === '8-10' ? '98%' : '92%'), height: (effectiveAge === '8-10' ? '98%' : '92%'), objectFit: 'contain', display: 'block', margin: 'auto' }} />
                     ) : (
                       (it.text ?? '')
                     )}
