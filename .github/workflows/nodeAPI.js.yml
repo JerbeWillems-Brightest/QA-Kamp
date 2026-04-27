@@ -1,0 +1,68 @@
+name: Run API Frontend Tests from Test Automation Framework
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout QA-Kamp repo
+        uses: actions/checkout@v4
+        with:
+          repository: JerbeWillems-Brightest/QA-Kamp
+          ref: develop
+          path: qa-kamp
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install backend dependencies
+        working-directory: qa-kamp/Backend
+        run: npm install
+
+      - name: Start backend
+        working-directory: qa-kamp/Backend
+        run: npm run dev > backend.log 2>&1 &
+
+      - name: Install frontend dependencies
+        working-directory: qa-kamp/Frontend/QA-Kamp
+        run: npm install
+
+      - name: Start frontend
+        working-directory: qa-kamp/Frontend/QA-Kamp
+        run: npm run dev -- --host 0.0.0.0 > Frontend.log 2>&1 &
+
+      - name: Wait for backend and frontend
+        run: |
+          npx wait-on http://127.0.0.1:5173
+        working-directory: qa-kamp/Frontend/QA-Kamp
+
+      - name: Checkout test automation framework
+        uses: actions/checkout@v4
+        with:
+            repository: AnoukDirksBrightest/qa-kamp-test-automation-framework
+            ref: main
+            token: ${{ secrets.TEST_AUTOMATION_TOKEN }}
+            path: test-automation-framework
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Install Playwright browsers
+        working-directory: test-automation-framework
+        run: mvn exec:java -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="install --with-deps"
+
+      - name: Run Maven E2E tests
+        working-directory: test-automation-framework
+        run: mvn -B clean test -Dheadless=true -Dsurefire.rerunFailingTestsCount=2 -Dgroups=API
