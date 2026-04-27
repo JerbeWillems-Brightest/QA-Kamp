@@ -74,8 +74,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
   // Per-round status for cells: only 'bad' (wrong clicked) is kept; green/good coloring removed
   const [cellStatuses, setCellStatuses] = useState<Record<number, 'bad'>>({})
-  const [timeFeedback] = useState<string | null>(null)
-  const [timeFeedbackType] = useState<'good' | 'bad' | null>(null)
+  // Feedback specifically shown under the timer (e.g. "+10s" on mistakes)
+  const [timeFeedback, setTimeFeedback] = useState<string | null>(null)
+  const [timeFeedbackType, setTimeFeedbackType] = useState<'good' | 'bad' | null>(null)
   const hintAutoShownRef = useRef(false)
   // ...existing code... (removed penalty schedule refs)
   const startRef = useRef<number | null>(null)
@@ -409,8 +410,12 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         }
         // Update elapsedMs immediately so UI reflects the added seconds without waiting for RAF
         try { setElapsedMs(Date.now() - (startRef.current || Date.now())) } catch { /* ignore */ }
+        // Show time feedback under the timer (e.g. +10s)
+        try { setTimeFeedback('+10 seconden'); setTimeFeedbackType('bad') } catch { /* ignore */ }
       } catch { /* ignore */ }
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      // clear the time feedback after the same duration
+      setTimeout(() => { try { setTimeFeedback(null); setTimeFeedbackType(null) } catch { /* ignore */ } }, 1200)
       // remove red background together with the textual feedback so the cell returns to white
       setTimeout(() => {
         try {
