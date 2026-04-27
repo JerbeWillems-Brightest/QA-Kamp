@@ -94,7 +94,7 @@ describe('PasswordZapperGame start modal', () => {
     )
 
     // examples for 8-10 are emojis and a sample strong pw; check both are rendered
-    expect(screen.getByText(/hond123/)).toBeInTheDocument()
+    expect(screen.getByText(/laatmijbinnen/)).toBeInTheDocument()
     expect(screen.getByText(/Zon!Maan9/)).toBeInTheDocument()
 
     const btn = screen.getByRole('button', { name: /Volgende/i })

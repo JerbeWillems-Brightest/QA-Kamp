@@ -710,8 +710,10 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           w['__pz_hint_unlocked'] = true
           window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
         } catch { /* ignore */ }
-        // open the hint modal for the player
-        setShowHint(true)
+        // Do NOT automatically open the hint modal; only unlock the hint button
+        // so the top-level UI can enable the hint control. Opening the modal
+        // would interrupt gameplay (tests and UX expect feedback to remain
+        // visible immediately after a mistake), so leave the modal closed.
       }
     } catch { /* ignore */ }
   }, [mistakes])
