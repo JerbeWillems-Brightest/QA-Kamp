@@ -2,6 +2,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
 import PrinterSlaatOpHolGame from './PrinterSlaatOpHol/PrinterSlaatOpHolGame.tsx'
+import BugCleanupGame from './BugCleanup/BugCleanupGame.tsx'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
 import VRAAG_IMG from '../../assets/vraag.png'
@@ -264,15 +265,15 @@ export function MinigamePage() {
   // render fullscreen container. We intentionally omit the back button and title
   return (
     <div className="pz-root">
-      {game === 'passwordzapper' || game === 'printerslaatophol' ? (
+      {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' ? (
         <>
           <div className="pz-controls">
             <button
               className="pz-btn"
               aria-label="Hint"
               onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:hint')) } catch { void 0 } }}
-              disabled={!hintUnlocked}
-              title={!hintUnlocked ? 'Hints worden beschikbaar na enkele fouten' : 'Toon hint'}
+              disabled={game !== 'bugcleanup' && !hintUnlocked}
+              title={game === 'bugcleanup' ? 'Toon hint' : (!hintUnlocked ? 'Hints worden beschikbaar na enkele fouten' : 'Toon hint')}
             >
               <img src={HINT_IMG} alt="hint" />
             </button>
@@ -282,6 +283,8 @@ export function MinigamePage() {
           </div>
           {game === 'printerslaatophol' ? (
             <PrinterSlaatOpHolGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
+          ) : game === 'bugcleanup' ? (
+            <BugCleanupGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : (
             <PasswordZapperGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           )}

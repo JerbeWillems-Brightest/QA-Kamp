@@ -155,9 +155,8 @@
 .pz-time-feedback {
   display: inline-block;
   margin-top: 10px;
-  left: 0 !important;
-  transform: none !important;
-  position: relative !important;
+  /* center under the timer inside the stacked container */
+  align-self: center;
   /* larger font and pill styling to match other feedback visuals */
   font-size: 1.15rem;
   font-weight: 800;
@@ -195,7 +194,7 @@ body.pz-end-open .pz-controls {
 }
 
 /* stacked score + timer variant */
-.printer-root .pz-score-stack { position: absolute; top: 30px; left: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 950 }
+.printer-root .pz-score-stack { position: absolute; top: 30px; left: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 950; align-items: center }
 .printer-root .pz-score-stack .pz-score { position: static; display: block }
 .printer-root .pz-score-stack .pz-timer { position: static; background: #d9a800; color: #fff; padding: 10px 20px; border-radius: 999px; font-size: 2.25rem; font-family: inherit; font-weight: 800; }
 .printer-root .pz-progress {
