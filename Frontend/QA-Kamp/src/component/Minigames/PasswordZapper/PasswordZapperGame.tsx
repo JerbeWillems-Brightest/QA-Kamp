@@ -2278,9 +2278,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
               {effectiveAgeGroup === '8-10' && (
                 <ul className="pz-start-bullets pz-hint-bullets">
                   <li className="pz-hint-item">
-                    Zap wachtwoorden zoals kat, 123456 of minecraft — die zijn te makkelijk! </li>
+                    Tik op slechte wachtwoorden zoals: toets, 123456, abc123</li>
                     <li className="pz-hint-item">
-                        Een sterk wachtwoord ziet er zo uit: Boom@Vis7 — Twee losse woorden, een teken en een cijfer!
+                        Laat goede wachtwoorden zoals Boom@Vis7 gewoon voorbij vliegen
                     </li>
                 </ul>
               )}
