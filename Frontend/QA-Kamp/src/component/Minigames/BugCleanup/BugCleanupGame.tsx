@@ -8,6 +8,7 @@ import orangeBugSvg from '../../../assets/BugCleanupImages/OrangeBug.svg'
 import bigRedOrangeBugSvg from '../../../assets/BugCleanupImages/BigRedOrangeBug.svg'
 import bigPurpleGreenBugSvg from '../../../assets/BugCleanupImages/BigPurpleGreenBug.svg'
 import wallpaperBugCleanup from '../../../assets/BugCleanupImages/WallpaperBugCleanup.png'
+import cursorSvg from '../../../assets/BugCleanupImages/cursor.svg'
 
 type AgeGroup = '8-10' | '11-13' | '14-16'
 type BugVariant = 'red' | 'green' | 'purple' | 'orange' | 'big-red-orange' | 'big-purple-green'
@@ -29,12 +30,18 @@ interface Bug {
   variant: BugVariant
   shape: ShapeType
   isSplitChild?: boolean
+  invulnerableUntilMs?: number
 }
 
 const AGE_SETTINGS: Record<AgeGroup, { totalBugs: number; visibleMax: number; baseSize: number; speedMin: number; speedMax: number; splitOnHit: boolean; startLag: number; lagGain: number; maxLag: number }> = {
-  '8-10': { totalBugs: 15, visibleMax: 3, baseSize: 108, speedMin: 24, speedMax: 46, splitOnHit: false, startLag: 0.001, lagGain: 0.005, maxLag: 0.1 },
-  '11-13': { totalBugs: 25, visibleMax: 4, baseSize: 86, speedMin: 36, speedMax: 64, splitOnHit: false, startLag: 0.001, lagGain: 0.005, maxLag: 0.1 },
-  '14-16': { totalBugs: 30, visibleMax: 4, baseSize: 68, speedMin: 62, speedMax: 116, splitOnHit: true, startLag: 0.001, lagGain: 0.005, maxLag: 0.1 }
+  // Increased totalBugs to make the game longer for each age group
+  // 8-10: require 30 bugs removed for completion
+  // 11-13: require 50 bugs removed for completion
+  // 14-16: require 60 bugs removed for completion
+  '8-10': { totalBugs: 30, visibleMax: 3, baseSize: 108, speedMin: 24, speedMax: 46, splitOnHit: false, startLag: 0.001, lagGain: 0.005, maxLag: 0.1 },
+  '11-13': { totalBugs: 50, visibleMax: 4, baseSize: 86, speedMin: 36, speedMax: 64, splitOnHit: false, startLag: 0.001, lagGain: 0.005, maxLag: 0.1 },
+  // Make the 14-16 bugs a bit larger so they are more prominent
+  '14-16': { totalBugs: 60, visibleMax: 4, baseSize: 86, speedMin: 62, speedMax: 116, splitOnHit: true, startLag: 0.001, lagGain: 0.005, maxLag: 0.1 }
 }
 
 const INTRO_BY_AGE: Record<AgeGroup, string[]> = {
@@ -143,6 +150,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const nextBugIdRef = useRef(1)
   // ...existing code...
   const shouldFinishRef = useRef(false)
+  const SPLIT_INVULNERABLE_MS = 600
 
   const introText = INTRO_BY_AGE[effectiveAge]
   const hintText = HINT_BY_AGE[effectiveAge]
@@ -210,6 +218,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
 
   const removeBugByHover = useCallback((bug: Bug) => {
     if (!running || paused || showIntro || showHelp || showHint || showEnd) return
+    if (bug.invulnerableUntilMs && Date.now() < bug.invulnerableUntilMs) return
     if (removingIdsRef.current.has(bug.id)) return
     removingIdsRef.current.add(bug.id)
 
@@ -223,8 +232,10 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       const spawnedChildren: Bug[] = []
 
       if (cfg.splitOnHit && !bug.isSplitChild && (bug.variant === 'big-red-orange' || bug.variant === 'big-purple-green')) {
-        const childVariant: BugVariant = bug.variant === 'big-red-orange' ? 'orange' : 'purple'
+        const [firstChildVariant, secondChildVariant]: [BugVariant, BugVariant] =
+          bug.variant === 'big-red-orange' ? ['red', 'orange'] : ['purple', 'green']
         const childSize = Math.max(24, bug.size * 0.54)
+        const invulnerableUntilMs = Date.now() + SPLIT_INVULNERABLE_MS
         spawnedChildren.push(
           {
             id: nextBugIdRef.current++,
@@ -233,9 +244,10 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
             vx: -Math.abs(bug.vx) * 1.2,
             vy: Math.abs(bug.vy) * 1.1,
             size: childSize,
-            variant: childVariant,
+            variant: firstChildVariant,
             shape: 'triangle',
-            isSplitChild: true
+            isSplitChild: true,
+            invulnerableUntilMs
           },
           {
             id: nextBugIdRef.current++,
@@ -244,9 +256,10 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
             vx: Math.abs(bug.vx) * 1.2,
             vy: -Math.abs(bug.vy) * 1.1,
             size: childSize,
-            variant: childVariant,
+            variant: secondChildVariant,
             shape: 'square',
-            isSplitChild: true
+            isSplitChild: true,
+            invulnerableUntilMs
           }
         )
       }
@@ -529,7 +542,11 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     '14-16': [60, 110, 170]
   }
   const [t1, t2, t3] = STAR_THRESHOLDS[effectiveAge]
-  const starCount = elapsedMs > 0 ? (elapsedSec <= t1 ? 3 : elapsedSec <= t2 ? 2 : elapsedSec <= t3 ? 1 : 0) : 0
+  // If the player reached full progress (100% or removed required bugs), always show 3 stars.
+  // Otherwise fall back to the existing time-based thresholds.
+  const starCount = (bugsRemoved >= totalBugsForProgress || progressPercent >= 100)
+    ? 3
+    : (elapsedMs > 0 ? (elapsedSec <= t1 ? 3 : elapsedSec <= t2 ? 2 : elapsedSec <= t3 ? 1 : 0) : 0)
 
   // When the user stopped the game via the pause->Stoppen action, we must
   // display the same end-screen markup but show zeros for everything and
@@ -592,7 +609,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
           </div>
         ))}
 
-        {!showEnd && <div className="bc-lag-cursor" style={{ left: `${cursorPos.x}px`, top: `${cursorPos.y}px` }} />}
+        {!showEnd && (
+          <img src={cursorSvg} alt="" aria-hidden className="bc-lag-cursor" style={{ left: `${cursorPos.x}px`, top: `${cursorPos.y}px` }} />
+        )}
       </div>
 
       {showIntro && (

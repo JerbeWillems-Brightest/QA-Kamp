@@ -1,6 +1,90 @@
 .printer-root { font-family: 'Arial', sans-serif; box-sizing: border-box; max-height: 100vh; overflow: hidden; background: #000; border: 10px solid #000 }
 .printer-root .topbar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background: transparent; border-bottom: none; position:relative; z-index:920 }
 
+/* Pre-intro office screen (click printer first) */
+.printer-office-intro {
+  position: absolute;
+  inset: 10px;
+  /* ensure the image fills the available width, scale height automatically
+     and align the image to the top so the visible crop moves upward */
+  background-size: 100% 100%;
+  background-position: center top;
+  background-repeat: no-repeat;
+  /* keep the black frame/container the same size; let the image scale inside it */
+  height: 100%;
+  overflow: hidden;
+}
+
+.printer-office-intro__computer {
+  position: absolute;
+  left: 4%;
+  bottom: 0;
+  width: min(150vw, 1450px);
+  max-width: 60%;
+  pointer-events: none;
+}
+
+.printer-office-intro__printer-btn {
+  position: absolute;
+  right: 1.5%;
+  bottom: 1%;
+  width: min(50vw, 480px);
+  max-width: 42%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.printer-office-intro__printer-btn:focus-visible {
+  outline: 4px solid #ffd400;
+  outline-offset: 4px;
+}
+
+.printer-office-intro__printer {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* Wrapper around the printer image to show a yellow border and label */
+.printer-office-intro__printer-wrap {
+  position: relative; /* so the label can be absolutely positioned */
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 18px;
+  box-sizing: border-box;
+  /* thicker yellow border like the design */
+  border: 14px solid #f0b000;
+  background: rgba(255,255,255,0.03);
+  overflow: visible; /* allow the label to overlap outside the border */
+}
+
+.printer-office-intro__label {
+  position: absolute;
+  /* attach the pill to the top edge so it looks fixed to the frame */
+  top: -5%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #f0b000; /* yellow pill background */
+  color: #fff; /* white text */
+  font-weight: 900;
+  text-transform: none;
+  font-size: 1.6rem; /* larger label */
+  line-height: 1;
+  padding: 10px 22px; /* larger pill */
+  border-radius: 18px;
+  z-index: 60;
+  white-space: nowrap;
+  pointer-events: none; /* allow clicks to pass through to the button */
+}
+
+.printer-office-intro__printer-wrap img { display:block; width:100%; height:auto }
+
 /* The game-area is inset so it fits inside the 10px black border on the root element */
 .printer-root .game-area { position:absolute; inset:10px; background:#000; overflow:hidden; box-sizing:border-box }
 
@@ -10,9 +94,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  /* ensure the full image fits inside the frame without cropping */
   filter: blur(6px) saturate(0.9);
   z-index: 880;
   background-color: #000;
@@ -33,9 +115,6 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
   filter: none;
   z-index: 860;
   background-color: #000;

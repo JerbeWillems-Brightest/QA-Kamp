@@ -157,13 +157,10 @@
 
 .bc-lag-cursor {
   position: absolute;
-  width: 0;
-  height: 0;
-  /* triangle cursor pointing right — matches the cursor used elsewhere */
-  border-top: 14px solid transparent;
-  border-bottom: 12px solid transparent;
-  border-left: 24px solid #7a7a7a;
-  transform: translate(-6px, -6px) rotate(-20deg);
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  transform: translate(-8px, -8px);
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
   pointer-events: none;
   z-index: 945;

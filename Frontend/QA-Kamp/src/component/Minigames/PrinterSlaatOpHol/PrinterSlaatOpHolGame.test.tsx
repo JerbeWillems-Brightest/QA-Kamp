@@ -59,10 +59,22 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.restoreAllMocks()
   })
 
-  it('renders intro screen on initial load', () => {
+  // Helper to advance past the new clickable office intro that was added
+  // to the component. Many tests assumed the modal was present immediately;
+  // the component now shows a small office scene first. This helper will
+  // click the office button if present and then await the intro modal.
+  function ensureIntroVisible() {
+    const officeBtn = screen.queryByLabelText('Klik op de printer')
+    if (officeBtn) fireEvent.click(officeBtn)
+    // intro modal is rendered synchronously in tests (no timers), so use getByText
+    return screen.getByText('De printer is gek geworden!')
+  }
+
+  it('renders intro screen on initial load', async () => {
     render(<PrinterSlaatOpHolGame />)
-    
-    expect(screen.getByText('De printer is gek geworden!')).toBeInTheDocument()
+
+    // Ensure the intro is visible (click the office scene first if present)
+    ensureIntroVisible()
     // The intro bullet varies by inferred age group. Accept either the
     // 8-10 specific wording or the default wording used for older groups.
     expect(
@@ -71,8 +83,11 @@ describe('PrinterSlaatOpHolGame', () => {
     expect(screen.getByText('Volgende')).toBeInTheDocument()
   })
 
-  it('shows Volgende button on the catastrophe intro and advances to the tutorial when clicked', () => {
+  it('shows Volgende button on the catastrophe intro and advances to the tutorial when clicked', async () => {
     render(<PrinterSlaatOpHolGame />)
+
+    // Ensure intro modal is visible (click office intro if needed)
+    ensureIntroVisible()
 
     // The catastrophe/intro popup should show the Volgende button
     const volgendeBtn = screen.getByRole('button', { name: /Volgende/i })
@@ -81,7 +96,7 @@ describe('PrinterSlaatOpHolGame', () => {
     // Click the button to advance: intro should disappear and tutorial should show
     fireEvent.click(volgendeBtn)
 
-    // Intro heading should no longer be present
+    // Intro heading should no longer be present (state updates are synchronous)
     expect(screen.queryByText('De printer is gek geworden!')).not.toBeInTheDocument()
 
     // The tutorial modal heading should now be visible
@@ -96,8 +111,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
     
-    // Advance past the intro into the tutorial by clicking the Volgende inside the intro modal
-    const introHeading = screen.getByText('De printer is gek geworden!')
+    // Advance past the intro into the tutorial by clicking office intro (if any)
+    const introHeading = await ensureIntroVisible()
     const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
     const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
     fireEvent.click(introNext)
@@ -129,8 +144,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past the intro into the tutorial by clicking Volgende inside the intro modal
-    const introHeading = screen.getByText('De printer is gek geworden!')
+    // Advance past the intro into the tutorial by clicking office intro (if any)
+    const introHeading = await ensureIntroVisible()
     const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
     const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
     fireEvent.click(introNext)
@@ -159,8 +174,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past intro/tutorial to reach the game
-    const introHeading = screen.getByText('De printer is gek geworden!')
+    // Advance past office intro and tutorial to reach the game
+    const introHeading = await ensureIntroVisible()
     const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
     const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
     fireEvent.click(introNext)
@@ -188,8 +203,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past intro/tutorial to reach the game
-    const introHeading = screen.getByText('De printer is gek geworden!')
+    // Advance past office intro and tutorial to reach the game
+    const introHeading = await ensureIntroVisible()
     const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
     const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
     fireEvent.click(introNext)
@@ -217,8 +232,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past intro/tutorial to reach the game
-    const introHeading = screen.getByText('De printer is gek geworden!')
+    // Advance past office intro and tutorial to reach the game
+    const introHeading = await ensureIntroVisible()
     const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
     const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
     fireEvent.click(introNext)
@@ -487,13 +502,14 @@ describe('PrinterSlaatOpHolGame', () => {
     expect(wrongEl?.textContent).toMatch(/0/)
 
     // Time shown in tips (should include 'Tijd' and show formatted time)
-    const tips = screen.getByText(/Tijd:/i)
+    const tipsMatches = screen.getAllByText(/Tijd:/i)
+    expect(tipsMatches.length).toBeGreaterThan(0)
+    const tips = tipsMatches[0]
     expect(tips).toBeInTheDocument()
 
-    // Fastest/highscore visible
-    const highEl = document.getElementById('highScore')
-    expect(highEl).not.toBeNull()
-    expect(highEl?.textContent).toMatch(/42/)
+    // Fastest time label should be present; highscore element was removed
+    const fastest = screen.getByText(/Snelste tijd:/i)
+    expect(fastest).toBeInTheDocument()
   })
 
   it('uses default age group when none provided', () => {
