@@ -810,7 +810,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       >
         {/* blurred background so the popup matches the game's background */}
         <div className="game-area printer-area">
-          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+          <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
           {!printerBg && <div style={{position:'absolute', top:8, left:8, zIndex:999, background:'rgba(255,0,0,0.85)', color:'#fff', padding:'6px 8px', borderRadius:4}}>Missing background asset</div>}
         </div>
 
@@ -839,7 +839,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       >
         {/* blurred background so the popup matches the game's background */}
         <div className="game-area printer-area">
-          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+          <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
           {!printerBg && <div style={{position:'absolute', top:8, left:8, zIndex:999, background:'rgba(255,0,0,0.85)', color:'#fff', padding:'6px 8px', borderRadius:4}}>Missing background asset</div>}
         </div>
 
@@ -865,7 +865,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     return (
       <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
         <div className="game-area printer-area">
-          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+          <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         </div>
 
         <div className="pz-start-overlay" onClick={() => setShowHelp(false)}>
@@ -890,7 +890,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     return (
       <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
         <div className="game-area printer-area">
-          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+          <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         </div>
 
         <div className="pz-start-overlay">
@@ -915,7 +915,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     return (
       <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
         <div className="game-area printer-area">
-          <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+          <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         </div>
 
         <div className="pz-pause-overlay">
@@ -1109,7 +1109,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
 
         <div className="game-area printer-area">
         {/* blurred background layer using the printer image */}
-        <div className={`bg-blur ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+        <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
         {!printerBg && <div style={{position:'absolute', top:8, left:8, zIndex:999, background:'rgba(255,0,0,0.85)', color:'#fff', padding:'6px 8px', borderRadius:4}}>Missing background asset</div>}
 
         {/* game content sits above the blurred background */}
