@@ -702,7 +702,16 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   // Listen for external hint requests (from top-level hint button)
   useEffect(() => {
     function onHintRequest() {
-      try { setShowHint(true) } catch { /* ignore */ }
+      try {
+        // mark hint as shown/unlocked so the auto-open logic doesn't re-fire
+        try {
+          hintAutoShownRef.current = true
+          const w = window as unknown as Record<string, unknown>
+          w['__pz_hint_unlocked'] = true
+          window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
+        } catch { /* ignore */ }
+        setShowHint(true)
+      } catch { /* ignore */ }
     }
     window.addEventListener('minigame:hint', onHintRequest)
     return () => window.removeEventListener('minigame:hint', onHintRequest)
@@ -723,7 +732,18 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   useEffect(() => {
     const onPause = () => { try { setPaused(true) } catch { /* ignore */ } }
     const onHelp = () => { try { setShowHelp(true) } catch { /* ignore */ } }
-    const onHint = () => { try { setShowHint(true) } catch { /* ignore */ } }
+    const onHint = () => {
+      try {
+        // ensure opening the hint via global event marks it as seen/unlocked
+        try {
+          hintAutoShownRef.current = true
+          const w = window as unknown as Record<string, unknown>
+          w['__pz_hint_unlocked'] = true
+          window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
+        } catch { /* ignore */ }
+        setShowHint(true)
+      } catch { /* ignore */ }
+    }
     window.addEventListener('minigame:pause', onPause as EventListener)
     window.addEventListener('minigame:question', onHelp as EventListener)
     window.addEventListener('minigame:hint', onHint as EventListener)
@@ -734,7 +754,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     }
   }, [])
 
-  // Unlock and auto-show hint after 1 mistake (same for all ages)
+  // Unlock (and on first mistake: auto-open) hint after 1 mistake (same for all ages)
   useEffect(() => {
     try {
       if (!hintAutoShownRef.current && mistakes >= 1) {
@@ -745,13 +765,17 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           w['__pz_hint_unlocked'] = true
           window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
         } catch { /* ignore */ }
-        // Do NOT automatically open the hint modal; only unlock the hint button
-        // so the top-level UI can enable the hint control. Opening the modal
-        // would interrupt gameplay (tests and UX expect feedback to remain
-        // visible immediately after a mistake), so leave the modal closed.
+        // Auto-open the hint modal on the first mistake so the player sees
+        // that the hint button is enabled. Only open when gameplay is active
+        // and no other modal/overlay is visible so we don't interrupt other flows.
+        try {
+          if (running && !showHint && !showHelp && !showIntro && !showTutorial && !paused && !showEnd) {
+            setShowHint(true)
+          }
+        } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
-  }, [mistakes])
+  }, [mistakes, running, showHint, showHelp, showIntro, showTutorial, paused, showEnd])
 
   // Toggle a body-level class while paused so CSS can freeze animations if desired
   useEffect(() => {
