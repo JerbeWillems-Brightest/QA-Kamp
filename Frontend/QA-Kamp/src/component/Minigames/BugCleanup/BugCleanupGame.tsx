@@ -8,7 +8,7 @@ import orangeBugSvg from '../../../assets/BugCleanupImages/OrangeBug.svg'
 import bigRedOrangeBugSvg from '../../../assets/BugCleanupImages/BigRedOrangeBug.svg'
 import bigPurpleGreenBugSvg from '../../../assets/BugCleanupImages/BigPurpleGreenBug.svg'
 import wallpaperBugCleanup from '../../../assets/BugCleanupImages/WallpaperBugCleanup.png'
-import cursorSvg from '../../../assets/BugCleanupImages/cursor.svg'
+import cursorSvg from '../../../assets/BugCleanupImages/Cursor.svg'
 
 type AgeGroup = '8-10' | '11-13' | '14-16'
 type BugVariant = 'red' | 'green' | 'purple' | 'orange' | 'big-red-orange' | 'big-purple-green'
