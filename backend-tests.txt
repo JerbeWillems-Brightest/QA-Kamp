@@ -9,10 +9,10 @@
 
 
   Auth routes (compiled)
-    ÔêÜ logs in seeded organizer (232ms)
+    ÔêÜ logs in seeded organizer (194ms)
 
   Auth + Users extra branches (compiled)
-    ÔêÜ auth: missing credentials -> 400 and wrong credentials -> 401 (170ms)
+    ÔêÜ auth: missing credentials -> 400 and wrong credentials -> 401 (155ms)
     ÔêÜ users: create invalid input returns 400
     ÔêÜ auth: returns 500 when Organizer.findOne throws
 
@@ -106,39 +106,39 @@ Error: Not allowed by CORS
     at Server.emit (node:events:519:28)
     at parserOnIncoming (node:_http_server:1168:12)
     at HTTPParser.parserOnHeadersComplete (node:_http_common:117:17)
-    ÔêÜ CORS origin handling: wildcard, normalization, disallowed and preflight (550ms)
-    ÔêÜ Organizer pre-save hook hashes password on save and does not call hash when not modified (1947ms)
+    ÔêÜ CORS origin handling: wildcard, normalization, disallowed and preflight (365ms)
+    ÔêÜ Organizer pre-save hook hashes password on save and does not call hash when not modified (497ms)
     ÔêÜ loadOrganizer: deterministic tests for throw and fallback paths
     ÔêÜ exercise remaining conditional branches in this test file without failing
     ÔêÜ explicitly exercises helper-branch functions to raise branch/func coverage
     ÔêÜ covers newly added helper functions and their branches
 
   DB module (compiled)
-Connecting to MongoDB... mongodb://127.0.0.1:58299/
+Connecting to MongoDB... mongodb://127.0.0.1:60059/
 MongoDB connected
 Seeding default organizer...
 Created organizer: organizer@qa-kamp.be
 Created organizer: organizer@test.be
-    ÔêÜ connectDB connects and seedOrganizers creates organizer (236ms)
+    ÔêÜ connectDB connects and seedOrganizers creates organizer (156ms)
 
   Routes combined (compiled)
     ÔêÜ GET /api/sessions/active returns 404 when no active session
     ÔêÜ POST /api/sessions without organizerId -> 400
-    ÔêÜ create session then POST again returns existing session (200) (91ms)
+    ÔêÜ create session then POST again returns existing session (200) (88ms)
     ÔêÜ POST /api/sessions/join validations: missing code and not found and not active
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
 (Use `node --trace-warnings ...` to show where the warning was created)
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
     ÔêÜ POST /api/sessions/active/join handles missing/invalid playerNumber, no active session, not found and busy
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
     ÔêÜ DELETE /api/sessions/:id returns 404 for missing id
 POST /:id/players called with invalid body type: object body: { not: 'array' }
 Attempting insert for row 1 playerNumber=301 name=C
-Inserted row 1 id=69f32b24f652b372edba137a playerNumber=301
+Inserted row 1 id=69f337962963054497ab9f07 playerNumber=301
     ÔêÜ POST /api/sessions/:id/players invalid body and session not found and validation errors and duplicate payload
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
-    ÔêÜ player update/leaderboard/online/offline and delete player flows (62ms)
-    ÔêÜ POST /api/sessions handles repeated duplicate-key creation and returns generation failure (500) (87ms)
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+    ÔêÜ player update/leaderboard/online/offline and delete player flows (42ms)
+    ÔêÜ POST /api/sessions handles repeated duplicate-key creation and returns generation failure (500) (77ms)
 Error checking existing active session: TypeError: Session_1.Session.findOne(...).sort is not a function
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:39:93
     at Layer.handleRequest (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\lib\layer.js:152:17)
@@ -158,21 +158,21 @@ Error checking existing active session: TypeError: Session_1.Session.findOne(...
     at next (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\index.js:291:5)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\index.js:63:9
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ POST /api/sessions handles Session.findOne throwing (existing-check catch branch) (86ms)
-    ÔêÜ POST /api/sessions/:id/players returns 500 when no candidate can be generated (85ms)
-Attempting insert for row 1 playerNumber=297 name=TryA
-Insert failed for row 1 playerNumber=297 (attempts=0) dup
-Attempting insert for row 1 playerNumber=445 name=TryA
-Inserted row 1 id=madeupid playerNumber=445
-    ÔêÜ POST /api/sessions/:id/players handles duplicate-key on insert then retries successfully (89ms)
-    ÔêÜ GET /api/sessions/:id/online-players returns online players without cutoffMs (85ms)
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+    ÔêÜ POST /api/sessions handles Session.findOne throwing (existing-check catch branch) (78ms)
+    ÔêÜ POST /api/sessions/:id/players returns 500 when no candidate can be generated (79ms)
+Attempting insert for row 1 playerNumber=367 name=TryA
+Insert failed for row 1 playerNumber=367 (attempts=0) dup
+Attempting insert for row 1 playerNumber=790 name=TryA
+Inserted row 1 id=madeupid playerNumber=790
+    ÔêÜ POST /api/sessions/:id/players handles duplicate-key on insert then retries successfully (82ms)
+    ÔêÜ GET /api/sessions/:id/online-players returns online players without cutoffMs (84ms)
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
     ÔêÜ users routes: 404/get-update-delete non-existing and create invalid input errors
 Create session DB error: Error: create fail
     at Session.create (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\routes.spec.js:255:47)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:54:58
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ sessions: POST / returns 500 when Session.create throws (78ms)
+    ÔêÜ sessions: POST / returns 500 when Session.create throws (81ms)
 Get active session error: TypeError: Session_1.Session.findOne(...).sort is not a function
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:79:74
     at Layer.handleRequest (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\lib\layer.js:152:17)
@@ -298,7 +298,7 @@ Create players error: Error: boom
     at next (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\index.js:291:5)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\index.js:63:9
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ sessions: list and players endpoints return 500 when underlying model throws (90ms)
+    ÔêÜ sessions: list and players endpoints return 500 when underlying model throws (78ms)
 Leaderboard error: TypeError: Player_1.Player.find(...).select is not a function
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:556:14
     at Layer.handleRequest (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\lib\layer.js:152:17)
@@ -369,7 +369,7 @@ Set player offline error: Error: boom
     at next (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\index.js:291:5)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\index.js:63:9
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ leaderboard/online/online-set/offline-set return 500 when player/session lookups throw (100ms)
+    ÔêÜ leaderboard/online/online-set/offline-set return 500 when player/session lookups throw (90ms)
 Set activeGameInfo error: Error: boom
     at Session.findById (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\routes.spec.js:341:49)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:641:49
@@ -413,24 +413,24 @@ Get activeGameInfo error: TypeError: Session_1.Session.findById(...).select is n
     at next (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\index.js:291:5)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\index.js:63:9
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ active-game get/post return 500 when Session.findById throws (86ms)
+    ÔêÜ active-game get/post return 500 when Session.findById throws (82ms)
     ÔêÜ users routes catch branches return 500/400 when Organizer.* throws
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
 Active join error: Error: boom
     at Player.findOne (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\routes.spec.js:387:47)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:143:50
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
     ÔêÜ POST /api/sessions/active/join returns 500 when Player.findOne throws
-Error deleting players for session 69f32b25f652b372edba13bd Error: delete failed
+Error deleting players for session 69f337972963054497ab9f4a Error: delete failed
     at Player.deleteMany (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\routes.spec.js:402:50)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:167:35
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
     ÔêÜ DELETE /api/sessions returns 500 when Player.deleteMany throws
     ÔêÜ GET /api/sessions with organizerId parameter returns filtered sessions
-Attempting insert for row 1 playerNumber=883 name=Player1
-Inserted row 1 id=69f32b25f652b372edba13ce playerNumber=883
-Attempting insert for row 2 playerNumber=731 name=Player2
-Inserted row 2 id=69f32b25f652b372edba13d0 playerNumber=731
+Attempting insert for row 1 playerNumber=342 name=Player1
+Inserted row 1 id=69f337972963054497ab9f5b playerNumber=342
+Attempting insert for row 2 playerNumber=369 name=Player2
+Inserted row 2 id=69f337972963054497ab9f5d playerNumber=369
     ÔêÜ POST /api/sessions/:id/players accepts {players: [...]} format
 Create players error: Error: session lookup failed
     at Session.findById (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\routes.spec.js:461:49)
@@ -483,18 +483,18 @@ Update player error: Error: update failed
 
   Sessions routes (compiled)
 Attempting insert for row 1 playerNumber=201 name=A
-Inserted row 1 id=69f32b26f652b372edba13ed playerNumber=201
+Inserted row 1 id=69f337982963054497ab9f7a playerNumber=201
 Attempting insert for row 2 playerNumber=202 name=B
-Inserted row 2 id=69f32b26f652b372edba13ef playerNumber=202
-    ÔêÜ creates session and manages players (120ms)
+Inserted row 2 id=69f337982963054497ab9f7c playerNumber=202
+    ÔêÜ creates session and manages players (113ms)
     ÔêÜ coverage: exercises getSessionId branches
-Error deleting players for session 69f32b26f652b372edba13f9 Error: delete failed
+Error deleting players for session 69f337982963054497ab9f86 Error: delete failed
     at Player.deleteMany (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:86:50)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:167:35
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ DELETE /api/sessions/:id returns 500 when Player.deleteMany throws (85ms)
-    ÔêÜ GET /api/sessions?organizerId returns sessions list for organizer (82ms)
-    ÔêÜ POST/GET active-game stores and retrieves activeGameInfo (95ms)
+    ÔêÜ DELETE /api/sessions/:id returns 500 when Player.deleteMany throws (77ms)
+    ÔêÜ GET /api/sessions?organizerId returns sessions list for organizer (78ms)
+    ÔêÜ POST/GET active-game stores and retrieves activeGameInfo (96ms)
 CORS blocked origin: https://blocked.test. Allowed: https://allowed.test
     ÔêÜ CORS: blocked origin path triggers error
 Error: Not allowed by CORS
@@ -513,37 +513,37 @@ Error: Not allowed by CORS
     at Server.emit (node:events:519:28)
     at parserOnIncoming (node:_http_server:1168:12)
     at HTTPParser.parserOnHeadersComplete (node:_http_common:117:17)
-    ÔêÜ POST /api/sessions returns existing active session when one exists (83ms)
-    ÔêÜ POST /api/sessions returns 500 when Session.create always throws duplicate-key (exhaust retries) (79ms)
-    ÔêÜ POST /api/sessions: generator collision leads to exhaustion error (87ms)
+    ÔêÜ POST /api/sessions returns existing active session when one exists (77ms)
+    ÔêÜ POST /api/sessions returns 500 when Session.create always throws duplicate-key (exhaust retries) (75ms)
+    ÔêÜ POST /api/sessions: generator collision leads to exhaustion error (97ms)
 Create session DB error: Error: fatal db
     at Session.create (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:177:47)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:54:58
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ POST /api/sessions returns 500 when Session.create throws unexpected error (86ms)
-    ÔêÜ POST /api/sessions/join validations and inactive session (94ms)
+    ÔêÜ POST /api/sessions returns 500 when Session.create throws unexpected error (75ms)
+    ÔêÜ POST /api/sessions/join validations and inactive session (79ms)
 POST /:id/players called with invalid body type: object body: { not: 'an array' }
-    ÔêÜ POST /api/sessions/:id/players validation: rejects non-array and duplicate in payload (99ms)
-    ÔêÜ GET /api/sessions/active returns active session when present (84ms)
-    ÔêÜ POST /api/sessions/join returns session info on success (79ms)
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
-    ÔêÜ POST /api/sessions/active/join success path returns player and session (85ms)
+    ÔêÜ POST /api/sessions/:id/players validation: rejects non-array and duplicate in payload (80ms)
+    ÔêÜ GET /api/sessions/active returns active session when present (75ms)
+    ÔêÜ POST /api/sessions/join returns session info on success (76ms)
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+    ÔêÜ POST /api/sessions/active/join success path returns player and session (79ms)
     ÔêÜ GET /api/sessions without organizerId returns recent sessions
-    ÔêÜ POST /api/sessions/:id/players returns 400 when players already exist in DB for that session (87ms)
-Attempting insert for row 1 playerNumber=856 name=NoNum
-Insert failed for row 1 playerNumber=856 (attempts=0) insert boom
+    ÔêÜ POST /api/sessions/:id/players returns 400 when players already exist in DB for that session (81ms)
+Attempting insert for row 1 playerNumber=514 name=NoNum
+Insert failed for row 1 playerNumber=514 (attempts=0) insert boom
 Failed to insert player at index 0: Error: insert boom
     at Player.create (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:289:46)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:378:54
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ POST /api/sessions/:id/players records per-row errors when insert throws non-duplicate error (88ms)
+    ÔêÜ POST /api/sessions/:id/players records per-row errors when insert throws non-duplicate error (77ms)
 Create session error: Error: gen boom
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:366:59
     at generateCode (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:22:12)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:52:26
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ POST /api/sessions handles generateCode throwing (500) (82ms)
-    ÔêÜ POST /api/sessions/:id/players records exhaustion when duplicate-key repeats (94ms)
+    ÔêÜ POST /api/sessions handles generateCode throwing (500) (78ms)
+    ÔêÜ POST /api/sessions/:id/players records exhaustion when duplicate-key repeats (77ms)
 List players error: TypeError: Player_1.Player.find(...).sort is not a function
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:431:71
     at Layer.handleRequest (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\lib\layer.js:152:17)
@@ -565,8 +565,8 @@ List players error: TypeError: Player_1.Player.find(...).sort is not a function
     at next (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\index.js:291:5)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\index.js:63:9
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ GET /api/sessions/:id/players returns 500 when Player.find throws (81ms)
-    ÔêÜ PUT /api/sessions/:id/players/:playerNumber merges highscores and computes score (81ms)
+    ÔêÜ GET /api/sessions/:id/players returns 500 when Player.find throws (74ms)
+    ÔêÜ PUT /api/sessions/:id/players/:playerNumber merges highscores and computes score (75ms)
 Delete player error: Error: boom
     at Player.findOneAndDelete (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:454:56)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:529:47
@@ -590,15 +590,15 @@ Delete player error: Error: boom
     at next (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\node_modules\router\index.js:291:5)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\index.js:63:9
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-    ÔêÜ DELETE /api/sessions/:id/players/:playerNumber returns 500 when findOneAndDelete throws (81ms)
-    ÔêÜ POST online returns 409 when findOneAndUpdate null but findOne shows other device (79ms)
-    ÔêÜ POST offline returns 404 when player not found (findOneAndUpdate returns null) (83ms)
+    ÔêÜ DELETE /api/sessions/:id/players/:playerNumber returns 500 when findOneAndDelete throws (76ms)
+    ÔêÜ POST online returns 409 when findOneAndUpdate null but findOne shows other device (76ms)
+    ÔêÜ POST offline returns 404 when player not found (findOneAndUpdate returns null) (75ms)
     POST /api/sessions/active/join edge cases
       ÔêÜ rejects missing or invalid playerNumber
       ÔêÜ returns 404 when no active session exists
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
-      ÔêÜ returns 404 when player not found, and 409 when player is recently online (95ms)
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+      ÔêÜ returns 404 when player not found, and 409 when player is recently online (86ms)
     sessions routes error branches (force throws)
 Get active session error: TypeError: Session_1.Session.findOne(...).sort is not a function
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:79:74
@@ -645,7 +645,7 @@ Active join error: Error: boom
     at Player.findOneAndUpdate (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:325:58)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:136:53
     at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
-      ÔêÜ POST /api/sessions/active/join returns 500 when Player.findOneAndUpdate throws (85ms)
+      ÔêÜ POST /api/sessions/active/join returns 500 when Player.findOneAndUpdate throws (76ms)
 Delete session error: Error: boom
     at Session.findById (C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\test-js\sessions.spec.js:334:51)
     at C:\Users\12101540\Desktop\I-Talent\Stage\QA-Kamp\Backend\dist\routes\sessions.js:162:49
@@ -714,10 +714,10 @@ Create players error: Error: boom
       ÔêÜ POST /api/sessions/:id/players returns 500 when Session.findById throws
 
   Users routes (compiled)
-(node:2376) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
-    ÔêÜ can create, list, get, update and delete organizers (107ms)
+(node:6180) [MONGOOSE] Warning: mongoose: the `new` option for `findOneAndUpdate()` and `findOneAndReplace()` is deprecated. Use `returnDocument: 'after'` instead.
+    ÔêÜ can create, list, get, update and delete organizers (105ms)
     ÔêÜ coverage: exercises getId branches
 
 
-  81 passing (10s)
+  81 passing (8s)
 
