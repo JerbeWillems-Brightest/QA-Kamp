@@ -12,41 +12,39 @@
   overflow: hidden;
 }
 
-.bc-bg-img {
-  position: absolute;
-  inset: 0;
-  /* Use contain so the entire PNG is visible (no cropping). Align to the
-     bottom so the white bottom area of the PNG remains visible inside the
-     container. If there is letterboxing it will show the container's
-     background color — set that to white if you want a white margin. */
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  object-position: bottom center;
-  display: block;
-  /* ensure the container background is white so any letterbox area appears white */
-  background-color: white;
-}
-
-.bc-score-stack {
-  position: absolute;
-  top: 28px;
-  left: 28px;
+.pz-time-card {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  z-index: 950;
+  align-items: stretch;
+  min-width: 260px; /* wider */
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 8px 18px rgba(0,0,0,0.10);
+}
+.pz-time-card__header {
+  background: #f0b800;
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.25rem;
+  padding: 14px 20px;
+  text-align: center;
 }
 
-.bc-pill {
-  background: #d2a900;
-  color: #fff;
-  font-weight: 800;
-  font-size: 2rem;
-  border-radius: 40px;
-  padding: 12px 22px;
-  min-width: 168px;
+.pz-time-card__body {
+  background: #fff;
+  color: #111;
+  padding: 18px 20px;
+  text-align: center;
+  /* match PasswordZapper score font */
+  font-size: 32px;
+  font-weight: 900;
+  border: 6px solid #f0b800; /* brighter/thicker */
+  border-top: none;
+  border-bottom-left-radius: 12px;
+  border-bottom-right-radius: 12px;
+  box-sizing: border-box;
 }
+
 
 .bc-time-feedback {
   display: inline-block;
@@ -159,13 +157,10 @@
 
 .bc-lag-cursor {
   position: absolute;
-  width: 0;
-  height: 0;
-  /* triangle cursor pointing right — matches the cursor used elsewhere */
-  border-top: 14px solid transparent;
-  border-bottom: 12px solid transparent;
-  border-left: 24px solid #7a7a7a;
-  transform: translate(-6px, -6px) rotate(-20deg);
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  transform: translate(-8px, -8px);
   filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
   pointer-events: none;
   z-index: 945;
@@ -244,6 +239,7 @@
   z-index: 700;
   pointer-events: auto;
 }
+
 
 .pz-end-box {
   position: fixed;
@@ -399,6 +395,39 @@
   cursor: pointer;
   display: inline-block;
 }
+
+.pz-time-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  /* Breder gemaakt zodat de behaalde tijd meer ruimte heeft */
+  min-width: 260px;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 6px 12px rgba(0,0,0,0.08);
+}
+.pz-time-card__header {
+  background: #f0b800;
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.2rem;
+  padding: 12px 18px;
+  text-align: center;
+}
+.pz-time-card__body {
+  background: #fff;
+  color: #222;
+  /* Iets meer padding en grotere tekst voor betere leesbaarheid */
+  padding: 18px 22px;
+  text-align: center;
+  font-size: 2.6rem;
+  font-weight: 800;
+  /* Donkere, prominente rand zodat de tijd duidelijk afsteekt */
+  border: 6px solid rgba(240,184,0,0.85);
+  border-top: none;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
+}
 .pz-play-again:hover { background: #e6aa00; }
 
 body.pz-modal-open .pz-help,
@@ -412,5 +441,38 @@ body.pz-end-open .bc-score-stack,
 body.pz-end-open .bc-progress,
 body.pz-end-open .bc-lag-cursor {
   display: none !important;
+}
+
+/* Top-centered best time shown when end screen is visible */
+.pz-best-top {
+  position: fixed;
+  /* center within viewport */
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  pointer-events: none;
+}
+.pz-best-top__label {
+  font-weight: 900;
+  color: #333;
+  font-size: clamp(1.5rem, 3.75vw, 2.7rem);
+  line-height: 1;
+}
+.pz-best-top__time {
+  font-weight: 900;
+  color: #ffd400;
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin-left: 8px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.06);
+}
+
+@media (max-width: 480px) {
+  .pz-best-top__label { font-size: 1.1rem; }
+  .pz-best-top__time { font-size: 1.6rem; }
 }
 
