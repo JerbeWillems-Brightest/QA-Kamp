@@ -80,6 +80,23 @@ const HINT_BY_AGE: Record<AgeGroup, string[]> = {
   ]
 }
 
+// Nieuwe lijst met positieve feedbackberichten. We kiezen er bij elke score één willekeurig uit.
+const POSITIVE_FEEDBACK = [
+  'Goed!',
+  'Top gedaan!',
+  'Fantastisch!',
+  'Perfect geraakt!',
+  'Mooi zo!',
+  'Dat gaat lekker!',
+  'Helemaal goed!',
+  'Knap gedaan!',
+  'Super!',
+]
+
+function randomFeedback() {
+  return POSITIVE_FEEDBACK[Math.floor(Math.random() * POSITIVE_FEEDBACK.length)]
+}
+
 function inferAgeGroup(value?: string | null): AgeGroup {
   const raw = String(value || '').toLowerCase()
   if (/8\D*10/.test(raw)) return '8-10'
@@ -271,15 +288,27 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return nextBugs
     })
 
-    setScore((s) => s + 2)
-    setFeedback('Goed! +2')
-    window.setTimeout(() => setFeedback(null), 600)
-    lagFactorRef.current = Math.min(cfg.maxLag, lagFactorRef.current + cfg.lagGain)
-    setBugsRemoved((n) => {
-      const next = n + 1
-      if (next >= totalBugsForProgress) shouldFinishRef.current = true
-      return next
-    })
+    // Only award points when the removed bug is either a split child or not a "big-" variant.
+    const isBigVariant = bug.variant === 'big-red-orange' || bug.variant === 'big-purple-green'
+    const awardPoints = !isBigVariant || !!bug.isSplitChild
+
+    if (awardPoints) {
+      setScore((s) => s + 2)
+      setFeedback(randomFeedback())
+      window.setTimeout(() => setFeedback(null), 600)
+      lagFactorRef.current = Math.min(cfg.maxLag, lagFactorRef.current + cfg.lagGain)
+      setBugsRemoved((n) => {
+        const next = n + 1
+        if (next >= totalBugsForProgress) shouldFinishRef.current = true
+        return next
+      })
+    } else {
+      // Provide feedback for splitting, but do not award points or progress.
+      // For big bugs that split: do not award points or progress; keep no special splitting text.
+      // Show the same positive feedback as non-big removals to avoid confusing the player.
+      setFeedback(randomFeedback())
+      window.setTimeout(() => setFeedback(null), 600)
+    }
 
     window.setTimeout(() => {
       removingIdsRef.current.delete(bug.id)
