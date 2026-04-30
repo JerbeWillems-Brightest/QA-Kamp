@@ -168,6 +168,15 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   // ...existing code...
   const shouldFinishRef = useRef(false)
   const SPLIT_INVULNERABLE_MS = 600
+    // How many mistakes before showing the hint popup for each age group
+    const MISTAKES_HINT_THRESHOLD: Record<AgeGroup, number> = {
+      '8-10': 1,
+      '11-13': 2,
+      '14-16': 3
+    }
+
+    // Ensure we only open the hint popup once per game run
+    const hintShownRef = useRef(false)
 
   const introText = INTRO_BY_AGE[effectiveAge]
   const hintText = HINT_BY_AGE[effectiveAge]
@@ -199,6 +208,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     lagFactorRef.current = cfg.startLag
     elapsedRef.current = 0
     shouldFinishRef.current = false
+    hintShownRef.current = false
     lastFrameRef.current = null
   }, [cfg.startLag, cfg.visibleMax, effectiveAge])
 
@@ -337,9 +347,22 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return
     }
 
-    // miss: increment mistakes, add 10 seconds and show feedback
-    setMistakes((m) => m + 1)
     // miss: increment mistakes (no time/score penalty)
+    setMistakes((m) => {
+      const next = m + 1
+      // show hint once per run when reaching the per-age threshold
+      try {
+        const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
+        if (!hintShownRef.current && next >= threshold) {
+          hintShownRef.current = true
+          setPaused(true)
+          setShowHint(true)
+        }
+      } catch {
+        void 0
+      }
+      return next
+    })
   }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro])
 
   // penalties/minpunten logic removed

@@ -1085,7 +1085,6 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                         <h3>{fb.title}</h3>
                         <div className="pz-tips">
                           {fb.subtitle && <p style={{ marginBottom: 8 }}>{fb.subtitle}</p>}
-                          <p>Score: {finalScore} — Tijd: {formatMs(displayElapsedMs)} — Fouten: {mistakes}</p>
                         </div>
                       </>
                     )
