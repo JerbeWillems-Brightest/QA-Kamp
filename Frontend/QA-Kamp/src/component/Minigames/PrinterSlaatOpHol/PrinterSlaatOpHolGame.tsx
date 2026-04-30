@@ -68,6 +68,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [showHelp, setShowHelp] = useState(false)
   const [paused, setPaused] = useState(false)
   const [highScore, setHighScore] = useState<number | null>(null)
+  const [bestTimeMs, setBestTimeMs] = useState<number | null>(null)
   const [isNewHigh, setIsNewHigh] = useState(false)
   const [stoppedByUser, setStoppedByUser] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
@@ -480,9 +481,18 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           const n = Number(raw)
           if (!Number.isNaN(n)) setHighScore(n)
         }
+        // load locally stored best (fastest) time for this minigame (per age group)
+        try {
+          const key = `pz-best_time_printerslaatophol_${effectiveAge}`
+          const rawBest = localStorage.getItem(key)
+          if (rawBest !== null) {
+            const n = Number(rawBest)
+            if (!Number.isNaN(n)) setBestTimeMs(n)
+          }
+        } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
-  }, [])
+  }, [effectiveAge])
 
   // Persist player's highscore when the end screen is shown so the organiser
   // scoreboard can pick it up. Mirrors the behavior in PasswordZapper.
@@ -505,6 +515,21 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           localStorage.setItem(localKey, String(finalHigh))
           try { setHighScore(finalHigh); setIsNewHigh(finalHigh > (existingNum || 0)); } catch { /* ignore */ }
         } catch { /* ignore localStorage errors */ }
+
+        // Persist best (fastest) time locally (do NOT send time to backend)
+        try {
+          if (elapsedMs > 0) {
+            const key = `pz-best_time_printerslaatophol_${effectiveAge}`
+            try {
+              const curRaw = localStorage.getItem(key)
+              const curVal = curRaw ? Number(curRaw) : null
+              if (!curVal || elapsedMs < curVal) {
+                localStorage.setItem(key, String(elapsedMs))
+                setBestTimeMs(elapsedMs)
+              }
+            } catch { /* ignore localStorage errors */ }
+          }
+        } catch { /* ignore */ }
 
         // Attempt to persist to backend so organiser's leaderboard shows the player
         const playerNumberRaw = sessionStorage.getItem('playerNumber') || ''
@@ -639,7 +664,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         console.warn('PrinterSlaatOpHol: persist highscore failed', err)
       }
     })()
-  }, [showEnd, elapsedMs, round, mistakes, computeTimeScore, stoppedByUser])
+  }, [showEnd, elapsedMs, round, mistakes, computeTimeScore, stoppedByUser, effectiveAge])
 
   // When end screen is open, add a global body class so top-level controls (hint/pause/help)
   // are hidden by global CSS (PasswordZapper uses body.pz-end-open for this).
@@ -841,7 +866,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
               <li>Klik niet te snel, fouten kosten tijd!</li>
             </ul>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHint(false)}>Verder spelen</button>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false); }}>Verder spelen</button>
             </div>
           </div>
         </div>
@@ -882,7 +907,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   }
 
   // End screen (shown after finish) - use PasswordZapper end layout with fireworks
-    if (showEnd) {
+  if (showEnd) {
     // compute simple stats: correct vs wrong
     const totalRounds = 20
     const totalCorrect = Math.min(Math.max(0, round), totalRounds)
@@ -892,27 +917,36 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     try { console.debug('[PrinterSlaatOpHol] endscreen', { timeMs: elapsedMs, round: totalCorrect, mistakes, finalScore }) } catch { /* ignore */ }
     const clampedScorePercent = Math.max(0, Math.min(100, finalScore))
     // stars: simple thresholds (100 -> 3, >=66 -> 2, >=33 -> 1)
-    const starCount = clampedScorePercent === 100 ? 3 : clampedScorePercent >= 66 ? 2 : clampedScorePercent >= 33 ? 1 : 0
+    const starCountRaw = clampedScorePercent === 100 ? 3 : clampedScorePercent >= 66 ? 2 : clampedScorePercent >= 33 ? 1 : 0
+    const displayStarCount = stoppedByUser ? 0 : starCountRaw
     const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${clampedScorePercent}%` } as unknown) as React.CSSProperties
+
+    // prepare display values for endscreen (mirror BugCleanup behavior)
+    const displayFinalScore = stoppedByUser ? 0 : finalScore
+    const displayClampedPercent = stoppedByUser ? 0 : clampedScorePercent
+    const displayElapsedMs = stoppedByUser ? 0 : elapsedMs
+
+    const bestFormatted = bestTimeMs ? formatMs(bestTimeMs) : '--:--'
 
     return (
       <div className="pz-end">
+        <div className="pz-best-top">
+          <div className="pz-best-top__label">Snelste tijd: <span className="pz-best-top__time">{bestFormatted}</span></div>
+        </div>
         <div className="pz-end-box">
           <canvas ref={fwCanvasRef} className="pz-fireworks-canvas" aria-hidden={true} />
-          <div className="pz-highscore" style={{ marginBottom: 18, textAlign: 'center' }}>
-            <span className="pz-highscore-label">Hoogste score:</span>
-            <span id="highScore" className="pz-highscore-value">{highScore ?? '-'}</span>
-            {isNewHigh && <span className="pz-new-record"> Nieuw record!</span>}
-          </div>
+          {/* highest score removed from HTML per request; keep variables for backend persistence */}
+          { /* prevent unused variable TS errors while keeping state for persistence */ }
+          {(() => { void highScore; void isNewHigh; return null })()}
           <div className="pz-end-content">
             <div className="pz-end-left">
               <div className="pz-score-circle" aria-hidden style={circleStyle}>
                 <div className="pz-score-label">SCORE</div>
-                <div className="pz-score-number" id="score">{finalScore}</div>
-                <div className="pz-score-percent" id="percentage">{clampedScorePercent}%</div>
+                <div className="pz-score-number" id="score">{displayFinalScore}</div>
+                <div className="pz-score-percent" id="percentage">{displayClampedPercent}%</div>
                 <div className="pz-score-stars" aria-hidden>
                   {Array.from({ length: 3 }).map((_, i) => (
-                    <span key={i} className={"pz-star " + (i < starCount ? 'pz-star--filled' : 'pz-star--empty')} aria-hidden>
+                    <span key={i} className={`pz-star ${i < displayStarCount ? 'pz-star--filled' : 'pz-star--empty'}`} aria-hidden>
                       <svg viewBox="0 0 24 24" role="img" aria-hidden="true" focusable="false">
                         <path d="M12 .587l3.668 7.431 8.2 1.193-5.934 5.788 1.402 8.168L12 18.896l-7.336 3.869 1.402-8.168L.132 9.211l8.2-1.193z" />
                       </svg>
@@ -933,51 +967,55 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                   <div className="score"><span className="minus">-</span>{totalWrong}</div>
                 </div>
               </div>
+
+              <div className="pz-stats-row">
+                <div className="pz-time-card">
+                  <div className="pz-time-card__header">Behaalde tijd</div>
+                  <div className="pz-time-card__body">{formatMs(displayElapsedMs)}</div>
+                </div>
+              </div>
             </div>
 
             <div className="pz-end-right">
-                <div className="pz-tips-card">
-                    {
-                      // Map finalScore to headline and subtitle per requested feedback
+              <div className="pz-tips-card">
+                {
+                  (() => {
+                    const map: Record<number, { title: string; subtitle: string }> = {
+                      100: { title: 'Perfect gespeeld!', subtitle: 'Snel én foutloos!' },
+                      90: { title: 'Bijna perfect!', subtitle: 'Heel sterk gespeeld!' },
+                      80: { title: 'Sterk gedaan!', subtitle: 'Je zit goed op tempo!' },
+                      70: { title: 'Goed gespeeld!', subtitle: 'Nog iets sneller kan beter!' },
+                      60: { title: 'Niet slecht!', subtitle: 'Let op je snelheid en fouten!' },
+                      50: { title: 'Gemiddeld resultaat', subtitle: 'Probeer wat sneller te werken!' },
+                      40: { title: 'Kan beter', subtitle: 'Fouten kosten je te veel tijd!' },
+                      30: { title: 'Moeilijk gehad?', subtitle: 'Blijf oefenen en focus!' },
+                      20: { title: 'Veel tijd verloren', subtitle: 'Probeer rustiger en gerichter te spelen!' },
+                      10: { title: 'Bijna niet gelukt', subtitle: 'Let beter op en vermijd fouten!' },
+                      0:  { title: 'Niet gelukt', subtitle: 'Probeer opnieuw en blijf gefocust!' }
                     }
-                    {
-                      (() => {
-                        const map: Record<number, { title: string; subtitle: string }> = {
-                          100: { title: 'Perfect gespeeld!', subtitle: 'Snel én foutloos!' },
-                          90: { title: 'Bijna perfect!', subtitle: 'Heel sterk gespeeld!' },
-                          80: { title: 'Sterk gedaan!', subtitle: 'Je zit goed op tempo!' },
-                          70: { title: 'Goed gespeeld!', subtitle: 'Nog iets sneller kan beter!' },
-                          60: { title: 'Niet slecht!', subtitle: 'Let op je snelheid en fouten!' },
-                          50: { title: 'Gemiddeld resultaat', subtitle: 'Probeer wat sneller te werken!' },
-                          40: { title: 'Kan beter', subtitle: 'Fouten kosten je te veel tijd!' },
-                          30: { title: 'Moeilijk gehad?', subtitle: 'Blijf oefenen en focus!' },
-                          20: { title: 'Veel tijd verloren', subtitle: 'Probeer rustiger en gerichter te spelen!' },
-                          10: { title: 'Bijna niet gelukt', subtitle: 'Let beter op en vermijd fouten!' },
-                          0:  { title: 'Niet gelukt', subtitle: 'Probeer opnieuw en blijf gefocust!' }
-                        }
-                        if (stoppedByUser) {
-                          return (
-                            <>
-                              <h3>Spel gestopt, geen score</h3>
-                              <div className="pz-tips">
-                                <p>Score: 0 — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
-                              </div>
-                            </>
-                          )
-                        }
-                        const key = Math.max(0, Math.min(100, Math.round(finalScore / 10) * 10))
-                        const fb = map[key] || { title: 'Goed gedaan!', subtitle: '' }
-                        return (
-                          <>
-                            <h3>{fb.title}</h3>
-                            <div className="pz-tips">
-                              {fb.subtitle && <p style={{ marginBottom: 8 }}>{fb.subtitle}</p>}
-                              <p>Score: {finalScore} — Tijd: {formatMs(elapsedMs)} — Fouten: {mistakes}</p>
-                            </div>
-                          </>
-                        )
-                      })()
+                    if (stoppedByUser) {
+                      return (
+                        <>
+                          <h3>Spel gestopt, geen score</h3>
+                          <div className="pz-tips">
+                            <p>Score: 0 — Tijd: {formatMs(displayElapsedMs)} — Fouten: {mistakes}</p>
+                          </div>
+                        </>
+                      )
                     }
+                    const key = Math.max(0, Math.min(100, Math.round(finalScore / 10) * 10))
+                    const fb = map[key] || { title: 'Goed gedaan!', subtitle: '' }
+                    return (
+                      <>
+                        <h3>{fb.title}</h3>
+                        <div className="pz-tips">
+                          {fb.subtitle && <p style={{ marginBottom: 8 }}>{fb.subtitle}</p>}
+                          <p>Score: {finalScore} — Tijd: {formatMs(displayElapsedMs)} — Fouten: {mistakes}</p>
+                        </div>
+                      </>
+                    )
+                  })()
+                }
                 <div className="pz-end-actions">
                   <button id="btnPlayAgain" className="pz-play-again" onClick={() => { try { window.location.reload(); } catch { resetGame(); } }}>Opnieuw spelen</button>
                 </div>
