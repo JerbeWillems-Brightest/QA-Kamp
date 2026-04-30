@@ -120,6 +120,17 @@
   background-color: #000;
 }
 
+/* Dedicated reusable background helper for the game's background images.
+   Apply this class to any element that receives an inline background-image
+   via the component so size/position/repeat are consistent across states. */
+.printer-root .game-bg {
+  background-size: cover;
+  background-position: center center;
+  background-repeat: no-repeat;
+  /* fallback while image loads */
+  background-color: #000;
+}
+
 /* Game content and modals sit above the blur */
 .printer-root .game-content { position:relative; z-index:900; padding:12px; box-sizing:border-box; /* reduce padding and avoid forcing a 100% height */
   max-height: calc(100% - 24px); /* keep content within the available area */

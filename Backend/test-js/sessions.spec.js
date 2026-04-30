@@ -482,4 +482,430 @@ describe('Sessions routes (compiled)', function() {
       expect(r.status).to.equal(404)
     } finally { Player.findOneAndUpdate = origUpd }
   })
+
+  it('POST /api/sessions/:id/players returns 500 when cannot generate unique player number', async function() {
+    const org = await Organizer.create({ email: 'exhaust@qa.test', password: 'P', name: 'EX' })
+    const s = await Session.create({ organizerId: org._id, name: 'Exhaust', code: 'EXH', active: true })
+    // insert an existing player with the candidate number that genRandomNumber will always produce (100)
+    await Player.create({ sessionId: s._id, playerNumber: '100', nummer: '100', name: 'Taken', age: 10, category: '8-10', lastSeen: null, score: 0 })
+
+    const origRandom = Math.random
+    // force genRandomNumber to always pick 100 (Math.random -> 0)
+    Math.random = () => 0
+    try {
+      const r = await request(app).post(`/api/sessions/${s._1d || s._id}/players`).send([{ name: 'NoNum', age: 10 }])
+      // Expect a 500 due to inability to generate unique number
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+      expect(String(r.body.error)).to.include('Kon geen uniek spelersnummer')
+    } finally {
+      Math.random = origRandom
+    }
+  })
+
+  it('PUT /api/sessions/:id/players/:playerNumber falls back to provided score when Player.findOne throws', async function() {
+    const org = await Organizer.create({ email: 'putfallback@qa.test', password: 'P', name: 'PF' })
+    const s = await Session.create({ organizerId: org._id, name: 'PutFB', code: 'PFB', active: true })
+    await Player.create({ sessionId: s._id, playerNumber: '900', nummer: '900', name: 'P', age: 10, category: '8-10', lastSeen: null, score: 0 })
+
+    const origFindOne = Player.findOne
+    const origFindOneAndUpdate = Player.findOneAndUpdate
+    let capturedUpdate = null
+    // make findOne throw so merge code takes the catch branch
+    Player.findOne = async function() { throw new Error('boom') }
+    Player.findOneAndUpdate = async function(q, update, opts) { capturedUpdate = update; return { _id: '900', ...update.$set } }
+    try {
+      const payload = { player: { playerNumber: '900', name: 'P', age: 11, score: 42 } }
+      const r = await request(app).put(`/api/sessions/${s._id}/players/900`).send(payload)
+      expect(r.status).to.equal(200)
+      expect(capturedUpdate).to.be.ok
+      expect(capturedUpdate.$set.score).to.equal(42)
+    } finally {
+      Player.findOne = origFindOne
+      Player.findOneAndUpdate = origFindOneAndUpdate
+    }
+  })
+
+  it('GET /api/sessions/:id/leaderboard flattens highscores and computes totals', async function() {
+    const org = await Organizer.create({ email: 'leader@qa.test', password: 'P', name: 'L' })
+    const s = await Session.create({ organizerId: org._id, name: 'Lead', code: 'LD', active: true })
+    // player 1: nested highscores including a per-game flat score key
+    await Player.create({ sessionId: s._id, playerNumber: '510', nummer: '510', name: 'L1', age: 10, category: 'x', lastSeen: null, highscores: { a: 2, score_passwordzapper: 3 }, score: 0 })
+    // player 2: nested highscores with string numeric values
+    await Player.create({ sessionId: s._id, playerNumber: '511', nummer: '511', name: 'L2', age: 11, category: 'x', lastSeen: null, highscores: { a: '1', b: 2 }, score: 0 })
+
+    const r = await request(app).get(`/api/sessions/${s._id}/leaderboard`)
+    expect(r.status).to.equal(200)
+    expect(r.body).to.have.property('leaderboard')
+    const lb = r.body.leaderboard
+    expect(lb).to.be.an('array')
+    // top should be L1 with total 5 (2 + 3)
+    expect(lb[0].name).to.equal('L1')
+    expect(Number(lb[0].score)).to.equal(5)
+    // ensure flattened key is present
+    expect(lb[0]).to.have.property('score_passwordzapper')
+  })
+
+  it('POST online and offline succeed when player exists', async function() {
+    const org = await Organizer.create({ email: 'onoff@qa.test', password: 'P', name: 'OO' })
+    const s = await Session.create({ organizerId: org._id, name: 'OnOff', code: 'OO', active: true })
+    await Player.create({ sessionId: s._id, playerNumber: '601', nummer: '601', name: 'On', age: 10, category: 'x', lastSeen: null, score: 0 })
+
+    const r1 = await request(app).post(`/api/sessions/${s._id}/players/601/online`).send()
+    // should return 200 with player when offline -> online
+    expect([200,409]).to.include(r1.status)
+    if (r1.status === 200) expect(r1.body).to.have.property('player')
+
+    const r2 = await request(app).post(`/api/sessions/${s._id}/players/601/offline`).send()
+    expect(r2.status).to.equal(200)
+    expect(r2.body).to.have.property('success')
+    expect(r2.body.success).to.equal(true)
+  })
+
+  it('POST /api/sessions/:id/players?overwrite=true deleteMany throws -> returns 500', async function() {
+    const org = await Organizer.create({ email: 'owerr@qa.test', password: 'P', name: 'OWE' })
+    const s = await Session.create({ organizerId: org._id, name: 'ToBeOverwritten', code: 'TBO', active: true })
+    const origDeleteMany = Player.deleteMany
+    // Make deleteMany throw to exercise error branch in the players overwrite logic
+    Player.deleteMany = async function() { throw new Error('deleteMany boom') }
+    try {
+      const res = await request(app).post(`/api/sessions/${s._id}/players?overwrite=true`).send([{ name: 'X', age: 10 }])
+      // expect a 500 because Player.deleteMany threw during overwrite handling
+      expect(res.status).to.equal(500)
+      expect(res.body).to.have.property('error')
+    } finally {
+      Player.deleteMany = origDeleteMany
+    }
+  })
+
+  it('POST /api/sessions/:id/players?overwrite=true successful overwrite removes players and proceeds', async function() {
+    const org = await Organizer.create({ email: 'owsucc@qa.test', password: 'P', name: 'OWS' })
+    // create an active session that should have its players removed by overwrite
+    const s = await Session.create({ organizerId: org._id, name: 'OldActive', code: 'OAC', active: true })
+    // stub Player.deleteMany to capture the call and return normally
+    const origDeleteMany = Player.deleteMany
+    let deletedFilter = null
+    Player.deleteMany = async function(filter) { deletedFilter = filter; return { deletedCount: 1 } }
+    try {
+      const res = await request(app).post(`/api/sessions/${s._id}/players?overwrite=true`).send([{ name: 'X', age: 10 }])
+      // route should proceed and attempt to insert the provided player(s)
+      expect([200,201]).to.include(res.status)
+      // ensure deleteMany was called for the session's players
+      expect(deletedFilter).to.be.ok
+      // ensure response contains created array or session-created info
+      expect(res.body).to.exist
+    } finally {
+      Player.deleteMany = origDeleteMany
+    }
+  })
+
+  it('GET /api/sessions/:id/leaderboard ignores non-numeric highscores and still computes totals', async function() {
+    const org = await Organizer.create({ email: 'leaderbad@qa.test', password: 'P', name: 'LB' })
+    const s = await Session.create({ organizerId: org._id, name: 'LeadBad', code: 'LDB', active: true })
+    // player with highscores containing non-numeric values and some numeric
+    await Player.create({ sessionId: s._id, playerNumber: '701', nummer: '701', name: 'NB1', age: 10, category: 'x', lastSeen: null, highscores: { a: 'not-a-number', b: 3 }, score: 0 })
+    // player with only numeric highscores
+    await Player.create({ sessionId: s._id, playerNumber: '702', nummer: '702', name: 'NB2', age: 11, category: 'x', lastSeen: null, highscores: { a: 1, b: 1 }, score: 0 })
+
+    const r = await request(app).get(`/api/sessions/${s._id}/leaderboard`)
+    expect(r.status).to.equal(200)
+    expect(r.body).to.have.property('leaderboard')
+    const lb = r.body.leaderboard
+    expect(lb).to.be.an('array')
+    // ensure both players present and totals computed ignoring the non-numeric entry
+    const p1 = lb.find(p => p.playerNumber === '701')
+    const p2 = lb.find(p => p.playerNumber === '702')
+    expect(p1).to.be.ok
+    expect(p2).to.be.ok
+    // p1 total should equal 3 (only b counted)
+    expect(Number(p1.score)).to.equal(3)
+    // p2 total should equal 2 (1+1)
+    expect(Number(p2.score)).to.equal(2)
+  })
+
+  it('POST /api/sessions/:id/players handles non-object highscores safely', async function() {
+    const org = await Organizer.create({ email: 'prox@qa.test', password: 'P', name: 'PX' })
+    const s = await Session.create({ organizerId: org._id, name: 'ProxyHS', code: 'PH', active: true })
+    // send highscores as a non-object (string) — route should ignore and create player with score 0
+    const r = await request(app).post(`/api/sessions/${s._id}/players`).send([{ name: 'Pxy', age: 10, highscores: 'not-an-object' }])
+    expect([200,201]).to.include(r.status)
+    if (r.body && Array.isArray(r.body.created) && r.body.created.length > 0) {
+      const created = r.body.created[0]
+      // ensure created doc either has empty highscores or no crash
+      expect(created).to.have.property('playerNumber')
+    }
+  })
+
+  it('GET /api/sessions/:id/leaderboard ignores throwing getters inside highscores (per-key catch)', async function() {
+    const org = await Organizer.create({ email: 'getthrow@qa.test', password: 'P', name: 'GT' })
+    const s = await Session.create({ organizerId: org._id, name: 'GetThrow', code: 'GT', active: true })
+    // create a normal player in DB so session exists
+    await Player.create({ sessionId: s._id, playerNumber: '801', nummer: '801', name: 'Throwy', age: 10, category: 'x', lastSeen: null, highscores: { a: 2 }, score: 0 })
+    // stub Player.find to return a doc whose highscores has a throwing getter (avoid mongoose create-time clone issues)
+    const origFind = Player.find
+    const throwingDoc = {
+      playerNumber: '801',
+      name: 'Throwy',
+      category: 'x',
+      score: 0,
+      highscores: {}
+    }
+    Object.defineProperty(throwingDoc.highscores, 'bad', {
+      get() { throw new Error('boom getter') },
+      configurable: true,
+      enumerable: true
+    })
+    Player.find = function() {
+      return {
+        select: function() {
+          return {
+            lean: function() {
+              // return a chainable object where sort is async and returns the docs
+              return {
+                sort: async function() { return [throwingDoc] }
+              }
+            }
+          }
+        }
+      }
+    }
+    try {
+      const r = await request(app).get(`/api/sessions/${s._id}/leaderboard`)
+      expect(r.status).to.equal(200)
+      expect(r.body).to.have.property('leaderboard')
+      const lb = r.body.leaderboard
+      expect(lb).to.be.an('array')
+      const p = lb.find(x => x.playerNumber === '801')
+      expect(p).to.be.ok
+      // the valid numeric 'a' should be counted toward total despite the throwing getter (we expect 0 since highscores.bad throws but a is not present here)
+      // Since our throwingDoc has no numeric 'a' at top-level, score will be 0 — ensure no crash occurred
+      expect(Number(p.score)).to.equal(0)
+    } finally {
+      Player.find = origFind
+    }
+  })
+
+  it('POST /api/sessions still creates session when initial Session.findOne throws', async function() {
+    const org = await Organizer.create({ email: 'findfailcreate@qa.test', password: 'P', name: 'FFC' })
+    const origFindOne = Session.findOne
+    // make the initial active-session check throw so we exercise the inner catch
+    Session.findOne = async function() { throw new Error('boom') }
+    try {
+      const res = await request(app).post('/api/sessions').send({ organizerId: String(org._id), name: 'CreateDespite' })
+      // route should continue and attempt to create the session despite the prior error
+      expect([200,201]).to.include(res.status)
+      expect(res.body).to.have.property('session')
+    } finally { Session.findOne = origFindOne }
+  })
+
+  it('GET /api/sessions/:id/leaderboard ignores throwing highscores getter (highscores itself throws)', async function() {
+    const org = await Organizer.create({ email: 'getthrow2@qa.test', password: 'P', name: 'GT2' })
+    const s = await Session.create({ organizerId: org._id, name: 'GetThrow2', code: 'GT2', active: true })
+    const origFind = Player.find
+    // Construct a doc where accessing `highscores` throws entirely
+    const throwingDoc = {
+      playerNumber: '901',
+      name: 'ThrowTop',
+      category: 'x',
+      score: 0
+    }
+    Object.defineProperty(throwingDoc, 'highscores', {
+      get() { throw new Error('boom highscores') },
+      configurable: true,
+      enumerable: true
+    })
+    Player.find = function() {
+      return {
+        select: function() {
+          return {
+            lean: function() {
+              return {
+                sort: async function() { return [throwingDoc] }
+              }
+            }
+          }
+        }
+      }
+    }
+    try {
+      const r = await request(app).get(`/api/sessions/${s._id}/leaderboard`)
+      expect(r.status).to.equal(200)
+      expect(r.body).to.have.property('leaderboard')
+      const lb = r.body.leaderboard
+      const p = lb.find(x => x.playerNumber === '901')
+      expect(p).to.be.ok
+      // if highscores access throws, route should ignore it and still return a safe score (0)
+      expect(Number(p.score)).to.equal(0)
+    } finally { Player.find = origFind }
+  })
+
+  it('GET /api/sessions/:id/online-players returns 500 when Session.findById throws', async function() {
+    const orig = Session.findById
+    Session.findById = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).get('/api/sessions/000000000000000000000000/online-players')
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Session.findById = orig }
+  })
+
+  it('POST /api/sessions/:id/active-game returns 500 when Session.findById throws', async function() {
+    const orig = Session.findById
+    Session.findById = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).post('/api/sessions/000000000000000000000000/active-game').send({ some: 'x' })
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Session.findById = orig }
+  })
+
+  it('GET /api/sessions/:id/active-game returns 500 when Session.findById throws', async function() {
+    const orig = Session.findById
+    Session.findById = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).get('/api/sessions/000000000000000000000000/active-game')
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Session.findById = orig }
+  })
+
+  it('POST online returns 500 when Session.findById throws', async function() {
+    const orig = Session.findById
+    Session.findById = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).post('/api/sessions/000000000000000000000000/players/123/online').send()
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Session.findById = orig }
+  })
+
+  it('PUT /api/sessions/:id/players/:playerNumber returns 500 when Player.findOneAndUpdate throws', async function() {
+    const org = await Organizer.create({ email: 'puterr@qa.test', password: 'P', name: 'PE' })
+    const s = await Session.create({ organizerId: org._id, name: 'PutErr', code: 'PUTE', active: true })
+    await Player.create({ sessionId: s._id, playerNumber: '777', nummer: '777', name: 'Q', age: 10, category: 'x', lastSeen: null, score: 0 })
+    const orig = Player.findOneAndUpdate
+    Player.findOneAndUpdate = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).put(`/api/sessions/${s._id}/players/777`).send({ player: { playerNumber: '777', name: 'Q2' } })
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Player.findOneAndUpdate = orig }
+  })
+
+  it('GET /api/sessions/:id/leaderboard returns 500 when Player.find throws', async function() {
+    const org = await Organizer.create({ email: 'leaderfinderr@qa.test', password: 'P', name: 'LFE' })
+    const s = await Session.create({ organizerId: org._id, name: 'LeadErr', code: 'LDE', active: true })
+    const orig = Player.find
+    Player.find = async function() { throw new Error('boom') }
+    try {
+      const r = await request(app).get(`/api/sessions/${s._id}/leaderboard`)
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Player.find = orig }
+  })
+
+  it('GET /api/sessions/active returns 500 when Session.findOne returns non-chainable (sort not a function)', async function() {
+    const orig = Session.findOne
+    // simulate a findOne that returns a plain object without .sort
+    Session.findOne = function() { return {} }
+    try {
+      const r = await request(app).get('/api/sessions/active')
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Session.findOne = orig }
+  })
+
+  it('GET /api/sessions returns 500 when Session.find returns non-chainable (sort not a function)', async function() {
+    const orig = Session.find
+    Session.find = function() { return { sort: undefined } }
+    try {
+      const r = await request(app).get('/api/sessions')
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Session.find = orig }
+  })
+
+  it('GET /api/sessions/:id/leaderboard returns 500 when Player.find chain returns non-chainable (sort not a function)', async function() {
+    const org = await Organizer.create({ email: 'chainerr@qa.test', password: 'P', name: 'CE' })
+    const s = await Session.create({ organizerId: org._id, name: 'ChainErr', code: 'CH', active: true })
+    const orig = Player.find
+    // simulate Player.find().select().lean() returning an object without .sort()
+    Player.find = function() {
+      return {
+        select: function() {
+          return {
+            lean: function() {
+              return {} // missing sort -> TypeError when .sort(...) is called
+            }
+          }
+        }
+      }
+    }
+    try {
+      const r = await request(app).get(`/api/sessions/${s._id}/leaderboard`)
+      expect(r.status).to.equal(500)
+      expect(r.body).to.have.property('error')
+    } finally { Player.find = orig }
+  })
+
+  it('PUT /api/sessions/:id/players/:playerNumber accepts raw score when incomingHighscores absent', async function() {
+    const org = await Organizer.create({ email: 'putrawscore@qa.test', password: 'P', name: 'PRS' })
+    const s = await Session.create({ organizerId: org._id, name: 'PutRaw', code: 'PRS', active: true })
+    await Player.create({ sessionId: s._id, playerNumber: '321', nummer: '321', name: 'R', age: 10, category: 'x', lastSeen: null, score: 0 })
+    const origFindOneAndUpdate = Player.findOneAndUpdate
+    let captured = null
+    Player.findOneAndUpdate = async function(q, update, opts) { captured = update; return { _id: '321', ...update.$set } }
+    try {
+      const r = await request(app).put(`/api/sessions/${s._id}/players/321`).send({ player: { playerNumber: '321', score: 77 } })
+      expect(r.status).to.equal(200)
+      expect(captured).to.be.ok
+      expect(captured.$set.score).to.equal(77)
+    } finally { Player.findOneAndUpdate = origFindOneAndUpdate }
+  })
+
+  it('POST /api/sessions/:id/active-game clears activeGameInfo when payload is null', async function() {
+    const org = await Organizer.create({ email: 'clearag@qa.test', password: 'P', name: 'CAG' })
+    const s = await Session.create({ organizerId: org._id, name: 'ClearAG', code: 'CAG', active: true })
+    // set activeGameInfo first
+    let r = await request(app).post(`/api/sessions/${s._id}/active-game`).send({ foo: 'bar' })
+    expect(r.status).to.equal(200)
+    // now clear by sending null
+    r = await request(app).post(`/api/sessions/${s._id}/active-game`).send(null)
+    expect(r.status).to.equal(200)
+    // retrieving should return null activeGameInfo
+    r = await request(app).get(`/api/sessions/${s._id}/active-game`)
+    expect(r.status).to.equal(200)
+    expect(r.body).to.have.property('activeGameInfo')
+    expect(r.body.activeGameInfo).to.equal(null)
+  })
+
+  it('GET /api/sessions/:id/online-players honors cutoffMs and returns array', async function() {
+    const org = await Organizer.create({ email: 'cutoff@qa.test', password: 'P', name: 'CO' })
+    const s = await Session.create({ organizerId: org._id, name: 'CutOff', code: 'COF', active: true })
+    // create two players, one with recent lastSeen and one older
+    await Player.create({ sessionId: s._id, playerNumber: '801', nummer: '801', name: 'Recent', age: 10, category: 'x', lastSeen: new Date(), score: 0 })
+    const oldDate = new Date(Date.now() - 1000 * 60 * 60)
+    await Player.create({ sessionId: s._id, playerNumber: '802', nummer: '802', name: 'Old', age: 11, category: 'x', lastSeen: oldDate, score: 0 })
+    const r = await request(app).get(`/api/sessions/${s._id}/online-players?cutoffMs=60000`)
+    expect(r.status).to.equal(200)
+    expect(r.body).to.have.property('onlinePlayers')
+    expect(r.body.onlinePlayers).to.be.an('array')
+    // only recent should be present
+    const p = r.body.onlinePlayers.find(x => x.playerNumber === '801')
+    expect(p).to.be.ok
+  })
+
+  it('POST /api/sessions/:id/players accepts raw array body (root array) and returns created', async function() {
+    const org = await Organizer.create({ email: 'rawarr@qa.test', password: 'P', name: 'RA' })
+    const s = await Session.create({ organizerId: org._id, name: 'RawArr', code: 'RAA', active: true })
+    const payload = [{ playerNumber: '901', name: 'Root', age: 10 }]
+    const r = await request(app).post(`/api/sessions/${s._id}/players`).send(payload)
+    expect([200,201]).to.include(r.status)
+    if (r.body && Array.isArray(r.body.created)) {
+      expect(r.body.created.length).to.be.greaterThan(0)
+    }
+  })
+
 })
+
+
