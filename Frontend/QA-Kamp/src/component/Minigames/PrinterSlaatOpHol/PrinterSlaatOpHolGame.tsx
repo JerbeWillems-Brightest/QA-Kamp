@@ -74,8 +74,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
   // Per-round status for cells: only 'bad' (wrong clicked) is kept; green/good coloring removed
   const [cellStatuses, setCellStatuses] = useState<Record<number, 'bad'>>({})
-  const [timeFeedback] = useState<string | null>(null)
-  const [timeFeedbackType] = useState<'good' | 'bad' | null>(null)
+  // Feedback specifically shown under the timer (e.g. "+10s" on mistakes)
+  const [timeFeedback, setTimeFeedback] = useState<string | null>(null)
+  const [timeFeedbackType, setTimeFeedbackType] = useState<'good' | 'bad' | null>(null)
   const hintAutoShownRef = useRef(false)
   // ...existing code... (removed penalty schedule refs)
   const startRef = useRef<number | null>(null)
@@ -296,12 +297,14 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         maxCell = 420
         reservedVertical = 110
       } else if (effectiveAge === '8-10') {
-        // make grid more compact for younger group
-        gap = 20
-        // make cells larger for younger kids so items are easier to tap/see
-        minCell = 112
-        maxCell = 420
-        reservedVertical = 140
+        // make grid more spacious for younger group so figures are easier to see
+        gap = 40
+        // increase minimum cell so items appear noticeably larger for 8-10 year olds
+        minCell = 140
+        // allow larger max so on big viewports the icons can scale up more for younger kids
+        maxCell = 520
+        // reserve a bit more vertical space for UI chrome on small viewports
+        reservedVertical = 160
       } else {
         // 14-16
         // make the oldest group's grid denser/smaller so a 5x5 fits comfortably
@@ -409,8 +412,12 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         }
         // Update elapsedMs immediately so UI reflects the added seconds without waiting for RAF
         try { setElapsedMs(Date.now() - (startRef.current || Date.now())) } catch { /* ignore */ }
+        // Show time feedback under the timer (e.g. +10s)
+        try { setTimeFeedback('+10 seconden'); setTimeFeedbackType('bad') } catch { /* ignore */ }
       } catch { /* ignore */ }
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      // clear the time feedback after the same duration
+      setTimeout(() => { try { setTimeFeedback(null); setTimeFeedbackType(null) } catch { /* ignore */ } }, 1200)
       // remove red background together with the textual feedback so the cell returns to white
       setTimeout(() => {
         try {
@@ -692,10 +699,10 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     }
   }, [])
 
-  // Unlock and auto-show hint after 3 mistakes (same for all ages)
+  // Unlock and auto-show hint after 1 mistake (same for all ages)
   useEffect(() => {
     try {
-      if (!hintAutoShownRef.current && mistakes >= 3) {
+      if (!hintAutoShownRef.current && mistakes >= 1) {
         hintAutoShownRef.current = true
         // set global transient flag and notify other UI
         try {
@@ -703,8 +710,10 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           w['__pz_hint_unlocked'] = true
           window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
         } catch { /* ignore */ }
-        // open the hint modal for the player
-        setShowHint(true)
+        // Do NOT automatically open the hint modal; only unlock the hint button
+        // so the top-level UI can enable the hint control. Opening the modal
+        // would interrupt gameplay (tests and UX expect feedback to remain
+        // visible immediately after a mistake), so leave the modal closed.
       }
     } catch { /* ignore */ }
   }, [mistakes])
@@ -1059,7 +1068,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                     onClick={()=>handleClick(it)}
                   >
                     {it.icon ? (
-                      <img src={it.icon} alt={it.isOdd ? 'Fout' : 'Normaal'} style={{ width: '92%', height: '92%', objectFit: 'contain', display: 'block', margin: 'auto' }} />
+                      <img src={it.icon} alt={it.isOdd ? 'Fout' : 'Normaal'} style={{ width: (effectiveAge === '8-10' ? '98%' : '92%'), height: (effectiveAge === '8-10' ? '98%' : '92%'), objectFit: 'contain', display: 'block', margin: 'auto' }} />
                     ) : (
                       (it.text ?? '')
                     )}

@@ -1,19 +1,416 @@
-.bugcleanup-root { font-family: var(--font-family, Arial, sans-serif); }
-.pz-layout .topbar { display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:#f5f7fa; border-bottom:1px solid #e1e6ef }
-.pz-layout .topbar .left { font-weight:600 }
-.pz-layout .topbar .center { font-weight:700 }
-.pz-layout .topbar .right button { margin-left:8px }
+.bugcleanup-root {
+  font-family: Arial, sans-serif;
+  background: #0f0f0f;
+  overflow: hidden;
+}
 
-.game-area { position:relative; height:420px; background:linear-gradient(#fff,#f3f6fb); overflow:hidden }
-.game-area .overlay { position:absolute; left:8px; top:8px; background:rgba(255,255,255,0.7); padding:6px 8px; border-radius:6px }
+.bc-area {
+  position: absolute;
+  /* allow the background wallpaper to reach the full area of the game
+     (remove the 10px inset so the image isn't cropped by the container) */
+  inset: 0;
+  overflow: hidden;
+}
 
-.bug { position:absolute; background:radial-gradient(circle at 30% 30%, #ff5f5f 0%, #d94343 60%); border-radius:8px; box-shadow: 0 2px 6px rgba(0,0,0,0.2); cursor:pointer; transition:transform 0.08s ease }
-.bug:active { transform: scale(0.92) }
+.bc-bg-img {
+  position: absolute;
+  inset: 0;
+  /* Use contain so the entire PNG is visible (no cropping). Align to the
+     bottom so the white bottom area of the PNG remains visible inside the
+     container. If there is letterboxing it will show the container's
+     background color — set that to white if you want a white margin. */
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: bottom center;
+  display: block;
+  /* ensure the container background is white so any letterbox area appears white */
+  background-color: white;
+}
 
-.lag-cursor { position:absolute; width:18px; height:18px; border-radius:50%; background:#2b6bf6; box-shadow: 0 0 8px rgba(43,107,246,0.6); pointer-events:none; transform:translate(-9px,-9px) }
+.bc-score-stack {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  z-index: 950;
+}
 
-.modal { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35) }
-.modal-card { background:#fff; padding:18px; border-radius:8px; width:360px; box-shadow:0 6px 20px rgba(0,0,0,0.2) }
-.modal-actions { margin-top:12px; display:flex; justify-content:flex-end }
-.modal-actions button { margin-left:8px }
+.bc-pill {
+  background: #d2a900;
+  color: #fff;
+  font-weight: 800;
+  font-size: 2rem;
+  border-radius: 40px;
+  padding: 12px 22px;
+  min-width: 168px;
+}
+
+.bc-time-feedback {
+  display: inline-block;
+  background: #cf2d2d;
+  color: #fff;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 8px 14px;
+  width: fit-content;
+}
+
+.bc-status {
+  position: absolute;
+  top: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 960;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 999px;
+  background: #27ae60;
+}
+
+.pz-feedback {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 18px;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 1px 1px 4px #000a;
+  z-index: 980;
+  display: inline-block;
+  text-align: center;
+  box-sizing: border-box;
+  max-width: min(80%, 520px);
+  width: auto;
+  white-space: normal;
+  word-break: break-word;
+  padding: 0.45rem 0.9rem;
+}
+
+.pz-feedback--good {
+  background: linear-gradient(180deg, #4caf50, #388e3c);
+  color: #fff;
+  padding: 0.6rem 1rem;
+  border-radius: 999px;
+  border: 3px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.bc-progress {
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  width: 285px;
+  z-index: 950;
+  background: #2891df;
+  border: 3px solid #5cb2f1;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.bc-progress-label {
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.bc-progress-track {
+  position: relative;
+  background: #d4d4d4;
+  border-radius: 6px;
+  height: 28px;
+  overflow: hidden;
+}
+
+.bc-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #32d66f, #22b85c);
+  transition: width 220ms ease;
+}
+
+.bc-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+}
+
+.bc-bug {
+  position: absolute;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  pointer-events: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.bc-lag-cursor {
+  position: absolute;
+  width: 0;
+  height: 0;
+  /* triangle cursor pointing right — matches the cursor used elsewhere */
+  border-top: 14px solid transparent;
+  border-bottom: 12px solid transparent;
+  border-left: 24px solid #7a7a7a;
+  transform: translate(-6px, -6px) rotate(-20deg);
+  filter: drop-shadow(0 1px 1px rgba(0,0,0,0.5));
+  pointer-events: none;
+  z-index: 945;
+}
+
+.bc-area {
+  position: absolute;
+  /* allow the background wallpaper to reach the full area of the game
+     (no inset so the image isn't cropped by the container) */
+  inset: 0;
+  overflow: hidden;
+  /* Show the wallpaper so it fills the whole black game area. `cover` makes
+     the image fill the container (may crop some edges) which ensures there
+     are no empty margins; align to bottom so important bottom details remain
+     visible. Use transparent background so it blends with the .bugcleanup-root
+     dark background. */
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: bottom center;
+  background-color: transparent;
+}
+
+.bc-modal {
+  background: #fff;
+  width: min(740px, 90%);
+  border-radius: 20px;
+  padding: 28px 34px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.45);
+  color: #2d2d2d;
+}
+
+.bc-modal h2 {
+  font-size: 2.6rem;
+  margin: 0 0 12px 0;
+}
+
+.bc-list {
+  margin: 0 0 16px 0;
+  padding-left: 18px;
+}
+
+.bc-list li {
+  margin: 8px 0;
+  font-size: 1.3rem;
+  line-height: 1.4;
+}
+
+.bc-cta {
+  border: none;
+  border-radius: 999px;
+  padding: 12px 34px;
+  min-width: 260px;
+  display: block;
+  margin: 10px auto 0 auto;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  background: #efc400;
+  cursor: pointer;
+}
+
+.bc-cta--danger {
+  background: #ff3641;
+}
+
+.bc-modal--pause .bc-cta {
+  margin-top: 12px;
+}
+
+.pz-end {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 700;
+  pointer-events: auto;
+}
+
+.pz-end-box {
+  position: fixed;
+  top: var(--nav-height);
+  left: 0;
+  right: 0;
+  bottom: var(--bottombar-height);
+  box-sizing: border-box;
+  margin: 0;
+  width: 100%;
+  padding: 12px 16px;
+  background: #fff;
+  color: #111;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border: 10px solid #000;
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+  z-index: 900;
+}
+
+.pz-fireworks-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 8px;
+  z-index: 100;
+  background: #fff;
+}
+
+.pz-end-box > *:not(.pz-fireworks-canvas) {
+  position: relative;
+  z-index: 200;
+}
+
+.pz-end-content {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  box-sizing: border-box;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.pz-end-left {
+  width: 260px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+}
+
+.pz-score-circle {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fff, #fff);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+  position: relative;
+  border: 12px solid #e9e9e9;
+}
+
+.pz-score-label { font-size: 1.4rem; color: #f0b800; font-weight: 900; position: absolute; top: 12px; letter-spacing: 0.02em; }
+.pz-score-number { font-size: 7rem; font-weight: 900; color: #f0b800; line-height: 1; }
+.pz-score-percent { position: absolute; bottom: 18px; background: #f0b800; color: #fff; padding: 10px 14px; border-radius: 10px; font-weight: 900; font-size: 1.25rem; }
+.pz-score-stars { position: absolute; bottom: -18px; display: flex; gap: 8px; }
+.pz-star { display: inline-block; width: 32px; height: 32px; line-height: 1; }
+.pz-star svg { width: 100%; height: 100%; display: block; }
+.pz-star--filled svg path { fill: #f0b800; stroke: none; }
+.pz-star--empty svg path { fill: transparent; stroke: #f0b800; stroke-width: 1px; }
+
+.pz-stats-row { display: flex; gap: 16px; margin-top: 26px; justify-content: center; }
+.pz-stats-correct, .pz-stats-wrong {
+  position: relative;
+  border-radius: 14px;
+  padding: 12px 20px 14px;
+  text-align: center;
+  min-width: 140px;
+}
+.pz-stats-correct { background: #34C759; }
+.pz-stats-wrong { background: #FF383C; }
+.pz-stats-correct .shine, .pz-stats-wrong .shine {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 40%;
+  border-radius: 14px 14px 50% 50% / 14px 14px 32% 32%;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.18), rgba(255,255,255,0));
+  pointer-events: none;
+}
+.pz-stats-correct .label, .pz-stats-wrong .label {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.95);
+  margin-bottom: 6px;
+}
+.pz-stats-correct .score, .pz-stats-wrong .score {
+  font-size: 32px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.5px;
+  background: #fff;
+  color: #111;
+  display: inline-block;
+  width: 100px;
+  min-width: 100px;
+  padding: 8px 0;
+  border-radius: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+  text-align: center;
+}
+
+.pz-end-right { flex: none; display: flex; align-items: center; justify-content: center; }
+.pz-tips-card {
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 32px;
+  width: 680px;
+  max-width: 92%;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+  border: 6px solid rgba(0,0,0,0.06);
+  text-align: left;
+}
+.pz-tips-card h3 { margin-top: 0; font-size: 1.6rem; color: #222; }
+.pz-tips { margin: 1.5rem 0; text-align: left; font-size: 1.2rem; line-height: 1.5; }
+.pz-tips-card .pz-end-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 18px;
+}
+.pz-play-again {
+  background: #f0b800;
+  color: #fff;
+  border: none;
+  padding: 14px 44px;
+  border-radius: 999px;
+  font-weight: 900;
+  font-size: 1.2rem;
+  cursor: pointer;
+  display: inline-block;
+}
+.pz-play-again:hover { background: #e6aa00; }
+
+body.pz-modal-open .pz-help,
+body.pz-modal-open .pz-controls,
+body.pz-end-open .pz-help,
+body.pz-end-open .pz-controls {
+  display: none !important;
+}
+
+body.pz-end-open .bc-score-stack,
+body.pz-end-open .bc-progress,
+body.pz-end-open .bc-lag-cursor {
+  display: none !important;
+}
 
