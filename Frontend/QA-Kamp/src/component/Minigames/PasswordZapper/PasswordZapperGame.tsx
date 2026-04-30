@@ -2267,11 +2267,11 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   }
 
   // Hint modal overlay (triggered by hint button)
-  if (showHint) {
+      if (showHint) {
     return (
       <div className="pz-game">
         <div className="pz-pause-overlay">
-          <div className="pz-pause-modal">
+          <div className="pz-pause-modal pz-hint-modal">
             <h2 style={{ textAlign: 'left' }}>Hint</h2>
             <div className="pz-hint-container" style={{ marginTop: 12 }}>
               {/* Age-group specific hints as list items so the yellow bullet appears */}
