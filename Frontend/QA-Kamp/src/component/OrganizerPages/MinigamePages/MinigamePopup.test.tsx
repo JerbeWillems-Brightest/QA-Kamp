@@ -5,14 +5,6 @@ import { describe, it, expect, vi } from 'vitest'
 describe('MinigamePopup (checklist tests)', () => {
   const title = 'Kraak Het Wachtwoord'
   const genericRules = 'Algemene spelregels hier.'
-  // make ages a const tuple so indexing preserves literal types
-  const ages = ['8-10 jaar', '11-13 jaar', '14-16 jaar'] as const
-  // type ageDescriptions so indexing by ages[...] is allowed
-  const ageDescriptions: Record<(typeof ages)[number], string> = {
-    '8-10 jaar': 'Regels voor 8-10',
-    '11-13 jaar': 'Regels voor 11-13',
-    '14-16 jaar': 'Regels voor 14-16',
-  }
 
   // Test: controleert dat de sluitknop (X), startknop, titel, algemene regels
   // en de leeftijdspillen correct gerenderd worden.
@@ -25,8 +17,6 @@ describe('MinigamePopup (checklist tests)', () => {
         isOpen={true}
         title={title}
         rules={genericRules}
-        ages={[...ages]}
-        ageDescriptions={ageDescriptions}
         onClose={onClose}
         onStart={onStart}
       />
@@ -40,10 +30,7 @@ describe('MinigamePopup (checklist tests)', () => {
 
     // Title and rules
     expect(screen.getByText(title)).toBeDefined()
-    expect(screen.getByText(/regels voor/i) || screen.getByText(genericRules)).toBeDefined()
-
-    // Age pills
-    ages.forEach(a => expect(screen.getByRole('button', { name: a })).toBeDefined())
+    expect(screen.getByText(genericRules)).toBeDefined()
   })
 
   // Test: start het spel en controleer dat onStart wordt aangeroepen,
@@ -59,8 +46,6 @@ describe('MinigamePopup (checklist tests)', () => {
         isOpen={true}
         title={title}
         rules={genericRules}
-        ages={[...ages]}
-        ageDescriptions={ageDescriptions}
         onClose={onClose}
         onStart={onStart}
         onStop={onStop}
@@ -82,34 +67,5 @@ describe('MinigamePopup (checklist tests)', () => {
     expect(screen.getByRole('button', { name: /spel starten/i })).toBeDefined()
   })
 
-  // Test: controleert dat bij selectie van een leeftijd de juiste
-  // leeftijdsspecifieke regels worden getoond en dat onSelectAge wordt aangeroepen.
-  it('shows the correct age-specific rules when selecting an age', () => {
-    const onClose = vi.fn()
-    const onSelectAge = vi.fn()
-
-    render(
-      <MinigamePopup
-        isOpen={true}
-        title={title}
-        rules={genericRules}
-        ages={[...ages]}
-        ageDescriptions={ageDescriptions}
-        initialAge={ages[0]}
-        onClose={onClose}
-        onSelectAge={onSelectAge}
-      />
-    )
-
-    // Initial age-specific rules displayed
-    expect(screen.getByText(ageDescriptions[ages[0]])).toBeDefined()
-
-    // Select another age
-    const secondAgeBtn = screen.getByRole('button', { name: ages[1] })
-    fireEvent.click(secondAgeBtn)
-    expect(onSelectAge).toHaveBeenCalledWith(ages[1])
-
-    // The displayed rules should update
-    expect(screen.getByText(ageDescriptions[ages[1]])).toBeDefined()
-  })
+  // Age-specific selection removed: no further tests needed here.
 })

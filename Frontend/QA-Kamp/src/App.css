@@ -50,6 +50,25 @@ img { max-width: 100%; height: auto; display: block; }
   --font-strong: 'TT Norms Pro', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* When playing a minigame we hide the footer at the app level and also
+   set the --footer-height variable to 0 so existing styles that reference
+   it don't reserve space. The class is toggled by the router in App.tsx. */
+body.pz-no-footer {
+  --footer-height: 0px;
+  /* also remove the bottom black bar height so minigames can use the full viewport */
+  --bottombar-height: 0px;
+}
+
+/* When no footer is desired ensure layout does not reserve any space and hide footer elements */
+body.pz-no-footer .page {
+  padding-bottom: 0 !important;
+  height: 100vh !important;
+}
+body.pz-no-footer .footer,
+body.pz-no-footer .site-bottom {
+  display: none !important;
+}
+
 /* Reset margins for common elements that cause overflow */
 h1,h2,h3,h4,h5,h6,p,ul,ol {
     margin: 0;

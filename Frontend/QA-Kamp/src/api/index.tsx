@@ -238,9 +238,26 @@ export async function fetchPlayersForSession(sessionId: string): Promise<{ playe
   return { players }
 }
 
+// Fetch raw backend player objects for cases where we need custom fields
+// (e.g. score_passwordzapper, score_printerslaatophol) preserved.
+export async function fetchPlayersRawForSession(sessionId: string): Promise<{ players: Record<string, unknown>[] }> {
+  const res = await fetch(`${API_URL}/api/sessions/${sessionId}/players`)
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: 'Unknown error' }))
+    throw new Error(parseErrorMessage(err, `HTTP ${res.status}`))
+  }
+  const json = await res.json()
+  const list = (json.players || []) as Record<string, unknown>[]
+  return { players: list }
+}
+
 // Fetch authoritative online players for a session (backend endpoint returns players with lastSeen)
-export async function fetchOnlinePlayers(sessionId: string, cutoffMs = 15000): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
-  const url = `${API_URL}/api/sessions/${encodeURIComponent(sessionId)}/online-players?cutoffMs=${encodeURIComponent(String(cutoffMs))}`
+export async function fetchOnlinePlayers(sessionId: string): Promise<{ onlinePlayers: { playerNumber: string; lastSeen?: string | null }[] }> {
+  // The server now treats online/offline as explicit state changed by
+  // login (online) and logout (offline). There is no recency cutoff to
+  // apply client-side — always request the authoritative list.
+  const base = API_URL || ''
+  const url = `${base}/api/sessions/${encodeURIComponent(sessionId)}/online-players`
   const res = await fetch(url)
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))
@@ -307,8 +324,71 @@ export async function fetchLeaderboard(sessionId: string): Promise<{ leaderboard
     const category = typeof bp['category'] === 'string' ? String(bp['category']) : ''
     const lastSeen = bp && bp['lastSeen'] ? String(bp['lastSeen']) : null
     const out: ApiPlayer & { score?: number } = { playerNumber, name, age, category, lastSeen }
-    const scoreVal = bp['score']
-    if (typeof scoreVal === 'number') out.score = scoreVal as number
+    // Aggregate any numeric score/highscore fields. Different backend versions
+    // may use different keys (legacy `score`, per-game fields like
+    // `score_passwordzapper`/`score_printerslaatophol`, or category keys like
+    // `pz_highscore_passwordzapper_11-13`). Prefer summing explicit per-game
+    // keys and `highscores` entries when present. If no per-game/highscore
+    // fields exist, fall back to the legacy `score` field. This prevents
+    // double-counting when the backend returns both `score` (aggregated)
+    // and per-game keys.
+    let total = 0
+    let foundPerGame = false
+
+    // include explicit per-key fields (e.g. score_passwordzapper)
+    const seenKeys = new Set<string>()
+    for (const key of Object.keys(bp)) {
+      try {
+        const lk = key.toLowerCase()
+        // treat 'score' specially (legacy) — skip here and handle later
+        if (lk === 'score' || lk === 'highscores') continue
+        if (lk.includes('score') || lk.includes('highscore')) {
+          const raw = bp[key]
+          const n = Number(raw)
+          if (!Number.isNaN(n)) {
+            total += n
+            foundPerGame = true
+            seenKeys.add(lk)
+          }
+        }
+      } catch {
+        // ignore non-enumerable or weird keys
+      }
+    }
+
+    // also include values stored inside a nested `highscores` object if present
+    try {
+      const hs = (bp as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+      if (hs && typeof hs === 'object') {
+        for (const k of Object.keys(hs)) {
+          try {
+            const lk = String(k).toLowerCase()
+            if (seenKeys.has(lk)) continue
+            const raw = hs[k]
+            const n = Number(raw)
+            if (!Number.isNaN(n)) {
+              total += n
+              foundPerGame = true
+              seenKeys.add(lk)
+            }
+          } catch {
+            /* ignore per-key */
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+
+    if (!foundPerGame) {
+      // No per-game/highscore keys found: use legacy `score` if present
+      const legacyRaw = (bp['score'] !== undefined) ? bp['score'] : undefined
+      const legacy = typeof legacyRaw === 'number' ? legacyRaw : (typeof legacyRaw === 'string' ? Number(legacyRaw) : NaN)
+      total = !Number.isNaN(legacy) ? legacy : 0
+    }
+
+    // Always expose a numeric score so UI/scoreboard components can reliably render a total.
+    out.score = Number.isNaN(total) ? 0 : total
     return out
   })
   return { leaderboard: list }
@@ -344,8 +424,10 @@ export async function getActiveGameInfo(sessionId: string): Promise<{ activeGame
 }
 
 export async function postPlayerHeartbeat(sessionId: string, playerNumber: string): Promise<{ success?: boolean; player?: unknown }> {
+  // Heartbeat endpoint was removed on the server; map heartbeat calls to the
+  // explicit "online" setter so existing callers (and tests) continue to work.
   const base = API_URL || ''
-  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/heartbeat`
+  const url = `${base}/api/sessions/${sessionId}/players/${encodeURIComponent(playerNumber)}/online`
   const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' } })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: 'Unknown error' }))

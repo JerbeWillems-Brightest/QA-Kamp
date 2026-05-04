@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useState, useCallback } from 'react'
-import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers, postPlayerHeartbeat } from '../../api'
+import { fetchLeaderboard, getActiveGameInfo, fetchPlayersForSession, fetchOnlinePlayers } from '../../api'
 import { useNavigate } from 'react-router-dom'
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
@@ -323,7 +323,7 @@ export default function WaitingRoom() {
 
     async function syncOnlinePlayers() {
       try {
-        const resp = await fetchOnlinePlayers(sessionId, 15000)
+        const resp = await fetchOnlinePlayers(sessionId)
         const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3, '0'))
 
         // update localStorage only if changed (avoids redundant events)
@@ -352,35 +352,6 @@ export default function WaitingRoom() {
       void syncOnlinePlayers()
     }, 5000)
 
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
-  }, [sessionId, playerNumber, serverOnlineConfirmed])
-
-  // Keep the player "online" on the server until they explicitly logout
-  // (or until the organizer removes/kicks them).
-  // Without this, `lastSeen` becomes stale and they disappear from online lists.
-  useEffect(() => {
-    if (!sessionId || !playerNumber) return
-    if (!serverOnlineConfirmed) return
-
-    const intervalMs = 5000
-    let cancelled = false
-    const tick = () => {
-      if (cancelled) return
-      void postPlayerHeartbeat(sessionId, String(playerNumber)).catch((err: unknown) => {
-        const msg = err instanceof Error ? err.message : String(err)
-        // If the organizer removed/deleted the player, the backend will respond 404.
-        // Stop polling to avoid console spam.
-        if (/player not found/i.test(msg) || /not found/i.test(msg)) {
-          cancelled = true
-        }
-      })
-    }
-
-    tick()
-    const id = window.setInterval(tick, intervalMs)
     return () => {
       cancelled = true
       clearInterval(id)

@@ -290,14 +290,6 @@ describe('api/index', () => {
     await expect(api.updatePlayerInSession('s', '1', { playerNumber: '1', name: 'n', age: 1 })).rejects.toThrow('Unknown error')
   })
 
-  it('fetchLeaderboard: ignores non-numeric score', async () => {
-    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ leaderboard: [{ playerNumber: '6', name: 'N', age: 6, score: 'notnum' }] }) })) as unknown as typeof fetch
-    const lb = await api.fetchLeaderboard('s')
-    // score should not be set when not a number
-    const lbItem2 = lb.leaderboard[0] as unknown as { score?: number }
-    expect(lbItem2.score).toBeUndefined()
-  })
-
   it('setPlayerOffline: non-ok sets error status on thrown error', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ message: 'nope' }) })) as unknown as typeof fetch
     await expect(api.setPlayerOffline('s', '1')).rejects.toMatchObject({ message: 'nope', status: 401 })

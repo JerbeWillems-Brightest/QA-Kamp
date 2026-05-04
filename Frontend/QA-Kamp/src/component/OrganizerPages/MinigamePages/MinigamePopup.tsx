@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react'
+// Import API helper to ensure we can clear server-side activeGameInfo
+import { setActiveGameInfo } from '../../../api'
 
 export type MinigamePopupProps = {
   isOpen: boolean
   title: string
   rules: string
   image?: string
-  ages?: string[]
-  ageDescriptions?: Record<string, string>
-  initialAge?: string | null
-  onSelectAge?: (age: string) => void
+  // age-specific options removed: popup shows a single rules text for all ages
   onStart?: () => void
   onStop?: () => void
   onClose: () => void
@@ -20,10 +19,6 @@ export default function MinigamePopup({
   title,
   rules,
   image,
-  ages = [],
-  ageDescriptions = {},
-  initialAge = null,
-  onSelectAge,
   onStart,
   onStop,
   onClose,
@@ -56,24 +51,19 @@ export default function MinigamePopup({
     document.head.insertAdjacentHTML('beforeend', `<style id="minigame-popup-styles">${styles}</style>`)
   }, [])
 
-  // internal UI state: selected single age and running state
-  const [selectedAge, setSelectedAge] = useState<string | null>(initialAge ?? (ages.length ? ages[0] : null))
+  // internal UI state: running state only (we no longer expose/select ages in the popup)
   const [isRunning, setIsRunning] = useState<boolean>(!!running)
 
-  // keep selectedAge in sync when initialAge or ages change
+  // sync running state from prop when provided. Only depend on `running`
+  // so local interactions (like clicking Start) that update `isRunning`
+  // are not immediately overwritten. When the parent truly changes the
+  // `running` prop, this effect will sync local state.
   useEffect(() => {
-    if (initialAge) {
-      setSelectedAge(initialAge)
-    } else if (ages && ages.length && !selectedAge) {
-      setSelectedAge(ages[0])
-    }
+    const newRunning = !!running
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialAge, ages])
-
-  // sync running state from prop when provided
-  useEffect(() => {
-    setIsRunning(!!running)
+    setIsRunning(newRunning)
   }, [running])
+  
 
   // Toggle modal-open class on the .day-dashboard element so the page blurs while modal open
   useEffect(() => {
@@ -96,26 +86,79 @@ export default function MinigamePopup({
     }
   }, [isOpen, isRunning])
 
-  function handleSelectAge(a: string){
-    setSelectedAge(a)
-    if (onSelectAge) onSelectAge(a)
-  }
+  // age selection removed: the popup uses a single `rules` string for all ages
 
   function handleStart(){
     // optimistically set local running state so UI updates immediately
     setIsRunning(true)
     if (onStart) onStart()
   }
-  function handleStop(){
+  async function handleStop(){
     // optimistically clear local running state
     setIsRunning(false)
-    if (onStop) onStop()
+
+    // First, allow parent to perform the authoritative action (persist
+    // activeGameInfo = null on the server). We await it so remote devices
+    // polling the server will observe the cleared state before we clear
+    // localStorage and dispatch events in this browser.
+    if (onStop) {
+      try {
+        // If onStop returns a promise, await it. If it's synchronous, awaiting
+        // resolves immediately.
+        await onStop()
+      } catch (err) {
+        // Swallow errors — we still proceed to notify local tabs, but log.
+        console.warn('MinigamePopup: onStop handler failed', err)
+      }
+    }
+
+    // As a safety net, also attempt to clear the server-side activeGameInfo
+    // directly from the popup. This helps when the parent handler doesn't
+    // reach the server (e.g. due to a wrong API url/proxy) — calling the
+    // API here ensures remote devices polling the server will observe the
+    // cleared state.
+    try {
+      let sid: string | null
+      try { sid = localStorage.getItem('currentSessionId') } catch { sid = null }
+      if (sid) {
+        // If the parent handler already cleared the activeGameInfo (it usually
+        // removes the key from localStorage after updating the server), there's
+        // no need to call the API again. Only attempt the fallback when the
+        // local key still exists — that indicates the server update may not
+        // have completed.
+        let hasActive: boolean
+        try { hasActive = localStorage.getItem('activeGameInfo') !== null } catch { hasActive = false }
+        if (hasActive) {
+          try {
+            await setActiveGameInfo(sid, null)
+          } catch (e) {
+            console.warn('MinigamePopup: failed to clear activeGameInfo on server', e)
+            try {
+              if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+                window.alert('Kon spel niet stoppen op server')
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      }
+    } catch { /* ignore */ }
+
+    // Now clear local state and notify other tabs in this browser. This is
+    // best-effort only: the server call above is the authoritative notification
+    // for remote devices.
+    try {
+      try { localStorage.removeItem('activeGameInfo') } catch (e) { void e }
+      try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (e) { void e }
+      try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (e) { void e }
+    } catch (err) {
+      console.warn('MinigamePopup: failed to notify other tabs of stop', err)
+    }
   }
 
   if (!isOpen) return null
 
-  // description prefers age-specific, then generic rules
-  const displayedRules = (selectedAge && ageDescriptions && ageDescriptions[selectedAge]) ? ageDescriptions[selectedAge] : rules
+  // show the generic rules text for all ages
+  const displayedRules = rules
 
   // Don't allow closing the modal by clicking the overlay while a game is running.
   // The close 'X' button is permitted to close the modal even while a game runs; the page will remain disabled/blurred
@@ -133,19 +176,7 @@ export default function MinigamePopup({
         <div className="minigame-modal-content">
           <h2 className="minigame-modal-title">{title}</h2>
 
-          {ages && ages.length > 0 && (
-            <div className="minigame-age-pills" role="tablist" aria-label="Leeftijdscategorieën">
-              {ages.map(a => (
-                <button
-                  key={a}
-                  type="button"
-                  className={`minigame-pill ${selectedAge === a ? 'active' : ''}`}
-                  onClick={() => handleSelectAge(a)}
-                  aria-pressed={selectedAge === a}
-                >{a}</button>
-              ))}
-            </div>
-          )}
+          {/* Age pills removed: popup shows one unified rules text for all ages */}
 
           <p className="minigame-modal-rules">{displayedRules}</p>
 

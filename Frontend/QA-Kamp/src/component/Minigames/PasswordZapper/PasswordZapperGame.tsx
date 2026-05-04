@@ -1,4 +1,9 @@
 import React, { useState, useEffect, useCallback } from "react";
+// Local payload type for update call (includes legacy `score`, game-specific
+// score fields and category). We allow optional game-specific fields so
+// multiple minigames can persist highscores without conflicting.
+type UpdatePlayerPayload = { score?: number; score_passwordzapper?: number; score_printerslaatophol?: number; category?: string }
+import type { ApiPlayer } from '../../../api'
 import { useNavigate } from 'react-router-dom'
 import "./PasswordZapperGame.css";
 // ruimteschip asset
@@ -553,9 +558,23 @@ interface Props {
   ageGroup: "8-10" | "11-13" | "14-16";
   // optional testing hook: provide deterministic initial passwords
   initialPasswords?: PasswordItem[];
+  // optional network join key forwarded from MinigamePage (?key=)
+  networkKey?: string;
 }
 
-const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => {
+const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, networkKey }) => {
+  // accept optional network key forwarded from URL; persist into
+  // sessionStorage.playerActiveGame so cross-device pairing can find the key
+  useEffect(() => {
+    try {
+      if (!networkKey) return
+      const raw = sessionStorage.getItem('playerActiveGame')
+      let obj: Record<string, unknown> = raw ? JSON.parse(raw) as Record<string, unknown> : {}
+      if (!obj || typeof obj !== 'object') obj = {}
+      if (obj.key !== networkKey) obj.key = networkKey
+      try { sessionStorage.setItem('playerActiveGame', JSON.stringify(obj)) } catch { /* ignore */ }
+    } catch { /* ignore */ }
+  }, [networkKey])
   const [passwords, setPasswords] = useState<PasswordItem[]>([]);
   // currentIdx removed: we use per-lane indices and zapAt/skipAt handlers
   const [score, setScore] = useState(0);
@@ -668,7 +687,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // examples per age group used in the start modal
   const examples: { weak: string; strong: string } = (() => {
     switch (normalizedAgeGroup) {
-      case '8-10': return { weak: '🧾✨', strong: 'Zon!Maan9' };
+      case '8-10': return { weak: 'laatmijbinnen', strong: 'Zon!Maan9' };
       case '11-13': return { weak: 'abc123', strong: 'Hond!Kat5' };
       case '14-16': return { weak: 'qwerty123', strong: 'T!jger@8' };
       default: return { weak: '🧾✨', strong: 'Zon!Maan9' };
@@ -762,6 +781,141 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   const [showHelp, setShowHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
   const navigate = useNavigate()
+  // track initial mount so a refresh doesn't immediately navigate away; instead
+  // we return the player to the start modal (like PrinterSlaatOpHol behavior)
+  const initialMountRef = React.useRef(true)
+
+  // React to organizer stopping the game: listen for custom events, storage
+  // events (same browser), and poll the server (different machines).
+  useEffect(() => {
+    function safeNavigateHome() {
+      try {
+        if (initialMountRef.current) {
+          // soft reset on refresh: show the start modal rather than leaving the minigame
+          try { setStarted(false) } catch { /* ignore */ }
+          try { setShowPracticeIntro(false) } catch { /* ignore */ }
+          try { setShowHelp(false) } catch { /* ignore */ }
+          try { setShowHint(false) } catch { /* ignore */ }
+          try { setShowPracticeEnd(false) } catch { /* ignore */ }
+        } else {
+          try { navigate('/') } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+
+    function onCustom(ev: Event) {
+      try {
+        const ce = ev as CustomEvent
+        if (!ce.detail) {
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+    }
+    function onStorage(e: StorageEvent) {
+      try {
+        // handle explicit kick keys like 'kick_123' or 'kick_001'
+        if (e.key && e.key.startsWith('kick_')) {
+          const kicked = e.key.slice(5)
+          const plain = sessionStorage.getItem('playerNumber') || ''
+          const padded = String(plain).padStart(3, '0')
+          if (kicked === plain || kicked === padded) {
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+            try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+            safeNavigateHome()
+            return
+          }
+        }
+
+        // when onlinePlayers is changed, check whether this player was removed
+        if (e.key === 'onlinePlayers' || e.key === 'onlinePlayers_last_update') {
+          try {
+            const raw = (e.key === 'onlinePlayers') ? (e.newValue ?? localStorage.getItem('onlinePlayers')) : localStorage.getItem('onlinePlayers')
+            const arr = raw ? JSON.parse(String(raw)) as string[] : []
+            const padded = String(sessionStorage.getItem('playerNumber') || '').padStart(3,'0')
+            const plain = String(sessionStorage.getItem('playerNumber') || '')
+            const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded))
+            if (!exists) {
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+              safeNavigateHome()
+            }
+          } catch { /* ignore */ }
+        }
+
+        // session ended/cleared by organizer on another tab
+        if (e.key === 'currentSessionId') {
+          if (e.newValue === null) {
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+            try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
+            // remove this player from onlinePlayers
+            try {
+              const raw = localStorage.getItem('onlinePlayers')
+              const arr = raw ? JSON.parse(raw) as string[] : []
+              const plain = String(sessionStorage.getItem('playerNumber') || '')
+              const padded = String(sessionStorage.getItem('playerNumber') || '').padStart(3, '0')
+              const filtered = Array.isArray(arr) ? arr.filter(x => (String(x) !== plain && String(x) !== padded)) : []
+              localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
+              // notify other tabs about the change
+              window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
+            } catch { /* ignore */ }
+            safeNavigateHome()
+          }
+          return
+        }
+
+        // treat both legacy and current keys
+        if (e.key === 'activeGameInfo' || e.key === 'activeGame') {
+          const nv = e.newValue
+          // consider cleared when newValue is null, undefined, empty string, or the literal 'null'
+          if (nv === null || typeof nv === 'undefined' || nv === '' || String(nv) === 'null') {
+            try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+            try { navigate('/player/waiting') } catch { /* ignore */ }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+    window.addEventListener('activeGameInfoChanged', onCustom)
+    window.addEventListener('storage', onStorage)
+
+    // server poll for cross-machine detection
+    let mounted = true
+    let timer: number | undefined
+    async function pollServer() {
+      try {
+        const sid = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
+        if (!sid) return
+        const api = await import('../../../api')
+        const resp = await api.getActiveGameInfo(sid)
+        if (!mounted) return
+        if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
+          try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
+          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+          try { navigate('/player/waiting') } catch { /* ignore */ }
+          return
+        }
+      } catch {
+        // ignore and retry
+      } finally {
+        if (mounted) timer = window.setTimeout(pollServer, 5000)
+      }
+    }
+    pollServer()
+    return () => { window.removeEventListener('activeGameInfoChanged', onCustom); window.removeEventListener('storage', onStorage); mounted = false; if (timer) clearTimeout(timer) }
+  }, [navigate])
+
+  // After the initial mount, mark that future storage events should navigate away
+  useEffect(() => {
+    initialMountRef.current = false
+  }, [])
 
   // Toggle a body-level class so other UI (hint/pause/question, score, progress, ship)
   // can be hidden via CSS while the start modal is visible.
@@ -1082,46 +1236,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     };
   }, [markOnline, setPlayerStatus]);
 
-  // Keep the player alive on the server while the minigame is running so the
-  // authoritative onlinePlayers list (used by organizer/waiting-room) still
-  // contains this player's number. This mirrors the heartbeat logic in
-  // `PlayerGame`/`WaitingRoom` but runs only while the minigame is started.
-  useEffect(() => {
-    if (!started) return
-    const sessionStorageId = sessionStorage.getItem('playerSessionId')
-    const localStorageId = localStorage.getItem('currentSessionId')
-    const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
-    const playerNumber = sessionStorage.getItem('playerNumber') || ''
-    if (!sid || !playerNumber) return
-
-    let cancelled = false
-    const intervalMs = 5000
-    const tick = () => {
-      if (cancelled) return
-      void import('../../../api').then(m => m.postPlayerHeartbeat(sid, String(playerNumber))).catch((err: unknown) => {
-        const info = getErrorInfo(err)
-        const status = info.status
-        const msg = info.message
-        if (status === 404 || /player not found/i.test(msg) || /session not found/i.test(msg) || /not found/i.test(msg)) {
-          // organizer removed this player on server; stop polling and force logout
-          cancelled = true
-          try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
-          try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-          try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
-          try { navigate('/') } catch { /* ignore */ }
-        }
-        // for 409 or other errors, keep trying; 409 usually means "already online" and is non-fatal
-      })
-    }
-
-    tick()
-    const id = window.setInterval(tick, intervalMs)
-    return () => {
-      cancelled = true
-      clearInterval(id)
-    }
-  }, [started, navigate])
+  // Heartbeat polling removed — online state is set on login and cleared on logout.
 
   // While the minigame is started, periodically ensure localStorage.onlinePlayers
   // contains our padded player number and update a freshness timestamp. This
@@ -1168,6 +1283,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         if (sid && playerNumber) {
           try {
             // prefer sendBeacon to signal offline to the session-specific endpoint
+            // NOTE: do NOT mutate localStorage here. Removing localStorage keys on
+            // beforeunload causes presence to disappear on a simple page refresh.
+            // We only attempt to notify the server; presence in localStorage is
+            // preserved so a reload keeps the player in the game.
             const url = `${(import.meta.env.VITE_API_URL || '')}/api/sessions/${encodeURIComponent(sid)}/players/${encodeURIComponent(playerNumber)}/offline`
             const payload = JSON.stringify({})
             if (navigator && typeof navigator.sendBeacon === 'function') {
@@ -1176,18 +1295,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               try { fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload, keepalive: true }) } catch { /* ignore */ }
             }
           } catch { /* ignore */ }
-        } else {
-          // fallback: update localStorage only
-          try {
-            const raw2 = localStorage.getItem('onlinePlayers')
-            const arr2 = raw2 ? JSON.parse(raw2) as string[] : []
-            const plain = String(playerNumber)
-            const padded = plain.padStart(3, '0')
-            const filtered = Array.isArray(arr2) ? arr2.filter(x => (String(x) !== plain && String(x) !== padded)) : []
-            localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
-            try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
-          } catch { /* ignore */ }
         }
+        // Otherwise: do not touch localStorage. Explicit logouts or navigation to
+        // the home page should clear presence and currentSessionId via the
+        // application's logout/navigation handlers (or server-driven events).
       } catch {
         // ignore
       }
@@ -1374,6 +1485,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       try {
         setPaused(true);
         setShowPracticeEnd(true);
+        try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] practice end triggered by zappedWeak', { practiceMode, zappedWeak, showPracticeEnd }) } catch { /* ignore */ }
       } catch { /* ignore */ }
     }
   }, [practiceMode, zappedWeak, showPracticeEnd]);
@@ -1395,6 +1507,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       // keep started=true
       // clear transient hint-unlocked flag set during practice
       try { if (typeof window !== 'undefined') { const w = window as unknown as Record<string, unknown>; w['__pz_hint_unlocked'] = false; window.dispatchEvent(new CustomEvent('minigame:hint-locked')); } } catch { /* ignore */ }
+      try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] startRealGame: passwords.len=', passwords.length, 'lanes=', lanes) } catch { /* ignore */ }
     } catch { /* ignore */ }
   };
 
@@ -1458,10 +1571,26 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   // apply the current fallMultiplier to all existing passwords
   
 
-  // when processed reaches total, end the game
+  // when processed reaches total, end the game or the practice round
   useEffect(() => {
-    // End when we've processed MAX_PROGRESS items even in endless mode
-    if (processed >= MAX_PROGRESS) {
+    // Use a small practice max for the practice round and the normal MAX_PROGRESS
+    // for the real game. We compute effectiveMax locally to avoid moving the
+    // PRACTICE_MAX constant around.
+    const PRACTICE_MAX_LOCAL = 3;
+    const effectiveMax = practiceMode ? PRACTICE_MAX_LOCAL : MAX_PROGRESS;
+
+    // If we've reached the effective max, handle practice end or full game end
+    if (processed >= effectiveMax) {
+      if (practiceMode) {
+        try {
+          setPaused(true);
+          setShowPracticeEnd(true);
+          try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] practice end triggered by processed', { practiceMode, processed, effectiveMax }) } catch { /* ignore */ }
+        } catch { /* ignore */ }
+        return;
+      }
+
+      // End when we've processed MAX_PROGRESS items even in endless mode
       setGameOver(true);
       setShowEnd(true);
       // player finished the game -> mark them back online (return to lobby)
@@ -1469,15 +1598,23 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       void markOnline();
       return;
     }
+
     if (!endless) {
       if (passwords.length > 0 && processed >= passwords.length) {
+        if (practiceMode) {
+          try {
+            setPaused(true);
+            setShowPracticeEnd(true);
+          } catch { /* ignore */ }
+          return;
+        }
         setGameOver(true);
         setShowEnd(true);
         setPlayerStatus('online');
         void markOnline();
       }
     }
-  }, [processed, passwords.length, endless, markOnline, setPlayerStatus, MAX_PROGRESS]);
+  }, [processed, passwords.length, endless, markOnline, setPlayerStatus, MAX_PROGRESS, practiceMode]);
 
   // When gameOver/showEnd becomes true, compute and persist high score
   useEffect(() => {
@@ -1494,15 +1631,145 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       const existingRaw = localStorage.getItem(key);
       const existing = existingRaw !== null ? parseInt(existingRaw, 10) : undefined;
       const existingIsValid = typeof existing === 'number' && !Number.isNaN(existing);
-      if (!existingIsValid || score > (existing as number)) {
-        try { localStorage.setItem(key, String(score)); } catch { /* ignore */ }
-        setHighScore(score);
-        setIsNewHigh(true);
-      } else {
-        setIsNewHigh(false);
-      }
+      // finalHigh is the persisted highscore we will use for DB updates and signalling.
+      const finalHigh = (existingIsValid ? Math.max(existing as number, score) : score);
+      try { localStorage.setItem(key, String(finalHigh)); } catch { /* ignore */ }
+      setHighScore(finalHigh);
+      setIsNewHigh(existingIsValid ? (finalHigh > (existing as number)) : true);
+      // Persist final score to backend so the organizer scoreboard can show it.
+      ;(async () => {
+        try {
+          const playerNumberRaw = sessionStorage.getItem('playerNumber') || ''
+          const sessionStorageId = sessionStorage.getItem('playerSessionId')
+          const localStorageId = localStorage.getItem('currentSessionId')
+          const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
+          if (!sid || !playerNumberRaw) return
+
+          // Normalize to digits-only and pad to 3 characters to match backend stored playerNumber
+          const normalizedPlayerNumber = String((playerNumberRaw || '').toString().replace(/\D/g, '')).padStart(3, '0')
+          try {
+            const api = await import('../../../api')
+            // Fetch current stored player info and only update the DB when the
+            // new score is strictly greater than the stored score. This avoids
+            // overwriting a player's highscore with a lower value.
+            let shouldUpdate = true
+            let foundCategory: string | undefined = undefined
+            let found: Record<string, unknown> | undefined = undefined
+            let otherGame = 0
+            try {
+              // Use raw players API to preserve game-specific score fields
+              const pResp = await api.fetchPlayersRawForSession(sid)
+              const list = (pResp && (pResp as { players?: unknown[] }).players) || []
+              found = (list as Record<string, unknown>[]).find((p) => {
+                const pn = String(p['playerNumber'] ?? p['nummer'] ?? '')
+                return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
+              })
+              if (found) {
+                // Prefer game-specific stored highscore when present. Accept either a
+                // number or a numeric string. Do NOT use the legacy aggregated `score`
+                // field to decide whether to update this game's per-player highscore;
+                // `score` contains sums of other games and will incorrectly prevent
+                // updating if it's higher than this game's new highscore.
+                let existingGameScore: number | undefined = undefined
+                try {
+                  const rawG = found['score_passwordzapper']
+                  if (typeof rawG === 'number' && !Number.isNaN(rawG)) existingGameScore = Number(rawG)
+                  else if (typeof rawG === 'string' && rawG.trim() !== '' && !Number.isNaN(Number(rawG))) existingGameScore = Number(rawG)
+                } catch { /* ignore parse errors */ }
+                if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore)) {
+                  // Compare against finalHigh (the player's stored highscore) and
+                  // skip update only when an explicit per-game highscore already
+                  // exists and is >= the new high.
+                  if (existingGameScore >= finalHigh) {
+                    shouldUpdate = false
+                  }
+                }
+                // preserve player's existing category when present to avoid
+                // backend defaulting it to 'unknown' on partial updates
+                const catVal = found['category']
+                if (typeof catVal === 'string' && catVal) foundCategory = catVal as string
+                // compute other-game total by summing any numeric fields that look like scores
+                try {
+                  for (const k of Object.keys(found)) {
+                    const lk = k.toLowerCase()
+                    if (lk.includes('score') || lk.includes('highscore')) {
+                      // skip this game's own score field
+                      if (lk.includes('passwordzapper')) continue
+                      const raw = found[k]
+                      const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                      if (!Number.isNaN(n)) otherGame += Number(n)
+                    }
+                  }
+                } catch { /* ignore */ }
+              }
+            } catch (readErr) {
+              // If reading the existing player entry fails, attempt the update
+              // optimistically. The backend update route was adjusted to only
+              // set fields that are present in the request, so it's safe to
+              // issue the update even when we couldn't read the previous score.
+              shouldUpdate = true
+              try {
+                const sessCat = sessionStorage.getItem('playerCategory') || undefined
+                if (sessCat) foundCategory = sessCat
+              } catch {
+                /* ignore */
+              }
+              try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] fetchPlayersForSession failed, falling back to optimistic update', { sid, normalizedPlayerNumber, err: String(readErr) }) } catch { /* ignore */ }
+            }
+
+            if (shouldUpdate) {
+              try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] Attempting DB update', { sid, normalizedPlayerNumber, finalHigh, foundCategory }) } catch { /* ignore */ }
+              // update only the score field on the player document
+              // Retry once on transient failure
+              try {
+                // Persist under a game-specific score field so multiple games' highscores
+                // can be stored independently and aggregated by the scoreboard.
+                // Also update legacy `score` to the aggregated total so older UIs
+                // or scoreboard implementations that prefer `score` see the combined value.
+                const aggregated = finalHigh + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
+                const payload: UpdatePlayerPayload = { score_passwordzapper: finalHigh, score: aggregated }
+                if (typeof foundCategory === 'string' && foundCategory) payload.category = foundCategory
+                await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer)
+                try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] DB update succeeded', { sid, normalizedPlayerNumber, finalHigh }) } catch { /* ignore */ }
+              } catch {
+                await new Promise((r) => setTimeout(r, 250))
+                const payload2: UpdatePlayerPayload = { score_passwordzapper: finalHigh }
+                if (typeof foundCategory === 'string' && foundCategory) payload2.category = foundCategory
+                await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload2 as unknown as ApiPlayer)
+                try { if (typeof console !== 'undefined') console.debug('[PasswordZapper] DB update succeeded after retry', { sid, normalizedPlayerNumber, finalHigh }) } catch { /* ignore */ }
+              }
+
+              // Notify other tabs in this browser quickly so organiser UI can reflect change faster
+              try {
+                const key = 'pz_score_update'
+                const payload = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() })
+                localStorage.setItem(key, payload)
+                try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload })) } catch { /* ignore */ }
+                try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() } })) } catch { /* ignore */ }
+              } catch { /* ignore */ }
+            } else {
+              try { if (typeof console !== 'undefined') console.log('[PasswordZapper] Skipping DB update because existing stored score is higher or equal', { sid, normalizedPlayerNumber, score }) } catch { /* ignore */ }
+            }
+                  } catch (err: unknown) {
+            const info = getErrorInfo(err)
+            const status = info.status
+            const msg = info.message
+            // If the server reports the player/session is gone, force local logout and navigate home
+            if (status === 404 || /player not found|session not found|not found/i.test(msg)) {
+              try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
+              try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
+              try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
+              try { navigate('/') } catch { /* ignore */ }
+              return
+            }
+            // otherwise log and continue; scoreboard may update on next poll
+            console.warn('Failed to persist player score to backend:', msg)
+          }
+        } catch { /* ignore */ }
+      })()
     } catch { /* ignore */ }
-  }, [showEnd, score, effectiveAgeGroup, playSound]);
+  }, [showEnd, score, effectiveAgeGroup, playSound, navigate]);
 
   // Fireworks canvas: initialize when end screen is shown
   React.useEffect(() => {
@@ -1565,7 +1832,18 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
       // progress increases only for weak passwords
       setProcessed((n) => n + 1);
       setScore((s) => Math.max(0, s + 2));
-      setZappedWeak((n) => n + 1);
+      // update zappedWeak and if we're in practice and reach threshold,
+      // synchronously show the practice end modal so tests don't race with effects
+      setZappedWeak((n) => {
+        const next = n + 1;
+        try {
+          if (practiceMode && next >= 3 && !showPracticeEnd) {
+            setPaused(true);
+            setShowPracticeEnd(true);
+          }
+        } catch { /* ignore */ }
+        return next;
+      });
       setFeedback(randomFrom(goodFeedbackList));
       setFeedbackType('good');
       // play correct sound
@@ -1895,14 +2173,14 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
     nextToLoadRef.current = 0;
     // mark started so passwords initialize
     setStarted(true);
-    // Ensure the top-level hint button is enabled during practice rounds so
-    // players can use hints. We set a transient global flag and fire the
-    // same event MinigamePage listens for.
+    // Ensure the top-level hint button is locked/disabled during the practice
+    // round. We set a transient global flag and fire the same event the
+    // MinigamePage listens for so external UI can disable the hint button.
     try {
       if (typeof window !== 'undefined') {
         const w = window as unknown as Record<string, unknown>;
-        w['__pz_hint_unlocked'] = true;
-        window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'));
+        w['__pz_hint_unlocked'] = false;
+        window.dispatchEvent(new CustomEvent('minigame:hint-locked'));
       }
     } catch { /* ignore */ }
   };
@@ -1928,9 +2206,11 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
               <h2>Speluitleg - Password zapper</h2>
               <ul className="pz-start-bullets">
                 <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
-                <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
+                <li>Er vliegen kometen voorbij met wachtwoorden</li>
+                <li>Sommige wachtwoorden zijn slecht, zoals <b>{examples.weak}</b></li>
+                  <li>Sommige zijn goed, zoals <b>{examples.strong}</b></li>
                 <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
-                <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
+                <li>Laat de sterke wachtwoorden voorbijvliegen</li>
               </ul>
               <div style={{ marginTop: 12, textAlign: 'center' }}>
                 <div style={{ textAlign: 'center' }}>
@@ -1952,10 +2232,12 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2 style={{ textAlign: 'left' }}>Speluitleg - Password zapper</h2>
             <ul className="pz-start-bullets">
-              <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
-              <li>Kometen met wachtwoorden vliegen voorbij. Sommige hebben een zwak wachtwoord (bv. {examples.weak}) en sommige hebben een sterk wachtwoord (bv. {examples.strong}) erop.</li>
-              <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
-              <li>Laat de sterke wachtwoorden voorbijvliegen — niet schieten!</li>
+                <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
+                <li>Er vliegen kometen voorbij met wachtwoorden</li>
+                <li>Sommige wachtwoorden zijn slecht, zoals <b>{examples.weak}</b></li>
+                <li>Sommige zijn goed, zoals <b>{examples.strong}</b></li>
+                <li>Tik op de komeet en schiet de zwakke wachtwoorden.</li>
+                <li>Laat de sterke wachtwoorden voorbijvliegen</li>
             </ul>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => setShowHelp(false)}>Verder spelen</button>
@@ -1985,20 +2267,20 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
   }
 
   // Hint modal overlay (triggered by hint button)
-  if (showHint) {
+      if (showHint) {
     return (
       <div className="pz-game">
         <div className="pz-pause-overlay">
-          <div className="pz-pause-modal">
+          <div className="pz-pause-modal pz-hint-modal">
             <h2 style={{ textAlign: 'left' }}>Hint</h2>
             <div className="pz-hint-container" style={{ marginTop: 12 }}>
               {/* Age-group specific hints as list items so the yellow bullet appears */}
               {effectiveAgeGroup === '8-10' && (
                 <ul className="pz-start-bullets pz-hint-bullets">
                   <li className="pz-hint-item">
-                    Zap wachtwoorden zoals kat, 123456 of minecraft — die zijn te makkelijk! </li>
+                    Tik op slechte wachtwoorden zoals: toets, 123456, abc123</li>
                     <li className="pz-hint-item">
-                        Een sterk wachtwoord ziet er zo uit: Boom@Vis7 — Twee losse woorden, een teken en een cijfer!
+                        Laat goede wachtwoorden zoals Boom@Vis7 gewoon voorbij vliegen
                     </li>
                 </ul>
               )}
@@ -2039,13 +2321,26 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords }) => 
         <div className="pz-pause-overlay">
           <div className="pz-pause-modal">
             <h2>Pauze</h2>
-            <div className="pz-pause-actions">
-              <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
-              <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { try { window.location.reload() } catch { /* ignore */ } }}>Opnieuw beginnen</button>
-              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
-                setPaused(false); setGameOver(true); setShowEnd(true); try { setPlayerStatus('online'); } catch { /* ignore */ } void markOnline();
-              }}>Stoppen</button>
-            </div>
+              <div className="pz-pause-actions">
+                <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => { setPaused(false); }}>Verder spelen</button>
+                <button
+                  id="btnRestartGame"
+                  className="pz-pause-action pz-pause-action--primary"
+                  onClick={() => {
+                    try {
+                      // Close pause overlay and perform an in-app reset so this matches the
+                      // end-screen "Opnieuw spelen" behavior (no full page reload).
+                      setPaused(false);
+                      resetGame();
+                    } catch {
+                      /* ignore */
+                    }
+                  }}
+                >Opnieuw beginnen</button>
+                <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
+                  setPaused(false); setGameOver(true); setShowEnd(true); try { setPlayerStatus('online'); } catch { /* ignore */ } void markOnline();
+                }}>Stoppen</button>
+              </div>
           </div>
         </div>
       </div>

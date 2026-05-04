@@ -16,10 +16,13 @@ let _gen = function (length = 6) {
 function generateCode(length = 6) {
   return _gen(length)
 }
+/* eslint-disable @typescript-eslint/no-unused-vars */
 export const __test = {
   setGenerateCode: (fn: (n?: number) => string) => { _gen = fn },
   getGenerateCode: () => _gen,
 }
+void __test
+/* eslint-enable @typescript-eslint/no-unused-vars */
 
 // Create a session (start session)
 router.post('/', async (req, res) => {
@@ -118,22 +121,17 @@ router.post('/active/join', async (req, res) => {
     if (!session) return res.status(404).json({ error: 'No active session' })
 
     // find player in that session
-    // To prevent concurrent logins: only allow join if the player's lastSeen is null or older than
-    // a short cutoff window. We perform an atomic findOneAndUpdate so that two simultaneous
-    // join attempts won't both succeed.
+    // Only allow join when the player is currently offline. We consider a player
+    // "online" when their `lastSeen` is non-null and "offline" when `lastSeen` is null.
+    // Perform an atomic findOneAndUpdate so two simultaneous join attempts won't both succeed.
     const now = new Date()
-    // "online" window: align with frontend's recent onlinePlayers logic (15s).
-    // This prevents a stale lastSeen from permanently locking a playerNumber.
-    const ONLINE_CUTOFF_MS = 15000
-    const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
 
-    // Allow join if the player is currently offline OR if their lastSeen is older than the cutoff.
-    // Reject only when lastSeen is recent (another device is actively online).
+    // Allow join only if the player is currently offline (lastSeen === null).
     const updatedPlayer = await Player.findOneAndUpdate(
       {
         sessionId: session._id,
         playerNumber: normalized,
-        $or: [{ lastSeen: null }, { lastSeen: { $lt: cutoff } }],
+        lastSeen: null,
       },
       { lastSeen: now },
       { new: true }
@@ -312,8 +310,53 @@ router.post('/:id/players', async (req, res) => {
         category: p.category || 'unknown',
         // imported players should start offline — lastSeen is null
         lastSeen: null,
-        // initial score is zero
-        score: 0,
+        // collect per-game highscores (if provided) and compute initial aggregated score
+        // Accept either a nested `highscores` object or flat per-game keys like `score_passwordzapper`.
+        highscores: (() => {
+          try {
+            const incoming: Record<string, number> = {}
+            if (p.highscores && typeof p.highscores === 'object') {
+              for (const k of Object.keys(p.highscores)) {
+                const raw = (p.highscores as Record<string, unknown>)[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) incoming[k] = Number(n)
+              }
+            }
+            for (const k of Object.keys(p)) {
+              const lk = String(k).toLowerCase()
+              if (lk.startsWith('score_') || lk.includes('highscore')) {
+                const raw = (p as Record<string, unknown>)[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) incoming[k] = Number(n)
+              }
+            }
+            return incoming
+          } catch {
+            return {}
+          }
+        })(),
+        // compute initial aggregated total from provided highscores (fallback 0)
+        score: (() => {
+          try {
+            let t = 0
+            const hs = p.highscores && typeof p.highscores === 'object' ? { ...(p.highscores as Record<string, unknown>) } : {}
+            // include any flat per-game keys too
+            for (const k of Object.keys(p)) {
+              const lk = String(k).toLowerCase()
+              if (lk.startsWith('score_') || lk.includes('highscore')) {
+                hs[k] = (p as Record<string, unknown>)[k]
+              }
+            }
+            for (const k of Object.keys(hs)) {
+              try {
+                const raw = hs[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) t += Number(n)
+              } catch { /* ignore per-key */ }
+            }
+            return Number.isNaN(t) ? 0 : t
+          } catch { return 0 }
+        })(),
       })
     }
 
@@ -402,21 +445,68 @@ router.put('/:id/players/:playerNumber', async (req, res) => {
     if (!player) return res.status(400).json({ error: 'player object required in body' })
 
     // find and update by sessionId + playerNumber
+    // Build a $set object only containing keys provided by the client.
+    // We'll use an explicit $set update to atomically write the merged
+    // `highscores` object and the aggregated `score` so per-game keys are
+    // reliably persisted.
+    const setObj: Record<string, unknown> = {}
+    setObj.playerNumber = (player.playerNumber ?? playerNumber)
+    // keep legacy alias in sync when a playerNumber is provided
+    setObj.nummer = (player.playerNumber ?? playerNumber)
+    if (player.lastSeen) setObj.lastSeen = new Date(player.lastSeen)
+    if (typeof player.name !== 'undefined') setObj.name = player.name
+    if (typeof player.age !== 'undefined') setObj.age = player.age
+    if (typeof player.category !== 'undefined') setObj.category = player.category
+
+    // Merge per-game highscores when provided. Accept either a `highscores` object
+    // or individual per-game keys like `score_passwordzapper` / `score_printerslaatophol`.
+    try {
+      const incomingHighscores: Record<string, number> = {}
+      if (player.highscores && typeof player.highscores === 'object') {
+        for (const k of Object.keys(player.highscores)) {
+          const raw = (player.highscores as Record<string, unknown>)[k]
+          const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+          if (!Number.isNaN(n)) incomingHighscores[k] = Number(n)
+        }
+      }
+      // also accept flat per-game keys in root of payload
+      for (const k of Object.keys(player)) {
+        const lk = k.toLowerCase()
+        if (lk.startsWith('score_') || lk.includes('highscore')) {
+          const raw = (player as Record<string, unknown>)[k]
+          const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+          if (!Number.isNaN(n)) incomingHighscores[k] = Number(n)
+        }
+      }
+
+      if (Object.keys(incomingHighscores).length > 0) {
+        // Read existing highscores from DB to merge
+        const existing = await Player.findOne({ sessionId: id, playerNumber }).select('highscores score').lean()
+        // merged may contain values from the DB; treat them as unknown and coerce
+        const merged: Record<string, unknown> = (existing && existing.highscores) ? { ...(existing.highscores as Record<string, unknown>) } : {}
+        for (const k of Object.keys(incomingHighscores)) merged[k] = incomingHighscores[k]
+        // compute aggregated legacy score as sum of numeric highscores (coerce safely)
+        let agg = 0
+        for (const k of Object.keys(merged)) {
+          const val = merged[k] as unknown
+          const n = typeof val === 'number' ? val : (typeof val === 'string' ? Number(val) : NaN)
+          if (!Number.isNaN(n)) agg += Number(n)
+        }
+        setObj.highscores = merged
+        setObj.score = agg
+      } else if (typeof player.score === 'number') {
+        // if client sent a raw `score` number, accept it (back-compat)
+        setObj.score = player.score
+      }
+    } catch (e) {
+      // ignore merge failures and fall back to provided `score` if any
+      if (typeof player.score === 'number') setObj.score = player.score
+    }
+
     const updated = await Player.findOneAndUpdate(
       { sessionId: id, playerNumber },
-      {
-        playerNumber: (player.playerNumber ?? playerNumber),
-        // keep legacy field in sync
-        nummer: (player.playerNumber ?? playerNumber),
-        // optionally update lastSeen if client provides it
-        ...(player.lastSeen ? { lastSeen: new Date(player.lastSeen) } : {}),
-        // optionally update score if provided
-        ...(typeof player.score === 'number' ? { score: player.score } : {}),
-        name: player.name,
-        age: player.age,
-        category: player.category ?? 'unknown',
-      },
-      { new: true, runValidators: true }
+      { $set: setObj },
+      { returnDocument: 'after', runValidators: true }
     )
 
     if (!updated) return res.status(404).json({ error: 'Player not found in session' })
@@ -443,26 +533,8 @@ router.delete('/:id/players/:playerNumber', async (req, res) => {
 })
 
 // Heartbeat: update lastSeen for a player in session (used by player clients)
-router.post('/:id/players/:playerNumber/heartbeat', async (req, res) => {
-  try {
-    // dynamic endpoint - don't cache
-    res.set('Cache-Control', 'no-store')
-    res.set('Vary', 'Origin')
-    const { id, playerNumber } = req.params
-    const now = new Date()
-    const updated = await Player.findOneAndUpdate(
-      { sessionId: id, playerNumber },
-      { lastSeen: now },
-      { new: true }
-    )
-    if (!updated) return res.status(404).json({ error: 'Player not found in session' })
-    return res.json({ success: true, player: updated })
-  /* istanbul ignore next */
-  } catch (err) {
-    console.error('Heartbeat error:', err)
-    return res.status(500).json({ error: 'Failed to update heartbeat' })
-  }
-})
+// NOTE: heartbeat endpoint removed. Online/offline status is now only changed by
+// login (active join) and logout (offline) actions so we don't update lastSeen from heartbeats.
 
 // Leaderboard: players sorted by score descending
 router.get('/:id/leaderboard', async (req, res) => {
@@ -471,8 +543,94 @@ router.get('/:id/leaderboard', async (req, res) => {
     res.set('Vary', 'Origin')
     const { id } = req.params
     // return players with name, playerNumber, category, score sorted by score desc
-    const list = await Player.find({ sessionId: id }).select('name playerNumber category score').sort({ score: -1 })
-    return res.json({ leaderboard: list })
+    // Also include per-game highscores so frontends can sum individual game
+    // values (e.g. score_passwordzapper / score_printerslaatophol). To be
+    // robust across backend/frontend versions we flatten the `highscores`
+    // object into top-level keys in the returned player objects while
+    // preserving existing top-level fields.
+    const docs = await Player.find({ sessionId: id })
+      .select('name playerNumber category score highscores')
+      .lean()
+      .sort({ score: -1 })
+
+    const mapped = (docs || []).map((d: any) => {
+      // Build a sanitized output object without invoking potentially-throwing getters
+      const out: Record<string, any> = {
+        name: d && d.name,
+        playerNumber: d && d.playerNumber,
+        category: d && d.category,
+        score: (d && typeof d.score === 'number') ? d.score : 0,
+      }
+      // Safely copy highscores keys and also expose them at top-level when possible
+      try {
+        if (d && d.highscores && typeof d.highscores === 'object') {
+          out.highscores = {}
+          for (const k of Object.keys(d.highscores)) {
+            try {
+              const val = d.highscores[k]
+              out.highscores[k] = val
+              if (typeof out[k] === 'undefined') out[k] = val
+            } catch {
+              // ignore throwing getters for individual keys
+            }
+          }
+        }
+      } catch {
+        // ignore if accessing highscores itself throws
+      }
+
+      // compute aggregated total from any numeric key containing 'score'/'highscore'
+      let total = 0
+      const seen = new Set<string>()
+      for (const key of Object.keys(out)) {
+        try {
+          const lk = String(key).toLowerCase()
+          if (lk === 'highscores' || lk === 'score') continue
+          if (lk.includes('score') || lk.includes('highscore')) {
+            const raw = out[key]
+            const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+            if (!Number.isNaN(n)) {
+              total += Number(n)
+              seen.add(lk)
+            }
+          }
+        } catch {
+          /* ignore per-key */
+        }
+      }
+      // include nested highscores entries that weren't present at top-level
+      try {
+        const hs = out.highscores
+        if (hs && typeof hs === 'object') {
+          for (const k of Object.keys(hs)) {
+            try {
+              const lk = String(k).toLowerCase()
+              if (seen.has(lk)) continue
+              const raw = hs[k]
+              const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+              if (!Number.isNaN(n)) {
+                total += Number(n)
+              }
+            } catch { /* ignore */ }
+          }
+        }
+      } catch { /* ignore highscores */ }
+
+      out.score = Number.isNaN(total) ? 0 : total
+      return out
+    })
+
+    // sort by computed score desc then name
+    mapped.sort((a: any, b: any) => {
+      const sa = (a && typeof a.score === 'number') ? a.score : 0
+      const sb = (b && typeof b.score === 'number') ? b.score : 0
+      if (sa !== sb) return sb - sa
+      const na = String(a.name || '').toLowerCase()
+      const nb = String(b.name || '').toLowerCase()
+      return na.localeCompare(nb)
+    })
+
+    return res.json({ leaderboard: mapped })
   /* istanbul ignore next */
   } catch (err) {
     console.error('Leaderboard error:', err)
@@ -524,13 +682,9 @@ router.get('/:id/online-players', async (req, res) => {
 
     // If caller provided cutoffMs, honor it (back-compat); otherwise return players marked online (lastSeen != null)
     const msParam = req.query.cutoffMs ? Number(req.query.cutoffMs) : NaN
-    let docs: any[] = []
-    if (Number.isFinite(msParam) && msParam > 0) {
-      const cutoff = new Date(Date.now() - msParam)
-      docs = await Player.find({ sessionId: id, lastSeen: { $gte: cutoff } }).select('playerNumber lastSeen').lean()
-    } else {
-      docs = await Player.find({ sessionId: id, lastSeen: { $ne: null } }).select('playerNumber lastSeen').lean()
-    }
+    const docs = (Number.isFinite(msParam) && msParam > 0)
+      ? await Player.find({ sessionId: id, lastSeen: { $gte: new Date(Date.now() - msParam) } }).select('playerNumber lastSeen').lean()
+      : await Player.find({ sessionId: id, lastSeen: { $ne: null } }).select('playerNumber lastSeen').lean()
     const players = (docs || []).map((d: any) => ({ playerNumber: String(d.playerNumber).padStart(3,'0'), lastSeen: d.lastSeen }))
     return res.json({ onlinePlayers: players })
   /* istanbul ignore next */
@@ -557,13 +711,11 @@ router.post('/:id/players/:playerNumber/online', async (req, res) => {
     const normalized = normalizeNumber(playerNumber)
     if (!normalized) return res.status(400).json({ error: 'Invalid playerNumber' })
 
-    // Allow setting online if player is offline OR lastSeen is older than the cutoff.
-    // Prevent concurrent override only when lastSeen is recent.
+    // Allow setting online only if player is currently offline (lastSeen === null).
+    // This prevents concurrent logins by requiring the server-side lock to be free.
     const now = new Date()
-    const ONLINE_CUTOFF_MS = 15000
-    const cutoff = new Date(now.getTime() - ONLINE_CUTOFF_MS)
     const updated = await Player.findOneAndUpdate(
-      { sessionId: id, playerNumber: normalized, $or: [{ lastSeen: null }, { lastSeen: { $lt: cutoff } }] },
+      { sessionId: id, playerNumber: normalized, lastSeen: null },
       { lastSeen: now },
       { new: true }
     )
@@ -579,6 +731,7 @@ router.post('/:id/players/:playerNumber/online', async (req, res) => {
     return res.status(500).json({ error: 'Failed to set player online' })
   }
 })
+
 
 // Explicitly mark a player as offline (called when a player logs out)
 router.post('/:id/players/:playerNumber/offline', async (req, res) => {

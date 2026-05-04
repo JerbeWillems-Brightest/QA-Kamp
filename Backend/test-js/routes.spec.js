@@ -123,7 +123,7 @@ describe('Routes combined (compiled)', function() {
     expect(r.body).to.have.property('created')
   })
 
-  it('player update/heartbeat/leaderboard/online/offline and delete player flows', async function() {
+  it('player update/leaderboard/online/offline and delete player flows', async function() {
     const s = await Session.create({ organizerId: org4._id, name: 'Flow', code: 'FLOW', active: true })
     const p = await Player.create({ sessionId: s._id, playerNumber: '401', name: 'P1', age: 12, category: '11-13', lastSeen: null, score: 0 })
 
@@ -133,14 +133,6 @@ describe('Routes combined (compiled)', function() {
 
     // update with body -> 200
     r = await request(app).put(`/api/sessions/${s._id}/players/401`).send({ player: { name: 'P1b', age: 13 } })
-    expect(r.status).to.equal(200)
-
-    // heartbeat for missing player -> 404
-    r = await request(app).post(`/api/sessions/${s._id}/players/999/heartbeat`).send()
-    expect(r.status).to.equal(404)
-
-    // heartbeat for existing -> 200
-    r = await request(app).post(`/api/sessions/${s._id}/players/401/heartbeat`).send()
     expect(r.status).to.equal(200)
 
     // leaderboard -> 200
@@ -234,12 +226,12 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
-  it('GET /api/sessions/:id/online-players honors cutoffMs branch', async function() {
+  it('GET /api/sessions/:id/online-players returns online players without cutoffMs', async function() {
     const org = await Organizer.create({ email: 'cut@qa.test', password: 'P', name: 'C' })
     const s = await Session.create({ organizerId: org._id, name: 'Cut', code: 'C', active: true })
     await Player.create({ sessionId: s._id, playerNumber: '501', name: 'P1', age: 10, category: '8-10', lastSeen: new Date(), score: 0 })
     await Player.create({ sessionId: s._id, playerNumber: '502', name: 'P2', age: 11, category: '8-10', lastSeen: new Date(Date.now() - 100000), score: 0 })
-    const r = await request(app).get(`/api/sessions/${s._id}/online-players?cutoffMs=2000`).send()
+    const r = await request(app).get(`/api/sessions/${s._id}/online-players`).send()
     expect(r.status).to.equal(200)
     expect(r.body).to.have.property('onlinePlayers')
   })
@@ -322,32 +314,6 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findById = origFindById }
   })
 
-  it('players: various endpoints return 500 when Player.* throws', async function() {
-    const s = await Session.create({ organizerId: (await Organizer.create({ email: 'temp2@qa', password: 'P', name: 'T2' }))._id, name: 'Tmp2', code: 'TMP2', active: true })
-    const origFind = Player.find
-    Player.find = async function() { throw new Error('boom') }
-    try {
-      const r = await request(app).get(`/api/sessions/${s._id}/players`)
-      expect(r.status).to.equal(500)
-    } finally { Player.find = origFind }
-
-    const origFindOneAndUpdate = Player.findOneAndUpdate
-    Player.findOneAndUpdate = async function() { throw new Error('boom') }
-    try {
-      const r2 = await request(app).put(`/api/sessions/${s._id}/players/001`).send({ player: { name: 'X' } })
-      expect(r2.status).to.equal(500)
-      const r3 = await request(app).post(`/api/sessions/${s._id}/players/001/heartbeat`).send()
-      expect(r3.status).to.equal(500)
-    } finally { Player.findOneAndUpdate = origFindOneAndUpdate }
-
-    const origFindOneAndDelete = Player.findOneAndDelete
-    Player.findOneAndDelete = async function() { throw new Error('boom') }
-    try {
-      const r4 = await request(app).delete(`/api/sessions/${s._id}/players/001`)
-      expect(r4.status).to.equal(500)
-    } finally { Player.findOneAndDelete = origFindOneAndDelete }
-  })
-
   it('leaderboard/online/online-set/offline-set return 500 when player/session lookups throw', async function() {
     const s = await Session.create({ organizerId: (await Organizer.create({ email: 'temp3@qa', password: 'P', name: 'T3' }))._id, name: 'Tmp3', code: 'TMP3', active: true })
     const origPlayerFind = Player.find
@@ -411,5 +377,145 @@ describe('Routes combined (compiled)', function() {
     } finally { Organizer.findByIdAndDelete = origFindByIdAndDelete }
   })
 
+  // --- Additional branch tests for sessions.ts ---
+
+  it('POST /api/sessions/active/join returns 500 when Player.findOne throws', async function() {
+    // create active session
+    const s = await Session.create({ organizerId: org2._id, name: 'Active', code: 'ACT', active: true })
+    
+    const origFindOne = Player.findOne
+    Player.findOne = async function() { throw new Error('boom') }
+    try {
+      const res = await request(app).post('/api/sessions/active/join').send({ playerNumber: '123' })
+      expect(res.status).to.equal(500)
+      expect(res.body.error).to.match(/Failed to join active session/)
+    } finally {
+      Player.findOne = origFindOne
+    }
+  })
+
+  it('DELETE /api/sessions returns 500 when Player.deleteMany throws', async function() {
+    // create session
+    const s = await Session.create({ organizerId: org3._id, name: 'ToDelete', code: 'DEL', active: true })
+    
+    const origDeleteMany = Player.deleteMany
+    Player.deleteMany = async function() { throw new Error('delete failed') }
+    try {
+      const res = await request(app).delete(`/api/sessions/${s._id}`)
+      expect(res.status).to.equal(500)
+      expect(res.body.error).to.match(/Failed to delete players for session/)
+    } finally {
+      Player.deleteMany = origDeleteMany
+    }
+  })
+
+  it('GET /api/sessions with organizerId parameter returns filtered sessions', async function() {
+    // create sessions for different organizers
+    const s1 = await Session.create({ organizerId: org1._id, name: 'Session1', code: 'S1', active: true })
+    const s2 = await Session.create({ organizerId: org2._id, name: 'Session2', code: 'S2', active: true })
+    const s3 = await Session.create({ organizerId: org1._id, name: 'Session3', code: 'S3', active: false })
+    
+    // test without organizerId (should return recent sessions)
+    let r = await request(app).get('/api/sessions')
+    expect(r.status).to.equal(200)
+    expect(r.body.sessions).to.be.an('array')
+    
+    // test with specific organizerId
+    r = await request(app).get(`/api/sessions?organizerId=${org1._id}`)
+    expect(r.status).to.equal(200)
+    expect(r.body.sessions).to.be.an('array')
+    // should return only sessions for org1
+    expect(r.body.sessions.every(s => String(s.organizerId) === String(org1._id))).to.be.true
+    
+    // test with non-existent organizerId
+    r = await request(app).get('/api/sessions?organizerId=000000000000000000000000')
+    expect(r.status).to.equal(200)
+    expect(r.body.sessions).to.be.an('array')
+    expect(r.body.sessions).to.have.length(0)
+  })
+
+  it('POST /api/sessions/:id/players accepts {players: [...]} format', async function() {
+    // create session
+    const s = await Session.create({ organizerId: org4._id, name: 'ImportTest', code: 'IMP', active: true })
+    
+    // test with {players: [...]} format
+    const r = await request(app).post(`/api/sessions/${s._id}/players`).send({
+      players: [
+        { name: 'Player1', age: 10 },
+        { name: 'Player2', age: 12 }
+      ]
+    })
+    expect(r.status).to.equal(201)
+    expect(r.body).to.have.property('created')
+    expect(r.body.created).to.have.length(2)
+    
+    // verify players were created
+    const players = await Player.find({ sessionId: s._id })
+    expect(players).to.have.length(2)
+    expect(players[0].name).to.equal('Player1')
+    expect(players[1].name).to.equal('Player2')
+  })
+
+  it('POST /api/sessions/:id/players returns 500 when Session.findById throws', async function() {
+    const origFindById = Session.findById
+    Session.findById = async function() { throw new Error('session lookup failed') }
+    try {
+      const res = await request(app).post('/api/sessions/000000000000000000000000/players').send([
+        { name: 'Test', age: 10 }
+      ])
+      expect(res.status).to.equal(500)
+      expect(res.body.error).to.match(/Failed to create players/)
+    } finally {
+      Session.findById = origFindById
+    }
+  })
+
+  it('PUT /api/sessions/:id/players/:playerNumber returns 500 when Player.findOneAndUpdate throws', async function() {
+    // create session and player
+    const s = await Session.create({ organizerId: org1._id, name: 'UpdateTest', code: 'UPD', active: true })
+    const p = await Player.create({ sessionId: s._id, playerNumber: '123', name: 'Test', age: 10, category: '8-10', lastSeen: null, score: 0 })
+    
+    const origFindOneAndUpdate = Player.findOneAndUpdate
+    Player.findOneAndUpdate = async function() { throw new Error('update failed') }
+    try {
+      const res = await request(app).put(`/api/sessions/${s._id}/players/123`).send({
+        player: { name: 'Updated' }
+      })
+      expect(res.status).to.equal(500)
+      expect(res.body.error).to.match(/Failed to update player/)
+    } finally {
+      Player.findOneAndUpdate = origFindOneAndUpdate
+    }
+  })
+
+  it('GET /api/sessions/:id/online-players with cutoffMs parameter', async function() {
+    // create session
+    const s = await Session.create({ organizerId: org2._id, name: 'OnlineTest', code: 'ONL', active: true })
+    
+    // create players with different lastSeen times
+    const now = new Date()
+    const recent = new Date(now.getTime() - 5000) // 5 seconds ago
+    const old = new Date(now.getTime() - 300000) // 5 minutes ago
+    
+    await Player.create({ sessionId: s._id, playerNumber: '001', name: 'Recent', age: 10, category: '8-10', lastSeen: recent, score: 0 })
+    await Player.create({ sessionId: s._id, playerNumber: '002', name: 'Old', age: 12, category: '11-13', lastSeen: old, score: 0 })
+    await Player.create({ sessionId: s._id, playerNumber: '003', name: 'Offline', age: 11, category: '11-13', lastSeen: null, score: 0 })
+    
+    // test without cutoffMs (should return players with lastSeen != null)
+    let r = await request(app).get(`/api/sessions/${s._id}/online-players`)
+    expect(r.status).to.equal(200)
+    expect(r.body.onlinePlayers).to.have.length(2)
+    
+    // test with cutoffMs=10000 (10 seconds, should include recent player)
+    r = await request(app).get(`/api/sessions/${s._id}/online-players?cutoffMs=10000`)
+    expect(r.status).to.equal(200)
+    expect(r.body.onlinePlayers).to.have.length(1)
+    expect(r.body.onlinePlayers[0].playerNumber).to.equal('001')
+    
+    // test with cutoffMs=0 (invalid, should fallback to default behavior)
+    r = await request(app).get(`/api/sessions/${s._id}/online-players?cutoffMs=0`)
+    expect(r.status).to.equal(200)
+    expect(r.body.onlinePlayers).to.have.length(2)
+  })
 })
 

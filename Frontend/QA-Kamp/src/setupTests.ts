@@ -18,3 +18,13 @@ if (!window.matchMedia) {
   })
 }
 
+// jsdom doesn't implement HTMLMediaElement.play/pause; provide harmless mocks
+try {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(HTMLMediaElement.prototype as any).play = function () { return Promise.resolve() }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ;(HTMLMediaElement.prototype as any).pause = function () { /* no-op */ }
+} catch {
+  // ignore if environment doesn't allow modification
+}
+
