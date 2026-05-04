@@ -29,6 +29,17 @@ const starStyles = `
   }
 `
 
+// Hide global minigame controls when a practice modal is open. We add this
+// inline so the behavior is active without changing global stylesheets.
+const practiceControlHide = `
+  body.pz-practice-open .pz-controls .pz-btn,
+  body.pz-practice-open .pz-help {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+`
+
 function useQuery() {
   return new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
 }
@@ -265,6 +276,7 @@ export function MinigamePage() {
   // render fullscreen container. We intentionally omit the back button and title
   return (
     <div className="pz-root">
+      <style>{practiceControlHide}</style>
       {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' ? (
         <>
           <div className="pz-controls">

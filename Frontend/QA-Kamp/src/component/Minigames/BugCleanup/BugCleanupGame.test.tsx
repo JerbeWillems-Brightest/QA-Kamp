@@ -31,6 +31,32 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     })) as any
   })
 
+  // Helper to advance through all modals to reach the running game
+  function advanceToRunningGame() {
+    // Handle intro modal first (shows at the start)
+    const introHeading = screen.queryByText('Speluitleg - Bug Cleanup')
+    if (introHeading) {
+      const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      const introNext = within(introModal).queryByRole('button', { name: /Volgende/i })
+      if (introNext) fireEvent.click(introNext)
+    }
+
+    // Handle practice start modal if it's showing
+    const practiceStartHeading = screen.queryByText('Even oefenen!')
+    if (practiceStartHeading) {
+      const practiceModal = (practiceStartHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      // Click "Oefenronde Overslaan" to skip practice and go directly to the main game
+      const skipBtn = within(practiceModal).queryByRole('button', { name: /Oefenronde Overslaan/i })
+      if (skipBtn) {
+        fireEvent.click(skipBtn)
+      } else {
+        // Fallback to "Spelen" if skip not available
+        const playBtn = within(practiceModal).queryByRole('button', { name: /Spelen/i })
+        if (playBtn) fireEvent.click(playBtn)
+      }
+    }
+  }
+
   // TC01 - start popup shows Volgende
   it('TC01: shows Volgende on the start (speluitleg) popup', () => {
     render(
@@ -51,8 +77,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    // start the game so the help overlay can be shown
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
+
     window.dispatchEvent(new CustomEvent('minigame:question'))
 
     const helpHeading = await screen.findByRole('heading', { name: /Speluitleg - Bug Cleanup/i })
@@ -84,7 +111,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
+
     window.dispatchEvent(new CustomEvent('minigame:hint'))
 
     const hintHeading = await screen.findByRole('heading', { name: /Hint/i })
@@ -101,7 +130,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
+
     window.dispatchEvent(new CustomEvent('minigame:pause'))
 
     const pauseHeading = await screen.findByRole('heading', { name: /Pauze/i })
@@ -121,9 +152,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    // start the game flow so modals behave consistently
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-    fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // dispatch the hint event and expect the hint modal heading
     window.dispatchEvent(new CustomEvent('minigame:hint'))
@@ -138,9 +168,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    // open intro -> skip practice to start the real game
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-    fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     window.dispatchEvent(new CustomEvent('minigame:hint'))
     expect(await screen.findByRole('heading', { name: /Hint/i })).toBeInTheDocument()
@@ -153,8 +182,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-    fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     window.dispatchEvent(new CustomEvent('minigame:pause'))
     const pauseHeading = await screen.findByRole('heading', { name: /Pauze/i })
@@ -173,8 +202,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-    fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan|Oefenronde Overslaan/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     window.dispatchEvent(new CustomEvent('minigame:question'))
     const helpHeading = await screen.findByRole('heading', { name: /Speluitleg - Bug Cleanup/i })
@@ -189,7 +218,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
+
     await waitFor(() => expect(screen.getByRole('progressbar')).toBeInTheDocument())
     expect(container.querySelector('.bc-progress-text')).toBeTruthy()
   })
@@ -217,9 +248,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         </MemoryRouter>
       )
 
-      // start the real game (skip practice)
-      fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-      fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan|Oefenronde Overslaan/i }))
+      // Advance through all modals to reach the running game
+      advanceToRunningGame()
 
       // wait for at least one bug to be rendered
       await waitFor(() => expect(container.querySelectorAll('.bc-bug').length).toBeGreaterThan(0))
@@ -258,7 +288,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         <BugCleanupGame ageGroup={'11-13'} />
       </MemoryRouter>
     )
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
     expect(container.querySelector('.bc-pill')).toBeTruthy()
   })
 
@@ -270,7 +301,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    // open the practice-start modal and start practice
+    // For this test, we specifically want to start practice, not skip it
     fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
     fireEvent.click(screen.getByRole('button', { name: /Spelen/i }))
 
@@ -285,6 +316,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
+    // For this test, we specifically want to start practice, not skip it
     fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
     fireEvent.click(screen.getByRole('button', { name: /Spelen/i }))
 
@@ -299,6 +331,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
+    // For this test, we specifically want to start practice, not skip it
     fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
     fireEvent.click(screen.getByRole('button', { name: /Spelen/i }))
 
@@ -313,6 +346,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
+    // For this test, we specifically want to start practice, not skip it
     fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
     fireEvent.click(screen.getByRole('button', { name: /Spelen/i }))
 
@@ -340,7 +374,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         </MemoryRouter>
       )
 
-      // open practice and start
+      // For this test, we specifically want to start practice, not skip it
       fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
       fireEvent.click(screen.getByRole('button', { name: /Spelen/i }))
 
@@ -396,7 +430,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
       </MemoryRouter>
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
+
     window.dispatchEvent(new CustomEvent('minigame:pause'))
     const stopBtn = await screen.findByRole('button', { name: /Stoppen/i })
     fireEvent.click(stopBtn)
@@ -454,7 +490,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         <BugCleanupGame ageGroup={'8-10'} />
       </MemoryRouter>
     )
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
     await waitFor(() => expect(c1.querySelectorAll('.bc-bug').length).toBeGreaterThan(0))
     expect(c1.querySelectorAll('.bc-bug').length).toBe(3)
 
@@ -465,7 +502,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         <BugCleanupGame ageGroup={'11-13'} />
       </MemoryRouter>
     )
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
     await waitFor(() => expect(c2.querySelectorAll('.bc-bug').length).toBeGreaterThan(0))
     expect(c2.querySelectorAll('.bc-bug').length).toBe(4)
 
@@ -476,7 +514,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         <BugCleanupGame ageGroup={'14-16'} />
       </MemoryRouter>
     )
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
     await waitFor(() => expect(c3.querySelectorAll('.bc-bug').length).toBeGreaterThan(0))
     expect(c3.querySelectorAll('.bc-bug').length).toBe(4)
   })
@@ -502,9 +541,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         </MemoryRouter>
       )
 
-      // start game (skip practice)
-      fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-      fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan|Oefenronde Overslaan/i }))
+      // Advance through all modals to reach the running game
+      advanceToRunningGame()
 
       // wait for bugs to render
       await waitFor(() => expect(container.querySelectorAll('.bc-bug').length).toBeGreaterThan(0))
@@ -566,7 +604,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         <BugCleanupGame ageGroup={'11-13'} />
       </MemoryRouter>
     )
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // lag-cursor element present
     const cursor = container.querySelector('.bc-lag-cursor') as HTMLElement | null
@@ -589,8 +628,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         </MemoryRouter>
       )
 
-      fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-      fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan|Oefenronde Overslaan/i }))
+      // Advance through all modals to reach the running game
+      advanceToRunningGame()
 
       // ensure lag-cursor exists
       const cursor = container.querySelector('.bc-lag-cursor') as HTMLElement | null
@@ -624,8 +663,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
         </MemoryRouter>
       )
 
-      fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-      fireEvent.click(screen.getByRole('button', { name: /Oefenronde Overslaan|Oefenronde Overslaan/i }))
+      // Advance through all modals to reach the running game
+      advanceToRunningGame()
 
       // move the mouse somewhere that doesn't hit a bug and ensure no errors occur
       window.dispatchEvent(new MouseEvent('mousemove', { clientX: 10, clientY: 10 }))
