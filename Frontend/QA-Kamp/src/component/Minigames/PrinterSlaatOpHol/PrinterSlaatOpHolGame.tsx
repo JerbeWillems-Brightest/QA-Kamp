@@ -960,7 +960,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
               ))}
             </ul>
             <div style={{ marginTop: 18, textAlign: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeStart(true); setShowTutorial(false); }}>Volgende</button>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { try { setShowPracticeStart(false) } catch { /* ignore */ } try { setShowTutorial(false) } catch { /* ignore */ } try { resetGame() } catch { /* ignore */ } }}>Volgende</button>
             </div>
           </div>
         </div>

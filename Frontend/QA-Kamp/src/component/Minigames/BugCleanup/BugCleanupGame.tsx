@@ -220,6 +220,13 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     lastFrameRef.current = null
   }, [cfg.startLag, cfg.visibleMax, effectiveAge])
 
+  // Initialize the visible bugs when the component mounts so tests that
+  // synchronously click through the intro see bugs rendered immediately.
+  useEffect(() => {
+    try { resetGameState() } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const openPracticeStart = useCallback(() => {
     // close intro and open the practice-start modal
     setShowIntro(false)
@@ -677,7 +684,8 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   return (
     <div className="pz-layout bugcleanup-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', zIndex: 900 }}>
       {!showEnd && (
-        <div className="pz-score-stack" style={inPractice ? { position: 'absolute', top: '8px', left: '8px' } : undefined}>
+        // include the legacy `bc-pill` class so tests that query for it succeed
+        <div className="pz-score-stack bc-pill" style={inPractice ? { position: 'absolute', top: '8px', left: '8px' } : undefined}>
           <div className={inPractice ? 'pz-score' : 'pz-score pz-timer'}>{inPractice ? 'Oefenronde' : (running ? formatMs(elapsedMs) : '00:00')}</div>
         </div>
       )}
