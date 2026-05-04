@@ -528,9 +528,20 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   }, [])
 
   useEffect(() => {
-    const onPause = () => setPaused(true)
-    const onHelp = () => setShowHelp(true)
-    const onHint = () => setShowHint(true)
+    // Ignore pause/help/hint events while practice modals are visible so the
+    // global controls cannot open underlying overlays during the practice flow.
+    const onPause = () => {
+      if (showPracticeStart || showPracticeEnd) return
+      setPaused(true)
+    }
+    const onHelp = () => {
+      if (showPracticeStart || showPracticeEnd) return
+      setShowHelp(true)
+    }
+    const onHint = () => {
+      if (showPracticeStart || showPracticeEnd) return
+      setShowHint(true)
+    }
     window.addEventListener('minigame:pause', onPause as EventListener)
     window.addEventListener('minigame:question', onHelp as EventListener)
     window.addEventListener('minigame:hint', onHint as EventListener)
@@ -539,21 +550,32 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       window.removeEventListener('minigame:question', onHelp as EventListener)
       window.removeEventListener('minigame:hint', onHint as EventListener)
     }
-  }, [])
+  }, [showPracticeStart, showPracticeEnd])
 
   useEffect(() => {
     const modalOpen = showIntro || showHelp || showHint || paused
     const clsModal = 'pz-modal-open'
     const clsEnd = 'pz-end-open'
+    const clsPractice = 'pz-practice-open'
+
+    // toggle regular modal class
     if (modalOpen) document.body.classList.add(clsModal)
     else document.body.classList.remove(clsModal)
+
+    // toggle end class
     if (showEnd) document.body.classList.add(clsEnd)
     else document.body.classList.remove(clsEnd)
+
+    // toggle practice-specific class used to hide global controls
+    if (showPracticeStart || showPracticeEnd) document.body.classList.add(clsPractice)
+    else document.body.classList.remove(clsPractice)
+
     return () => {
       document.body.classList.remove(clsModal)
       document.body.classList.remove(clsEnd)
+      document.body.classList.remove(clsPractice)
     }
-  }, [paused, showEnd, showHelp, showHint, showIntro])
+  }, [paused, showEnd, showHelp, showHint, showIntro, showPracticeStart, showPracticeEnd])
 
   useEffect(() => {
     if (!showEnd) return
