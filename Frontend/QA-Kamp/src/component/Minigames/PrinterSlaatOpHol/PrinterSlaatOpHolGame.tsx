@@ -267,6 +267,27 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     ]
   })()
 
+  // Hint text varies by age group. Short actionable tips shown in the hint modal.
+  const hintBullets: string[] = (() => {
+    if (effectiveAge === '8-10') {
+      return [
+        'Zoek wat er anders uitziet dan de rest.',
+        'Kijk goed naar kleuren en vormen.'
+      ]
+    }
+    if (effectiveAge === '11-13') {
+      return [
+        'Let op kleine verschillen (kleur, vorm, grootte, positie, letters).',
+        'Klik niet te snel, fouten kosten tijd!'
+      ]
+    }
+    // 14-16
+    return [
+        'Let op kleine verschillen (kleur, vorm, grootte, positie, letters).',
+        'Klik niet te snel, fouten kosten tijd!'
+    ]
+  })()
+
   const nextRound = useCallback(() => {
     // reset visual state for previous round
     try { setCellStatuses({}) } catch { /* ignore */ }
@@ -835,12 +856,17 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     }
   }, [isTestEnv])
 
-  // Unlock (and on first mistake: auto-open) hint after 1 mistake (same for all ages)
+  // Unlock (and auto-open when the threshold is reached) the hint after a
+  // number of mistakes that depends on the player's age group. The hint
+  // should not be available immediately at start; the global flag
+  // __pz_hint_unlocked is set only when unlocked so the top-level hint button
+  // remains disabled until then.
   // Do not auto-open the hint during unit tests to avoid interfering with
   // test expectations (tests control hint showing via events).
   useEffect(() => {
     try {
-      if (!hintAutoShownRef.current && mistakes >= 1) {
+      const threshold = effectiveAge === '8-10' ? 1 : effectiveAge === '11-13' ? 2 : 3
+      if (!hintAutoShownRef.current && mistakes >= threshold) {
         hintAutoShownRef.current = true
         // set global transient flag and notify other UI only in real runtime
         try {
@@ -850,7 +876,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
             window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
           }
         } catch { /* ignore */ }
-        // Auto-open the hint modal on the first mistake in normal runtime so the player sees
+        // Auto-open the hint modal when threshold is reached in normal runtime so the player sees
         // that the hint button is enabled. During tests we skip opening the modal.
         try {
           if (!isTestEnv && running && !showHint && !showHelp && !showIntro && !showTutorial && !paused && !showEnd) {
@@ -859,7 +885,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
-  }, [mistakes, running, showHint, showHelp, showIntro, showTutorial, paused, showEnd, isTestEnv])
+  }, [mistakes, running, showHint, showHelp, showIntro, showTutorial, paused, showEnd, isTestEnv, effectiveAge])
 
   // Toggle a body-level class while paused so CSS can freeze animations if desired
   useEffect(() => {
@@ -960,7 +986,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
               ))}
             </ul>
             <div style={{ marginTop: 18, textAlign: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={() => { try { setShowPracticeStart(false) } catch { /* ignore */ } try { setShowTutorial(false) } catch { /* ignore */ } try { resetGame() } catch { /* ignore */ } }}>Volgende</button>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { try { setShowPracticeStart(true) } catch { /* ignore */ } try { setShowTutorial(false) } catch { /* ignore */ } }}>Volgende</button>
             </div>
           </div>
         </div>
@@ -1051,8 +1077,9 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Hint</h2>
             <ul className="pz-start-bullets">
-              <li>Let op kleine verschillen(grootte,kleur,vorm,positie,letters)</li>
-              <li>Klik niet te snel, fouten kosten tijd!</li>
+              {hintBullets.map((b, i) => (
+                <li key={i}>{b}</li>
+              ))}
             </ul>
             <div style={{ marginTop: 12, textAlign: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false); }}>Verder spelen</button>
