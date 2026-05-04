@@ -99,6 +99,27 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
+/* Make the practice pill ('Oefenronde') look like PrinterSlaatOpHol
+   Scoped to bugcleanup-root so it doesn't affect other minigames */
+.bugcleanup-root .pz-score, .bugcleanup-root .pz-progress { font-size: 1.1rem; margin: 0 }
+.bugcleanup-root .pz-score {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  background: #d9a800;
+  color: white;
+  padding: 16px 24px;
+  border-radius: 40px;
+  font-weight: 800;
+  font-size: 2rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  z-index: 950;
+}
+
+.bugcleanup-root .pz-score-stack { position: absolute; top: 30px; left: 30px; display: flex; flex-direction: column; gap: 10px; z-index: 950; align-items: center }
+.bugcleanup-root .pz-score-stack .pz-score { position: static; display: block }
+.bugcleanup-root .pz-score-stack .pz-timer { position: static; background: #d9a800; color: #fff; padding: 10px 20px; border-radius: 999px; font-size: 2.25rem; font-family: inherit; font-weight: 800; }
+
 .bc-progress {
   position: absolute;
   left: 18px;
