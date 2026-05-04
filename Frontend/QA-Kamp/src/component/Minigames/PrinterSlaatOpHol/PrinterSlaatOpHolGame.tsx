@@ -69,11 +69,17 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const [running, setRunning] = useState(false)
   const [showTutorial, setShowTutorial] = useState(true)
   const [showIntro, setShowIntro] = useState(true)
+  // Practice (oefenronde) state: show practice-start modal, track practice mode and progress,
+  // and show practice-end modal when practice finishes.
+  const [showPracticeStart, setShowPracticeStart] = useState(false)
+  const [isPractice, setIsPractice] = useState(false)
+  const [practiceCorrect, setPracticeCorrect] = useState(0)
+  const [showPracticeEnd, setShowPracticeEnd] = useState(false)
   // Keep backwards-compatible behavior for tests: when running in a test
   // environment we skip the extra clickable office scene so tests that
   // expect the intro modal immediately continue to work. In the browser
   // the office intro remains enabled.
-  const [showOfficeIntro, setShowOfficeIntro] = useState(typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test' ? false : true)
+  const [showOfficeIntro, setShowOfficeIntro] = useState(!(typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test'))
   const [round, setRound] = useState(0)
   // score is computed from total elapsed time at the end (0-100). Do not
   // keep incremental score state during play; compute on demand.
@@ -225,7 +231,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         try { nodes[i].remove() } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
-  }, [])
+  }, [isTestEnv])
 
   // Intro bullets that vary by age group. Keep messages simpler for 8-10.
   const introBullets: string[] = (() => {
@@ -384,21 +390,19 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     return () => { window.removeEventListener('resize', computeSize); ro.disconnect() }
   }, [grid, effectiveAge])
 
-  const startGame = useCallback(() => {
-    setShowTutorial(false)
-    setRunning(true)
-    // start with round 0 so progress shows 0/10 until the player acts
-    setRound(0)
-    setMistakes(0)
-    // clear any stopped flag when starting a fresh game
-    try { setStoppedByUser(false) } catch { /* ignore */ }
-    startRef.current = Date.now()
-    // schedule next round to avoid impure work during render in browser
-    // but call synchronously in test environment so unit tests which use
-    // fake timers and expect immediate rendering will work reliably.
+
+
+  // Start a short practice round: show sheets and allow the player to find 3
+  // correct odd items without time penalties or scoring. Practice does not
+  // persist highscores. This will call nextRound to render the first sheet.
+  const startPractice = useCallback(() => {
+    try { setShowPracticeStart(false) } catch { /* ignore */ }
+    try { setShowTutorial(false); setShowIntro(false) } catch { /* ignore */ }
+    try { setIsPractice(true); setPracticeCorrect(0); setRunning(false); } catch { /* ignore */ }
+    // prepare first practice sheet
     if (isTestEnv) nextRound()
     else setTimeout(() => nextRound(), 0)
-  }, [nextRound])
+  }, [nextRound, isTestEnv])
 
   const finish = useCallback(() => {
     setRunning(false)
@@ -427,12 +431,16 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     // same logic as startGame: synchronous nextRound in tests, deferred in real runtime
     if (isTestEnv) nextRound()
     else setTimeout(() => nextRound(), 0)
-  }, [nextRound])
+  }, [nextRound, isTestEnv])
+  // Note: nextRound and isTestEnv included in dependencies above where appropriate
 
   // Time-based scoring is computed from elapsedMs; no penalty schedule.
 
   const handleClick = useCallback((item: Item) => {
-    if (!running || isTransitioning) return
+    // During practice, the game is not "running" in the timed sense but
+    // clicks should still be allowed. Allow handling when running OR when
+    // in practice mode and not transitioning.
+    if ((!running && !isPractice) || isTransitioning) return
     if (item.isOdd) {
       // increment round count and then determine if we've reached the last round
       const next = round + 1
@@ -447,28 +455,45 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       setFeedback(randomFrom(GOOD_FEEDBACK_LIST))
       setFeedbackType('good')
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      // If in practice mode, increment practiceCorrect and finish practice when
+      // three correct answers have been found. Practice should not update
+      // mistakes or elapsed time.
+      if (isPractice) {
+        setPracticeCorrect(pc => {
+          const newPc = (pc || 0) + 1
+          // after 3 correct: show practice end modal once animation completes
+          if (newPc >= 3) {
+            // mark that the practice should finish after the sheet transition
+            setShouldFinishAfterTransition(true)
+          }
+          return newPc
+        })
+      }
       // ensure we don't call nextRound here - animationend handler will do that
     } else {
-      setMistakes(m => m + 1)
+      // wrong click
+      if (!isPractice) setMistakes(m => m + 1)
       // mark clicked cell as wrong (red) for this round and clear after the feedback timeout
       try { setCellStatuses(s => ({ ...(s || {}), [item.id]: 'bad' })) } catch { /* ignore */ }
       setFeedback(randomFrom(BAD_FEEDBACK_LIST))
       setFeedbackType('bad')
       // Penalty: add 10 seconds to the elapsed time when the player answers wrong.
-      try {
-        const TEN_SEC = 10 * 1000
-        if (startRef.current != null) {
-          // Move the start reference back by 10s so Date.now() - startRef increases
-          startRef.current = (startRef.current || 0) - TEN_SEC
-        } else {
-          // Fallback: derive a startRef from current elapsedMs if available
-          startRef.current = Date.now() - (elapsedMs || 0) - TEN_SEC
-        }
-        // Update elapsedMs immediately so UI reflects the added seconds without waiting for RAF
-        try { setElapsedMs(Date.now() - (startRef.current || Date.now())) } catch { /* ignore */ }
-        // Show time feedback under the timer (e.g. +10s)
-        try { setTimeFeedback('+10 seconden'); setTimeFeedbackType('bad') } catch { /* ignore */ }
-      } catch { /* ignore */ }
+      if (!isPractice) {
+        try {
+          const TEN_SEC = 10 * 1000
+          if (startRef.current != null) {
+            // Move the start reference back by 10s so Date.now() - startRef increases
+            startRef.current = (startRef.current || 0) - TEN_SEC
+          } else {
+            // Fallback: derive a startRef from current elapsedMs if available
+            startRef.current = Date.now() - (elapsedMs || 0) - TEN_SEC
+          }
+          // Update elapsedMs immediately so UI reflects the added seconds without waiting for RAF
+          try { setElapsedMs(Date.now() - (startRef.current || Date.now())) } catch { /* ignore */ }
+          // Show time feedback under the timer (e.g. +10s)
+          try { setTimeFeedback('+10 seconden'); setTimeFeedbackType('bad') } catch { /* ignore */ }
+        } catch { /* ignore */ }
+      }
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
       // clear the time feedback after the same duration
       setTimeout(() => { try { setTimeFeedback(null); setTimeFeedbackType(null) } catch { /* ignore */ } }, 1200)
@@ -483,7 +508,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         } catch { /* ignore */ }
       }, 1200)
     }
-  }, [running, round, isTransitioning, randomFrom, elapsedMs])
+  }, [running, round, isTransitioning, randomFrom, elapsedMs, isPractice])
 
   // called when the top sheet finished flying out
   const handleSheetAnimationEnd = useCallback((e?: React.AnimationEvent<HTMLDivElement>) => {
@@ -499,13 +524,21 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       if (!isTransitioning) return
       setIsTransitioning(false)
       if (shouldFinishAfterTransition) {
-        finish()
+        if (isPractice) {
+          // practice finished: stop practice mode and show practice end modal
+          setIsPractice(false)
+          setShowPracticeEnd(true)
+          // clear practice flag so main game isn't affected
+          setShouldFinishAfterTransition(false)
+        } else {
+          finish()
+        }
       } else {
         // start the next sheet (this sets isEntering true)
         nextRound()
       }
     }
-  }, [isTransitioning, shouldFinishAfterTransition, finish, nextRound])
+  }, [isTransitioning, shouldFinishAfterTransition, finish, nextRound, isPractice])
 
   // Fireworks canvas: initialize when end screen is shown (reuse PasswordZapper fireworks)
   useEffect(() => {
@@ -736,11 +769,11 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   useEffect(() => {
     const cls = 'pz-modal-open'
     try {
-      if (showIntro || showTutorial || showHint || showHelp || paused) document.body.classList.add(cls)
+      if (showIntro || showTutorial || showHint || showHelp || paused || showPracticeStart || showPracticeEnd) document.body.classList.add(cls)
       else document.body.classList.remove(cls)
     } catch { /* ignore */ }
     return () => { try { document.body.classList.remove(cls) } catch { /* ignore */ } }
-  }, [showIntro, showTutorial, showHint, showHelp, paused])
+  }, [showIntro, showTutorial, showHint, showHelp, paused, showPracticeStart, showPracticeEnd])
 
   // Listen for external hint requests (from top-level hint button)
   useEffect(() => {
@@ -761,7 +794,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     }
     window.addEventListener('minigame:hint', onHintRequest)
     return () => window.removeEventListener('minigame:hint', onHintRequest)
-  }, [])
+  }, [isTestEnv])
 
   // Listen for top-level question/help button to show game rules (spelregels).
   // The help popup should not pause the game; when closed the player continues.
@@ -771,7 +804,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     }
     window.addEventListener('minigame:question', onQuestion as EventListener)
     return () => window.removeEventListener('minigame:question', onQuestion as EventListener)
-  }, [])
+  }, [isTestEnv])
 
   // Pause / help / hint handling: listen for global pause/question/hint events
   // Consolidated like PasswordZapper so events are registered together.
@@ -800,7 +833,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       window.removeEventListener('minigame:question', onHelp as EventListener)
       window.removeEventListener('minigame:hint', onHint as EventListener)
     }
-  }, [])
+  }, [isTestEnv])
 
   // Unlock (and on first mistake: auto-open) hint after 1 mistake (same for all ages)
   // Do not auto-open the hint during unit tests to avoid interfering with
@@ -927,7 +960,53 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
               ))}
             </ul>
             <div style={{ marginTop: 18, textAlign: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={() => { startGame() }}>Volgende</button>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { try { setShowPracticeStart(false) } catch { /* ignore */ } try { setShowTutorial(false) } catch { /* ignore */ } try { resetGame() } catch { /* ignore */ } }}>Volgende</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Practice start modal: shown after tutorial when player clicks 'Volgende'
+  if (showPracticeStart) {
+    return (
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+        <div className="game-area printer-area">
+          <div className={`bg-blur game-bg ${showTutorial ? 'is-blurred' : 'no-blur'}`} style={bgStyle} />
+        </div>
+        <div className="pz-start-overlay">
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Even oefenen!</h2>
+            <p style={{ marginTop: 12 }}>
+              {effectiveAge === '8-10'
+                ? 'Zoek de fout op het blad en klik erop!'
+                : 'Zoek de afwijking op het blad en klik erop!'}
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { void startPractice(); }}>Spelen</button>
+              <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { try { setShowPracticeStart(false); resetGame(); } catch { /* ignore */ } }}>Oefenronde Overslaan</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Practice end modal: shown when practiceCorrect reaches 3
+  if (showPracticeEnd) {
+    return (
+      <div className="pz-layout printer-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}>
+        <div className="game-area printer-area">
+          <div className={`bg-blur game-bg no-blur`} style={bgStyle} />
+        </div>
+        <div className="pz-start-overlay">
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Het echte spel begint nu</h2>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>Je tijd bepaalt je score. Succes!</p>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeEnd(false); resetGame(); }}>Spelen</button>
+              <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true); }}>Opnieuw oefenen</button>
             </div>
           </div>
         </div>
@@ -1149,14 +1228,14 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         {/* Score and progress UI (matches PasswordZapper layout) */}
         { /* totalRounds: same as rounds used in game logic (finish at 10) */ }
         {
-          (() => {
-            const totalRounds = 20
-            const displayed = Math.min(Math.max(0, round), totalRounds)
+            (() => {
+            const totalRounds = isPractice ? 3 : 20
+            const displayed = isPractice ? Math.min(Math.max(0, practiceCorrect), totalRounds) : Math.min(Math.max(0, round), totalRounds)
             const fillPercent = Math.max(0, Math.min(100, Math.round((displayed / totalRounds) * 100)))
             return (
               <>
                 <div className="pz-score-stack">
-                  <div className="pz-score pz-timer">{running ? formatMs(elapsedMs) : '00:00'}</div>
+                    <div className={isPractice ? 'pz-score' : 'pz-score pz-timer'}>{isPractice ? 'Oefenronde' : (running ? formatMs(elapsedMs) : '00:00')}</div>
                   {timeFeedback && (
                     <div
                       className={"pz-time-feedback " + (timeFeedbackType === 'good' ? 'pz-feedback--good' : timeFeedbackType === 'bad' ? 'pz-feedback--bad' : '')}
@@ -1177,7 +1256,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                             {feedback}
                           </div>
                         )}
-                <div className="pz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fillPercent}>
+                <div className="pz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={totalRounds} aria-valuenow={displayed}>
                   <div className="pz-progress-fill" style={{ width: `${fillPercent}%` }} />
                   <div className="pz-progress-text">{displayed} / {totalRounds}</div>
                 </div>
