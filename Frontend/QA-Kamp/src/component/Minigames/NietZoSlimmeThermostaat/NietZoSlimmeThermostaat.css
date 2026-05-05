@@ -1,0 +1,222 @@
+.thermostaat-root {
+  /* Background color requested by user */
+  background-color: #ffe7c3; /* hex */
+  background-color: rgba(255, 231, 195, 1); /* rgba fallback */
+  overflow: hidden;
+}
+
+.nzs-top {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.nzs-pill {
+  pointer-events: none;
+  background: #f2c200;
+  color: #111;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 10px 14px;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.22);
+}
+
+.nzs-pill__value {
+  font-variant-numeric: tabular-nums;
+}
+
+.nzs-progress {
+  pointer-events: none;
+  background: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  padding: 10px 14px;
+  font-weight: 800;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.12);
+}
+
+.nzs-feedback {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  padding: 10px 16px;
+  border-radius: 14px;
+  font-weight: 900;
+  letter-spacing: 0.5px;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+}
+
+.nzs-feedback--good {
+  background: #25c26e;
+  color: #062a15;
+}
+
+.nzs-feedback--bad {
+  background: #ff3b3b;
+  color: #2b0202;
+}
+
+.nzs-stage {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 16px;
+}
+
+.nzs-board {
+  width: min(980px, 96vw);
+  /* make the board transparent so the white panel in the background image is visible */
+  background: white;
+  border-radius: 22px;
+  padding: 22px;
+  box-shadow: none;
+  border: none;
+}
+
+.nzs-sentence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  border: 3px solid rgba(255, 0, 0, 0.35);
+  border-radius: 18px;
+  background: rgba(255,255,255,0.8);
+}
+
+.nzs-token {
+  font-weight: 900;
+  color: #111;
+}
+
+.nzs-token--kw {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.06);
+}
+
+.nzs-fixed,
+.nzs-action {
+  font-weight: 800;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.05);
+}
+
+.nzs-action--code,
+.nzs-fixed.nzs-action--code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.nzs-dropzone {
+  min-width: 170px;
+  min-height: 54px;
+  border-radius: 14px;
+  border: 3px dashed rgba(0,0,0,0.35);
+  background: rgba(0,0,0,0.03);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 6px;
+}
+
+.nzs-dropzone__placeholder {
+  width: 120px;
+  height: 28px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.07);
+}
+
+.nzs-dropzone--correct {
+  border-color: rgba(37, 194, 110, 0.9);
+  box-shadow: 0 0 0 4px rgba(37, 194, 110, 0.18);
+}
+
+.nzs-dropzone--wrong {
+  border-color: rgba(255, 59, 59, 0.9);
+  box-shadow: 0 0 0 4px rgba(255, 59, 59, 0.18);
+}
+
+.nzs-options {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 820px) {
+  .nzs-options {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.nzs-block {
+  user-select: none;
+  background: #fff;
+  border-radius: 14px;
+  border: 2px solid rgba(0,0,0,0.12);
+  padding: 12px 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  font-weight: 900;
+  cursor: grab;
+  box-shadow: 0 10px 0 rgba(0,0,0,0.12);
+}
+
+.nzs-block:active {
+  cursor: grabbing;
+}
+
+.nzs-block--selected {
+  cursor: default;
+  box-shadow: none;
+}
+
+.nzs-block--code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-weight: 800;
+}
+
+.nzs-block__icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.nzs-block__label {
+  line-height: 1.1;
+}
+
+.nzs-check {
+  margin: 18px auto 0;
+  display: block;
+  width: min(520px, 100%);
+  background: #f2c200;
+  color: #111;
+  font-weight: 900;
+  border: none;
+  border-radius: 999px;
+  padding: 14px 18px;
+  box-shadow: 0 10px 0 rgba(0,0,0,0.18);
+  cursor: pointer;
+  font-size: 18px;
+}
+
+.nzs-check:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+

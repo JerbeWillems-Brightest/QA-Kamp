@@ -108,9 +108,25 @@ function randomFeedback() {
 
 function inferAgeGroup(value?: string | null): AgeGroup {
   const raw = String(value || '').toLowerCase()
-  if (/8\D*10/.test(raw)) return '8-10'
-  if (/11\D*13/.test(raw)) return '11-13'
-  if (/14\D*16/.test(raw)) return '14-16'
+  try {
+    if (/8\D*10/.test(raw)) return '8-10'
+    if (/11\D*13/.test(raw)) return '11-13'
+    if (/14\D*16/.test(raw)) return '14-16'
+
+    const nums = (raw.match(/\d+/g) || []).map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n))
+    if (nums.length >= 1) {
+      const n = nums[0]
+      if (n <= 10) return '8-10'
+      if (n <= 13) return '11-13'
+      return '14-16'
+    }
+
+    if (raw.includes('8')) return '8-10'
+    if (raw.includes('11') || raw.includes('12') || raw.includes('13')) return '11-13'
+    if (raw.includes('14') || raw.includes('15') || raw.includes('16')) return '14-16'
+  } catch {
+    /* fall through */
+  }
   return '11-13'
 }
 
