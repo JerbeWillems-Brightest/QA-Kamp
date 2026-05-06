@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
 import PrinterSlaatOpHolGame from './PrinterSlaatOpHol/PrinterSlaatOpHolGame.tsx'
 import BugCleanupGame from './BugCleanup/BugCleanupGame.tsx'
+import NietZoSlimmeThermostaat from './NietZoSlimmeThermostaat/NietZoSlimmeThermostaat.tsx'
+import type { ApiPlayer } from '../../api'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
 import VRAAG_IMG from '../../assets/vraag.png'
@@ -29,6 +31,17 @@ const starStyles = `
   }
 `
 
+// Hide global minigame controls when a practice modal is open. We add this
+// inline so the behavior is active without changing global stylesheets.
+const practiceControlHide = `
+  body.pz-practice-open .pz-controls .pz-btn,
+  body.pz-practice-open .pz-help {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
+`
+
 function useQuery() {
   return new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
 }
@@ -39,24 +52,146 @@ export function MinigamePage() {
   const location = useLocation()
   // allow game to be specified either via ?game=... or via pathname (/minigame/passwordzapper)
   const game = q.get('game') || (location?.pathname?.toLowerCase().includes('passwordzapper') ? 'passwordzapper' : '')
-  // Prefer explicit ?age= query param, otherwise fall back to the logged-in player's stored category
-  const age = q.get('age') || (typeof window !== 'undefined' ? sessionStorage.getItem('playerCategory') || '' : '')
+  // Prefer stored playerCategory over ?age param so a player's saved category
+  // isn't silently overridden by a URL. Sanitize sessionStorage values like
+  // 'null'/'undefined'/'false' so they don't count as valid.
+  const rawSessionValue = (typeof window !== 'undefined') ? (() => {
+    try {
+      const raw = sessionStorage.getItem('playerCategory') || sessionStorage.getItem('ageGroup') || sessionStorage.getItem('age') || ''
+      const s = String(raw || '').trim()
+      const low = s.toLowerCase()
+      if (!s || ['null', 'undefined', 'false', '0'].includes(low)) return null
+      return s
+    } catch {
+      return null
+    }
+  })() : null
+
+  const urlAgeParam = q.get('age') || null
+  const initialAgeSource = rawSessionValue ?? urlAgeParam ?? ''
 
   // Map age query value to component prop expected values
   function mapAge(a: string) {
-    const raw = (a || '').toString().trim()
+    const raw = (a || '').toString().trim().toLowerCase()
     if (!raw) return '11-13'
-    // allow both '8-10' and '8%2D10' etc
-    if (/8\D*10/.test(raw)) return '8-10'
-    if (/11\D*13/.test(raw)) return '11-13'
-    if (/14\D*16/.test(raw)) return '14-16'
-    // try to extract digits
-    if (raw.startsWith('8')) return '8-10'
-    if (raw.startsWith('14')) return '14-16'
+    try {
+      if (/8\D*10/.test(raw)) return '8-10'
+      if (/11\D*13/.test(raw)) return '11-13'
+      if (/14\D*16/.test(raw)) return '14-16'
+
+      const nums = (raw.match(/\d+/g) || []).map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n))
+      if (nums.length >= 1) {
+        const n = nums[0]
+        if (n <= 10) return '8-10'
+        if (n <= 13) return '11-13'
+        return '14-16'
+      }
+
+      if (raw.includes('8')) return '8-10'
+      if (raw.includes('11') || raw.includes('12') || raw.includes('13')) return '11-13'
+      if (raw.includes('14') || raw.includes('15') || raw.includes('16')) return '14-16'
+    } catch {
+      // fall through
+    }
     return '11-13'
   }
 
-  const ageGroup = mapAge(age)
+  const [ageGroup, setAgeGroup] = useState(() => mapAge(initialAgeSource))
+
+  // Persist normalized playerCategory so components that read sessionStorage
+  // get a canonical value. Do a synchronous set here as well because some
+  // minigame components read sessionStorage during their initial render.
+  try {
+    // Only write into sessionStorage synchronously if there was no valid
+    // session value. This prevents a URL param from overwriting a stored
+    // playerCategory that was already correct.
+    if (typeof window !== 'undefined' && ageGroup && !rawSessionValue) sessionStorage.setItem('playerCategory', ageGroup)
+  } catch { /* ignore */ }
+
+  // Also keep it synced in an effect to handle later changes
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && ageGroup) sessionStorage.setItem('playerCategory', ageGroup)
+    } catch { /* ignore */ }
+  }, [ageGroup])
+
+  // Ensure the URL reflects the canonical ageGroup when appropriate.
+  // If we have a stored session value (preferred) or the URL had no age param,
+  // replace the current URL's `age` param with the normalized ageGroup so the
+  // user ends up in the correct category visually and on reload.
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const params = new URLSearchParams(window.location.search || '')
+      const current = params.get('age')
+      // Only replace if url differs and either we have a stored session value
+      // (so session should be authoritative) or the URL had no age.
+      if (current !== ageGroup && (rawSessionValue !== null || current === null)) {
+        const u = new URL(window.location.href)
+        u.searchParams.set('age', ageGroup)
+        window.history.replaceState({}, '', u.toString())
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [ageGroup, rawSessionValue])
+
+  // If there is no stored session category, try to verify the player's
+  // category against the backend (based on playerNumber + currentSessionId).
+  // This fixes cases where neither a valid session value nor an explicit
+  // ?age param is present.
+  useEffect(() => {
+    let cancelled = false
+    try {
+      // if we already have a valid session value, don't try to override it
+      if (rawSessionValue) return
+      const playerNumber = (() => { try { return sessionStorage.getItem('playerNumber') || '' } catch { return '' } })()
+      const sidCandidate = (() => { try { return localStorage.getItem('currentSessionId') || sessionStorage.getItem('playerSessionId') || '' } catch { return '' } })()
+      if (!playerNumber || !sidCandidate) return
+
+      const tryFetch = async (attemptsLeft: number) => {
+        try {
+          const api = await import('../../api')
+          const resp = await api.fetchPlayersForSession(sidCandidate)
+          const list = (resp && (resp as { players?: unknown }).players) || []
+          const players = Array.isArray(list) ? (list as ApiPlayer[]) : []
+          const normalizedPn = String(playerNumber).padStart(3, '0')
+          const found = players.find(p => {
+            const rec = p as unknown as Record<string, unknown>
+            const pnRaw = rec['playerNumber'] ?? rec['nummer'] ?? ''
+            const pn = String(pnRaw ?? '')
+            return pn === String(playerNumber) || pn === normalizedPn || String(playerNumber) === String(rec['nummer'] ?? '')
+          })
+          if (cancelled) return
+          if (found) {
+            const rec = found as unknown as Record<string, unknown>
+            const cat = (typeof rec['category'] === 'string' ? String(rec['category']) : undefined) ?? (typeof rec['age'] === 'number' ? ((rec['age'] as number) <= 10 ? '8-10' : (rec['age'] as number) <= 13 ? '11-13' : '14-16') : undefined)
+            if (cat && String(cat)) {
+              const mapped = mapAge(String(cat))
+              if (mapped && mapped !== ageGroup) {
+                try { setAgeGroup(mapped) } catch { /* ignore */ }
+                try { sessionStorage.setItem('playerCategory', mapped) } catch { /* ignore */ }
+              }
+            }
+            return
+          }
+          // Not found: maybe backend hasn't updated yet. Retry a couple times.
+          if (attemptsLeft > 0) {
+            await new Promise(res => setTimeout(res, 400))
+            if (cancelled) return
+            return tryFetch(attemptsLeft - 1)
+          }
+        } catch {
+          // ignore network errors
+        }
+      }
+
+      void tryFetch(3)
+    } catch {
+      /* ignore */
+    }
+    return () => { cancelled = true }
+  }, [rawSessionValue, ageGroup])
   // whether the hint button (top-level control) is unlocked; the game will
   // dispatch a global event `minigame:hint-unlocked` when the mistake threshold
   // is reached and the hint modal should appear. We also read a transient
@@ -265,15 +400,17 @@ export function MinigamePage() {
   // render fullscreen container. We intentionally omit the back button and title
   return (
     <div className="pz-root">
-      {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' ? (
+      <style>{practiceControlHide}</style>
+      {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' ? (
         <>
           <div className="pz-controls">
             <button
               className="pz-btn"
               aria-label="Hint"
               onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:hint')) } catch { void 0 } }}
-              disabled={game !== 'bugcleanup' && !hintUnlocked}
-              title={game === 'bugcleanup' ? 'Toon hint' : (!hintUnlocked ? 'Hints worden beschikbaar na enkele fouten' : 'Toon hint')}
+              // allow hint button only for games that support hints AND when hints unlocked
+              disabled={!(game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat') || !hintUnlocked}
+              title={(game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat') ? (hintUnlocked ? 'Toon hint' : 'Hints worden beschikbaar na enkele fouten') : 'Hints niet beschikbaar voor dit spel'}
             >
               <img src={HINT_IMG} alt="hint" />
             </button>
@@ -285,6 +422,8 @@ export function MinigamePage() {
             <PrinterSlaatOpHolGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : game === 'bugcleanup' ? (
             <BugCleanupGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
+          ) : game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' ? (
+            <NietZoSlimmeThermostaat ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : (
             <PasswordZapperGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           )}

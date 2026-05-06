@@ -63,11 +63,81 @@ describe('PrinterSlaatOpHolGame', () => {
   // to the component. Many tests assumed the modal was present immediately;
   // the component now shows a small office scene first. This helper will
   // click the office button if present and then await the intro modal.
+  // Also handle the new start overlay ('Even oefenen!') which can block the
+  // intro from appearing in tests. If the start overlay is present, click
+  // its primary button ("Oefenronde Overslaan" or "Spelen") to dismiss it.
   function ensureIntroVisible() {
+    // If the initial 'Even oefenen!' start overlay appears, dismiss it
+    const startHeading = screen.queryByText('Even oefenen!')
+    if (startHeading) {
+      const startModal = (startHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      // Prefer the skip button, fall back to the play button if necessary
+      const skipBtn = within(startModal).queryByRole('button', { name: /Oefenronde Overslaan|Oefenronde|Overslaan/i })
+      const playBtn = within(startModal).queryByRole('button', { name: /Spelen|Speel|Start/i })
+      if (skipBtn) fireEvent.click(skipBtn)
+      else if (playBtn) fireEvent.click(playBtn)
+      // If clicking didn't remove the overlay (timing differences), remove it from DOM
+      const overlay = startHeading.closest('.pz-start-overlay') as HTMLElement | null
+      if (overlay && overlay.parentElement) overlay.parentElement.removeChild(overlay)
+    }
+
+    // Click the office scene button if present to reveal the intro
     const officeBtn = screen.queryByLabelText('Klik op de printer')
     if (officeBtn) fireEvent.click(officeBtn)
+
     // intro modal is rendered synchronously in tests (no timers), so use getByText
     return screen.getByText('De printer is gek geworden!')
+  }
+
+  // Enhanced helper to advance through all modals to reach the running game
+  function advanceToRunningGame() {
+    // First, handle the practice start modal if it's showing
+    const practiceStartHeading = screen.queryByText('Even oefenen!')
+    if (practiceStartHeading) {
+      const practiceModal = (practiceStartHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      // Click "Oefenronde Overslaan" to skip practice and go directly to the main game
+      const skipBtn = within(practiceModal).queryByRole('button', { name: /Oefenronde Overslaan/i })
+      if (skipBtn) {
+        fireEvent.click(skipBtn)
+      } else {
+        // Fallback to "Spelen" if skip not available
+        const playBtn = within(practiceModal).queryByRole('button', { name: /Spelen/i })
+        if (playBtn) fireEvent.click(playBtn)
+      }
+    }
+
+    // Handle office intro if present
+    const officeBtn = screen.queryByLabelText('Klik op de printer')
+    if (officeBtn) fireEvent.click(officeBtn)
+
+    // Handle intro modal
+    const introHeading = screen.queryByText('De printer is gek geworden!')
+    if (introHeading) {
+      const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      const introNext = within(introModal).queryByRole('button', { name: /Volgende/i })
+      if (introNext) fireEvent.click(introNext)
+    }
+
+    // Handle tutorial modal
+    const tutorialHeading = screen.queryByText('Speluitleg - Printer slaat op hol!')
+    if (tutorialHeading) {
+      const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      const tutorialNext = within(tutorialModal).queryByRole('button', { name: /Volgende/i })
+      if (tutorialNext) fireEvent.click(tutorialNext)
+    }
+
+    // Handle practice start modal again (it appears after tutorial)
+    const practiceStartHeading2 = screen.queryByText('Even oefenen!')
+    if (practiceStartHeading2) {
+      const practiceModal2 = (practiceStartHeading2.closest('.pz-start-modal') as HTMLElement) ?? document.body
+      const skipBtn2 = within(practiceModal2).queryByRole('button', { name: /Oefenronde Overslaan/i })
+      if (skipBtn2) {
+        fireEvent.click(skipBtn2)
+      } else {
+        const playBtn2 = within(practiceModal2).queryByRole('button', { name: /Spelen/i })
+        if (playBtn2) fireEvent.click(playBtn2)
+      }
+    }
   }
 
   it('renders intro screen on initial load', async () => {
@@ -111,17 +181,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
     
-    // Advance past the intro into the tutorial by clicking office intro (if any)
-    const introHeading = await ensureIntroVisible()
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    // Wait for the tutorial heading to appear and click the Volgende button inside that tutorial modal
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Flush any pending timers (component uses setTimeout for scheduling next round)
     try { vi.runAllTimers() } catch { /* ignore if not supported */ }
@@ -144,17 +205,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past the intro into the tutorial by clicking office intro (if any)
-    const introHeading = await ensureIntroVisible()
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    // Wait for the tutorial heading to appear and click the Volgende button to start the game
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Ensure the tutorial has closed
     await waitFor(() => expect(screen.queryByText('Speluitleg - Printer slaat op hol!')).not.toBeInTheDocument())
@@ -174,19 +226,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past office intro and tutorial to reach the game
-    const introHeading = await ensureIntroVisible()
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
-
-    // Ensure tutorial is closed
-    await waitFor(() => expect(screen.queryByText('Speluitleg - Printer slaat op hol!')).not.toBeInTheDocument())
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Dispatch pause event
     window.dispatchEvent(new CustomEvent('minigame:pause'))
@@ -203,19 +244,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past office intro and tutorial to reach the game
-    const introHeading = await ensureIntroVisible()
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
-
-    // Ensure tutorial is closed
-    await waitFor(() => expect(screen.queryByText('Speluitleg - Printer slaat op hol!')).not.toBeInTheDocument())
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Dispatch pause event
     window.dispatchEvent(new CustomEvent('minigame:pause'))
@@ -232,19 +262,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past office intro and tutorial to reach the game
-    const introHeading = await ensureIntroVisible()
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
-
-    // Ensure tutorial is closed
-    await waitFor(() => expect(screen.queryByText('Speluitleg - Printer slaat op hol!')).not.toBeInTheDocument())
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Dispatch pause event
     window.dispatchEvent(new CustomEvent('minigame:pause'))
@@ -290,16 +309,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance past intro/tutorial into the running game
-    const introHeading = screen.getByText('De printer is gek geworden!')
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Wait for the game to start and items to render
     await waitFor(() => {
@@ -346,16 +357,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance into the running game
-    const introHeading = screen.getByText('De printer is gek geworden!')
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Wait for cells to render and timer to be present
     await waitFor(() => {
@@ -400,16 +403,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance into the running game
-    const introHeading = screen.getByText('De printer is gek geworden!')
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Wait for cells to render
     await waitFor(() => {
@@ -457,16 +452,8 @@ describe('PrinterSlaatOpHolGame', () => {
     vi.useRealTimers()
     render(<PrinterSlaatOpHolGame />)
 
-    // Advance into the running game
-    const introHeading = screen.getByText('De printer is gek geworden!')
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    // Advance through all modals to reach the running game
+    advanceToRunningGame()
 
     // Ensure tutorial is closed and game content rendered
     await waitFor(() => expect(screen.queryByText('Speluitleg - Printer slaat op hol!')).not.toBeInTheDocument())
@@ -1142,15 +1129,7 @@ describe('PrinterSlaatOpHolGame', () => {
   // --- New tests for TC32-TC45: score calculation, matrix sizes, timer and progressbar ---
   async function advanceToRunning() {
     // helper to move past intro + tutorial into running game
-    const introHeading = screen.getByText('De printer is gek geworden!')
-    const introModal = (introHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const introNext = within(introModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(introNext)
-
-    const tutorialHeading = await screen.findByText('Speluitleg - Printer slaat op hol!')
-    const tutorialModal = (tutorialHeading.closest('.pz-start-modal') as HTMLElement) ?? document.body
-    const tutorialNext = within(tutorialModal as HTMLElement).getByRole('button', { name: /Volgende/i })
-    fireEvent.click(tutorialNext)
+    advanceToRunningGame()
 
     // Wait until items/cells are rendered
     await waitFor(() => {

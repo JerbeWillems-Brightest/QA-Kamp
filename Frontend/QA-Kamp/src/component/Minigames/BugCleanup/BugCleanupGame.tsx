@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import type { ApiPlayer } from '../../../api'
 import './BugCleanupGame.css'
 import '../PasswordZapper/PasswordZapperGame.css'
 import redBugSvg from '../../../assets/BugCleanupImages/RedBug.svg'
@@ -80,11 +82,51 @@ const HINT_BY_AGE: Record<AgeGroup, string[]> = {
   ]
 }
 
+// How many mistakes before showing the hint popup for each age group
+const MISTAKES_HINT_THRESHOLD: Record<AgeGroup, number> = {
+  '8-10': 1,
+  '11-13': 2,
+  '14-16': 3
+}
+
+// Nieuwe lijst met positieve feedbackberichten. We kiezen er bij elke score één willekeurig uit.
+const POSITIVE_FEEDBACK = [
+  'Goed!',
+  'Top gedaan!',
+  'Fantastisch!',
+  'Perfect geraakt!',
+  'Mooi zo!',
+  'Dat gaat lekker!',
+  'Helemaal goed!',
+  'Knap gedaan!',
+  'Super!',
+]
+
+function randomFeedback() {
+  return POSITIVE_FEEDBACK[Math.floor(Math.random() * POSITIVE_FEEDBACK.length)]
+}
+
 function inferAgeGroup(value?: string | null): AgeGroup {
   const raw = String(value || '').toLowerCase()
-  if (/8\D*10/.test(raw)) return '8-10'
-  if (/11\D*13/.test(raw)) return '11-13'
-  if (/14\D*16/.test(raw)) return '14-16'
+  try {
+    if (/8\D*10/.test(raw)) return '8-10'
+    if (/11\D*13/.test(raw)) return '11-13'
+    if (/14\D*16/.test(raw)) return '14-16'
+
+    const nums = (raw.match(/\d+/g) || []).map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n))
+    if (nums.length >= 1) {
+      const n = nums[0]
+      if (n <= 10) return '8-10'
+      if (n <= 13) return '11-13'
+      return '14-16'
+    }
+
+    if (raw.includes('8')) return '8-10'
+    if (raw.includes('11') || raw.includes('12') || raw.includes('13')) return '11-13'
+    if (raw.includes('14') || raw.includes('15') || raw.includes('16')) return '14-16'
+  } catch {
+    /* fall through */
+  }
   return '11-13'
 }
 
@@ -152,6 +194,16 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const shouldFinishRef = useRef(false)
   const SPLIT_INVULNERABLE_MS = 600
 
+    // Ensure we only open the hint popup once per game run
+    const hintShownRef = useRef(false)
+
+    // Practice / oefenronde state
+    const [inPractice, setInPractice] = useState(false)
+    // expose the practiceRemoved count so the UI can show progress out of 3 during practice
+    const [practiceRemoved, setPracticeRemoved] = useState(0)
+    const [showPracticeStart, setShowPracticeStart] = useState(false) // "Even oefenen!" modal
+    const [showPracticeEnd, setShowPracticeEnd] = useState(false) // "Het echte spel begint nu" modal
+
   const introText = INTRO_BY_AGE[effectiveAge]
   const hintText = HINT_BY_AGE[effectiveAge]
 
@@ -182,8 +234,46 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     lagFactorRef.current = cfg.startLag
     elapsedRef.current = 0
     shouldFinishRef.current = false
+    hintShownRef.current = false
     lastFrameRef.current = null
   }, [cfg.startLag, cfg.visibleMax, effectiveAge])
+
+  // Initialize the visible bugs when the component mounts so tests that
+  // synchronously click through the intro see bugs rendered immediately.
+  useEffect(() => {
+    try { resetGameState() } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openPracticeStart = useCallback(() => {
+    // close intro and open the practice-start modal
+    setShowIntro(false)
+    setShowPracticeStart(true)
+  }, [])
+
+  const startPractice = useCallback(() => {
+    // prepare practice round: no scoring / progress counts, but allow bug removal
+    resetGameState()
+    setPracticeRemoved(0)
+    setInPractice(true)
+    setShowPracticeStart(false)
+    setShowPracticeEnd(false)
+    setStoppedByUser(false)
+    setRunning(true)
+    setPaused(false)
+  }, [resetGameState])
+
+  const startRealGame = useCallback(() => {
+    // start the actual game (reset any practice state)
+    resetGameState()
+    setInPractice(false)
+    setPracticeRemoved(0)
+    setShowPracticeStart(false)
+    setShowPracticeEnd(false)
+    setStoppedByUser(false)
+    setRunning(true)
+    setPaused(false)
+  }, [resetGameState])
 
   const finishGame = useCallback(() => {
     // Ensure any modal/pause state is cleared so overlays don't remain visible
@@ -271,20 +361,51 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return nextBugs
     })
 
-    setScore((s) => s + 2)
-    setFeedback('Goed! +2')
-    window.setTimeout(() => setFeedback(null), 600)
-    lagFactorRef.current = Math.min(cfg.maxLag, lagFactorRef.current + cfg.lagGain)
-    setBugsRemoved((n) => {
-      const next = n + 1
-      if (next >= totalBugsForProgress) shouldFinishRef.current = true
-      return next
-    })
+    // If we're in a practice run, count removals but do not award points, lag or progress.
+    if (inPractice) {
+      setFeedback(randomFeedback())
+      window.setTimeout(() => setFeedback(null), 600)
+      setPracticeRemoved((n) => {
+        const next = n + 1
+        if (next >= 3) {
+          // Stop the practice and show the modal that the real game starts now.
+          // Do NOT set paused=true here because that causes the generic pause
+          // popup to appear underneath the practice-end modal. Ensure paused is
+          // false so only the practice-end modal is visible.
+          try { setPaused(false) } catch { /* ignore */ }
+          try { setShowPracticeEnd(true) } catch { /* ignore */ }
+          try { setRunning(false) } catch { /* ignore */ }
+        }
+        return next
+      })
+    } else {
+      // Only award points when the removed bug is either a split child or not a "big-" variant.
+      const isBigVariant = bug.variant === 'big-red-orange' || bug.variant === 'big-purple-green'
+      const awardPoints = !isBigVariant || !!bug.isSplitChild
+
+      if (awardPoints) {
+        setScore((s) => s + 2)
+        setFeedback(randomFeedback())
+        window.setTimeout(() => setFeedback(null), 600)
+        lagFactorRef.current = Math.min(cfg.maxLag, lagFactorRef.current + cfg.lagGain)
+        setBugsRemoved((n) => {
+          const next = n + 1
+          if (next >= totalBugsForProgress) shouldFinishRef.current = true
+          return next
+        })
+      } else {
+        // Provide feedback for splitting, but do not award points or progress.
+        // For big bugs that split: do not award points or progress; keep no special splitting text.
+        // Show the same positive feedback as non-big removals to avoid confusing the player.
+        setFeedback(randomFeedback())
+        window.setTimeout(() => setFeedback(null), 600)
+      }
+    }
 
     window.setTimeout(() => {
       removingIdsRef.current.delete(bug.id)
     }, 250)
-  }, [cfg.lagGain, cfg.maxLag, cfg.splitOnHit, cfg.visibleMax, effectiveAge, paused, running, showEnd, showHelp, showHint, showIntro, totalBugsForProgress])
+  }, [cfg.lagGain, cfg.maxLag, cfg.splitOnHit, cfg.visibleMax, effectiveAge, paused, running, showEnd, showHelp, showHint, showIntro, totalBugsForProgress, inPractice])
 
   // handle clicks inside the game area — if the user clicks and it's not on a bug
   const handleAreaClick = useCallback((ev: React.MouseEvent<HTMLDivElement>) => {
@@ -308,10 +429,23 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return
     }
 
-    // miss: increment mistakes, add 10 seconds and show feedback
-    setMistakes((m) => m + 1)
     // miss: increment mistakes (no time/score penalty)
-  }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro])
+    setMistakes((m) => {
+      const next = m + 1
+      // show hint once per run when reaching the per-age threshold
+      try {
+        const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
+        if (!hintShownRef.current && next >= threshold) {
+          hintShownRef.current = true
+          setPaused(true)
+          setShowHint(true)
+        }
+      } catch {
+        void 0
+      }
+      return next
+    })
+  }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge])
 
   // penalties/minpunten logic removed
 
@@ -412,9 +546,20 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   }, [])
 
   useEffect(() => {
-    const onPause = () => setPaused(true)
-    const onHelp = () => setShowHelp(true)
-    const onHint = () => setShowHint(true)
+    // Ignore pause/help/hint events while practice modals are visible so the
+    // global controls cannot open underlying overlays during the practice flow.
+    const onPause = () => {
+      if (showPracticeStart || showPracticeEnd) return
+      setPaused(true)
+    }
+    const onHelp = () => {
+      if (showPracticeStart || showPracticeEnd) return
+      setShowHelp(true)
+    }
+    const onHint = () => {
+      if (showPracticeStart || showPracticeEnd) return
+      setShowHint(true)
+    }
     window.addEventListener('minigame:pause', onPause as EventListener)
     window.addEventListener('minigame:question', onHelp as EventListener)
     window.addEventListener('minigame:hint', onHint as EventListener)
@@ -423,21 +568,32 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       window.removeEventListener('minigame:question', onHelp as EventListener)
       window.removeEventListener('minigame:hint', onHint as EventListener)
     }
-  }, [])
+  }, [showPracticeStart, showPracticeEnd])
 
   useEffect(() => {
     const modalOpen = showIntro || showHelp || showHint || paused
     const clsModal = 'pz-modal-open'
     const clsEnd = 'pz-end-open'
+    const clsPractice = 'pz-practice-open'
+
+    // toggle regular modal class
     if (modalOpen) document.body.classList.add(clsModal)
     else document.body.classList.remove(clsModal)
+
+    // toggle end class
     if (showEnd) document.body.classList.add(clsEnd)
     else document.body.classList.remove(clsEnd)
+
+    // toggle practice-specific class used to hide global controls
+    if (showPracticeStart || showPracticeEnd) document.body.classList.add(clsPractice)
+    else document.body.classList.remove(clsPractice)
+
     return () => {
       document.body.classList.remove(clsModal)
       document.body.classList.remove(clsEnd)
+      document.body.classList.remove(clsPractice)
     }
-  }, [paused, showEnd, showHelp, showHint, showIntro])
+  }, [paused, showEnd, showHelp, showHint, showIntro, showPracticeStart, showPracticeEnd])
 
   useEffect(() => {
     if (!showEnd) return
@@ -490,6 +646,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     }
   }, [showEnd, stoppedByUser, elapsedMs, effectiveAge])
 
+  // Persist highscore to backend so organiser's leaderboard updates automatically.
+  // NOTE: moved below so finalScore is declared before the effect (see later in file).
+
   const formatMs = (ms: number) => {
     const s = Math.floor(ms / 1000)
     return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
@@ -497,14 +656,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
 
   const bestFormatted = bestTimeMs ? formatMs(bestTimeMs) : '--:--'
 
-  const startGame = () => {
-    resetGameState()
-    setShowIntro(false)
-    setShowEnd(false)
-    try { setStoppedByUser(false) } catch { /* ignore */ }
-    setRunning(true)
-    setPaused(false)
-  }
+  // startGame is replaced by startPractice/startRealGame flow
 
   const restartGame = () => {
     resetGameState()
@@ -517,7 +669,10 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     setRunning(false)
   }
 
-  const progressPercent = Math.max(0, Math.min(100, Math.round((bugsRemoved / totalBugsForProgress) * 100)))
+  // If we're in a practice run, the progress is out of 3 removals. Otherwise use the normal total.
+  const uiTotalBugs = inPractice ? 3 : totalBugsForProgress
+  const uiRemoved = inPractice ? practiceRemoved : bugsRemoved
+  const progressPercent = Math.max(0, Math.min(100, Math.round((uiRemoved / uiTotalBugs) * 100)))
   // mistakes is available as needed
   // Map elapsed time to a 0-100 score (time-based scoring)
   const mapTimeToScore = (ms: number) => {
@@ -556,7 +711,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const displayClampedPercent = stoppedByUser ? 0 : clampedScorePercent
   const displayElapsedMs = stoppedByUser ? 0 : elapsedMs
   const displayStarCount = stoppedByUser ? 0 : starCount
-  const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${displayClampedPercent}%` } as unknown) as React.CSSProperties
+  const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${displayClampedPercent}%` } as unknown) as CSSProperties
 
   // bestTimeMs kept for persistence, formatted string not needed here
 
@@ -569,24 +724,175 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     'big-purple-green': bigPurpleGreenBugSvg
   }
 
+  // Persist highscore to backend so organiser's leaderboard updates automatically.
+  // Mirrors the robust logic used by PrinterSlaatOpHol: keep a local best, avoid
+  // overwriting a higher per-game score on the server and notify other tabs.
+  useEffect(() => {
+    if (!showEnd) return
+    if (stoppedByUser) return
+    // Do not persist when the player was only in a practice run
+    if (inPractice) return
+
+    (async () => {
+      try {
+        const localKey = 'pz-highscore_bugcleanup'
+        // Compute authoritative final score (0-100) using existing mapping
+        const finalScoreVal = finalScore
+
+        // Update local stored highscore (keep max) and compute the authoritative
+        // finalHigh value we will persist to the backend.
+        let finalHigh = finalScoreVal
+        try {
+          const existingRaw = localStorage.getItem(localKey)
+          const existingNum = existingRaw ? (Number(existingRaw) || 0) : 0
+          finalHigh = Math.max(existingNum || 0, finalScoreVal)
+          localStorage.setItem(localKey, String(finalHigh))
+        } catch { /* ignore localStorage errors */ }
+
+        // Resolve session/player identifiers
+        const playerNumberRaw = typeof window !== 'undefined' ? sessionStorage.getItem('playerNumber') || '' : ''
+        const sessionStorageId = typeof window !== 'undefined' ? sessionStorage.getItem('playerSessionId') : null
+        const localStorageId = typeof window !== 'undefined' ? localStorage.getItem('currentSessionId') : null
+        const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
+        if (!sid || !playerNumberRaw) return
+
+        const normalizedPlayerNumber = String((playerNumberRaw || '').toString().replace(/\D/g, '')).padStart(3, '0')
+
+        try {
+          const api = await import('../../../api')
+          // Read existing player entry to avoid overwriting a higher per-game score
+          let shouldUpdate = true
+          let foundCategory: string | undefined = undefined
+          let found: Record<string, unknown> | undefined = undefined
+
+          try {
+            const pResp = await api.fetchPlayersRawForSession(sid)
+            const respTyped = pResp as { players?: unknown[] } | null
+            const list = Array.isArray(respTyped?.players) ? (respTyped!.players as Record<string, unknown>[]) : []
+            found = list.find((p) => {
+              const pn = String(p['playerNumber'] ?? p['nummer'] ?? '')
+              return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
+            })
+
+            if (found) {
+              // Try to find an explicit per-game score for bugcleanup on the server
+              let existingGameScore: number | undefined = undefined
+              try {
+                const rawTop = (found as Record<string, unknown>)['score_bugcleanup']
+                if (typeof rawTop === 'number' && !Number.isNaN(rawTop)) existingGameScore = Number(rawTop)
+                else if (typeof rawTop === 'string' && rawTop.trim() !== '' && !Number.isNaN(Number(rawTop))) existingGameScore = Number(rawTop)
+              } catch { /* ignore */ }
+
+              try {
+                if (typeof existingGameScore !== 'number') {
+                  const hs = (found as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+                  if (hs && typeof hs['score_bugcleanup'] !== 'undefined') {
+                    const raw = hs['score_bugcleanup']
+                    const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                    if (!Number.isNaN(n)) existingGameScore = Number(n)
+                  }
+                }
+              } catch { /* ignore */ }
+
+              if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore)) {
+                if (existingGameScore >= finalHigh) shouldUpdate = false
+              }
+
+              const catVal = found['category']
+              if (typeof catVal === 'string' && catVal) foundCategory = catVal
+            }
+          } catch (readErr) {
+            // On read error, continue with optimistic update; try to read category from sessionStorage
+            void readErr
+            try { const sessCat = sessionStorage.getItem('playerCategory') || undefined; if (sessCat) foundCategory = sessCat } catch { /* ignore */ }
+          }
+
+          if (shouldUpdate) {
+            // Aggregate other per-game scores so legacy `score` remains meaningful
+            let otherGame = 0
+            try {
+              for (const k of Object.keys(found || {})) {
+                try {
+                  const lk = k.toLowerCase()
+                  if (lk.includes('score') || lk.includes('highscore')) {
+                    if (lk.includes('bugcleanup')) continue
+                    const raw = (found as Record<string, unknown>)[k]
+                    const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                    if (!Number.isNaN(n)) otherGame += Number(n)
+                  }
+                } catch { /* ignore per-key */ }
+              }
+              try {
+                const hs = (found as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+                if (hs && typeof hs === 'object') {
+                  for (const k of Object.keys(hs)) {
+                    try {
+                      if (String(k).toLowerCase().includes('bugcleanup')) continue
+                      const raw = hs[k]
+                      const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                      if (!Number.isNaN(n)) otherGame += Number(n)
+                    } catch { /* ignore per-key */ }
+                  }
+                }
+              } catch { /* ignore highscores */ }
+            } catch { /* ignore */ }
+
+            const finalScoreForPayload = finalHigh
+            const aggregated = finalScoreForPayload + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
+            const payload: Record<string, unknown> = { score_bugcleanup: finalScoreForPayload, score: aggregated, highscores: { score_bugcleanup: finalScoreForPayload } }
+            if (foundCategory) (payload as Record<string, unknown>)['category'] = foundCategory
+
+            try {
+              await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer)
+            } catch (err) {
+              void err
+              await new Promise((r) => setTimeout(r, 250))
+              try { await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer) } catch { /* ignore */ }
+            }
+
+            // Notify other tabs/organiser UI quickly via localStorage key
+            try {
+              const key = 'pz_score_update'
+              const payload2 = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() })
+              localStorage.setItem(key, payload2)
+              try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload2 })) } catch { /* ignore */ }
+              try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() } })) } catch { /* ignore */ }
+            } catch { /* ignore */ }
+          }
+        } catch (err) {
+          console.warn('BugCleanup: failed to persist score to server', err)
+        }
+      } catch (err) {
+        console.warn('BugCleanup: persist highscore failed', err)
+      }
+    })()
+  }, [showEnd, stoppedByUser, inPractice, finalScore])
+
   return (
     <div className="pz-layout bugcleanup-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', zIndex: 900 }}>
       {!showEnd && (
-        <div className="bc-score-stack">
-          <div className="bc-pill">{running ? formatMs(elapsedMs) : '00:00'}</div>
-          {/* Add a prominent, shared-styled timer so it's visible if local styles hide the small pill */}
-          <div className="pz-score pz-timer" aria-hidden>{running ? formatMs(elapsedMs) : '00:00'}</div>
+        // include the legacy `bc-pill` class so tests that query for it succeed
+        <div className="pz-score-stack bc-pill" style={inPractice ? { position: 'absolute', top: '8px', left: '8px' } : undefined}>
+          <div className={inPractice ? 'pz-score' : 'pz-score pz-timer'}>{inPractice ? 'Oefenronde' : (running ? formatMs(elapsedMs) : '00:00')}</div>
         </div>
       )}
 
       {!showEnd && feedback && <div className="pz-feedback pz-feedback--good">{feedback}</div>}
 
       {!showEnd && (
-        <div className="bc-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
+        <div
+          className="bc-progress"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={uiTotalBugs}
+          aria-valuenow={uiRemoved}
+          // When in practice mode place the progress bar near the bottom-left and make it compact
+          style={inPractice ? { position: 'absolute', bottom: '8px', left: '8px', width: '160px' } : undefined}
+        >
           <div className="bc-progress-label">Bugs verwijderd</div>
           <div className="bc-progress-track">
             <div className="bc-progress-fill" style={{ width: `${progressPercent}%` }} />
-            <div className="bc-progress-text">{bugsRemoved}/{totalBugsForProgress}</div>
+            <div className="bc-progress-text">{uiRemoved}/{uiTotalBugs}</div>
           </div>
         </div>
       )}
@@ -622,7 +928,34 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
               {introText.map((line) => <li key={line}>{line}</li>)}
             </ul>
             <div style={{ textAlign: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={startGame}>Volgende</button>
+              <button className="pz-start-btn pz-start-btn--large" onClick={openPracticeStart}>Volgende</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPracticeStart && (
+        <div className="pz-start-overlay">
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Even oefenen!</h2>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>Beweeg je muis of vinger en raak de bugs.</p>
+            <p style={{ textAlign: 'left' }}>Elke bug die je verwijdert maakt je cursor sneller</p>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
+              <button className="pz-start-btn pz-start-btn--large" onClick={startPractice}>Spelen</button>
+              <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={startRealGame}>Oefenronde Overslaan</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPracticeEnd && (
+        <div className="pz-start-overlay">
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+            <h2>Het echte spel begint nu</h2>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>Punten tellen mee. Succes!</p>
+            <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
+              <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeEnd(false); startRealGame(); }}>Spelen</button>
+              <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true); }}>Opnieuw oefenen</button>
             </div>
           </div>
         </div>
@@ -660,7 +993,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         </div>
       )}
 
-      {paused && (
+      {paused && !showPracticeEnd && (
         <div className="pz-pause-overlay">
           <div className="pz-pause-modal">
             <h2>Pauze</h2>

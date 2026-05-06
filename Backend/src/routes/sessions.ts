@@ -554,57 +554,70 @@ router.get('/:id/leaderboard', async (req, res) => {
       .sort({ score: -1 })
 
     const mapped = (docs || []).map((d: any) => {
+      // Build a sanitized output object without invoking potentially-throwing getters
+      const out: Record<string, any> = {
+        name: d && d.name,
+        playerNumber: d && d.playerNumber,
+        category: d && d.category,
+        score: (d && typeof d.score === 'number') ? d.score : 0,
+      }
+      // Safely copy highscores keys and also expose them at top-level when possible
       try {
-        const out = { ...d }
-        // flatten highscores into top-level when not present
-        if (out.highscores && typeof out.highscores === 'object') {
-          for (const k of Object.keys(out.highscores)) {
-            if (typeof out[k] === 'undefined') out[k] = out.highscores[k]
+        if (d && d.highscores && typeof d.highscores === 'object') {
+          out.highscores = {}
+          for (const k of Object.keys(d.highscores)) {
+            try {
+              const val = d.highscores[k]
+              out.highscores[k] = val
+              if (typeof out[k] === 'undefined') out[k] = val
+            } catch {
+              // ignore throwing getters for individual keys
+            }
           }
         }
+      } catch {
+        // ignore if accessing highscores itself throws
+      }
 
-        // compute aggregated total from any numeric key containing 'score'/'highscore'
-        let total = 0
-        const seen = new Set<string>()
-        for (const key of Object.keys(out)) {
-          try {
-            const lk = String(key).toLowerCase()
-            if (lk === 'highscores' || lk === 'score') continue
-            if (lk.includes('score') || lk.includes('highscore')) {
-              const raw = out[key]
+      // compute aggregated total from any numeric key containing 'score'/'highscore'
+      let total = 0
+      const seen = new Set<string>()
+      for (const key of Object.keys(out)) {
+        try {
+          const lk = String(key).toLowerCase()
+          if (lk === 'highscores' || lk === 'score') continue
+          if (lk.includes('score') || lk.includes('highscore')) {
+            const raw = out[key]
+            const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+            if (!Number.isNaN(n)) {
+              total += Number(n)
+              seen.add(lk)
+            }
+          }
+        } catch {
+          /* ignore per-key */
+        }
+      }
+      // include nested highscores entries that weren't present at top-level
+      try {
+        const hs = out.highscores
+        if (hs && typeof hs === 'object') {
+          for (const k of Object.keys(hs)) {
+            try {
+              const lk = String(k).toLowerCase()
+              if (seen.has(lk)) continue
+              const raw = hs[k]
               const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
               if (!Number.isNaN(n)) {
                 total += Number(n)
-                seen.add(lk)
               }
-            }
-          } catch {
-            /* ignore per-key */
+            } catch { /* ignore */ }
           }
         }
-        // also include nested highscores entries that weren't present at top-level
-        try {
-          const hs = out.highscores as Record<string, unknown> | undefined
-          if (hs && typeof hs === 'object') {
-            for (const k of Object.keys(hs)) {
-              try {
-                const lk = String(k).toLowerCase()
-                if (seen.has(lk)) continue
-                const raw = hs[k]
-                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
-                if (!Number.isNaN(n)) {
-                  total += Number(n)
-                }
-              } catch { /* ignore */ }
-            }
-          }
-        } catch { /* ignore highscores */ }
+      } catch { /* ignore highscores */ }
 
-        out.score = Number.isNaN(total) ? 0 : total
-        return out
-      } catch (e) {
-        return d
-      }
+      out.score = Number.isNaN(total) ? 0 : total
+      return out
     })
 
     // sort by computed score desc then name
