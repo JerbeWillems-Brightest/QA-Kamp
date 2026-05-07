@@ -4,7 +4,7 @@ import '../PasswordZapper/PasswordZapperGame.css'
 // background image for thermostat (correct assets path)
 import bgThermostaat from '../../../assets/NietZoSlimmeThermostaatImages/BackgroundThermostat.png'
 import ThermostaatError from '../../../assets/NietZoSlimmeThermostaatImages/ThermostaatError.png'
-import officeBackgroundPng from '../../../assets/iconsPrinterSlaatOpHol/OfficeBackground.png'
+import officeBackgroundPng from '../../../assets/NietZoSlimmeThermostaatImages/BackgroundThermostaat.png'
 import officePrinterPng from '../../../assets/NietZoSlimmeThermostaatImages/Printer.png'
 import officeComputerSvg from '../../../assets/iconsPrinterSlaatOpHol/Computer.svg'
 
@@ -789,20 +789,25 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
             </div>
 
             <div id="nzs-options" className="nzs-options" aria-label="Blokken">
-              {currentScenario.options.map((opt) => (
-                <div
-                  id={`nzs-option-${opt.id}`}
-                  key={opt.id}
-                  className={`nzs-block ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}
-                  draggable={running && !paused && !showEnd}
-                  onDragStart={(ev) => onDragStart(ev, opt.id)}
-                  role="button"
-                  aria-label={opt.label}
-                >
-                  {opt.icon && <span id={`nzs-option-${opt.id}-icon`} className="nzs-block__icon" aria-hidden>{opt.icon}</span>}
-                  <span id={`nzs-option-${opt.id}-label`} className="nzs-block__label">{opt.label}</span>
-                </div>
-              ))}
+              {currentScenario.options.map((opt) => {
+                const isCorrect = opt.id === currentScenario.correctOptionId
+                const suffix = isCorrect ? 'correct' : 'wrong'
+                return (
+                  <div
+                    id={`nzs-option-${opt.id}-${suffix}`}
+                    key={opt.id}
+                    data-correct={isCorrect ? 'true' : 'false'}
+                    className={`nzs-block ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}
+                    draggable={running && !paused && !showEnd}
+                    onDragStart={(ev) => onDragStart(ev, opt.id)}
+                    role="button"
+                    aria-label={opt.label}
+                  >
+                    {opt.icon && <span id={`nzs-option-${opt.id}-${suffix}-icon`} className="nzs-block__icon" aria-hidden>{opt.icon}</span>}
+                    <span id={`nzs-option-${opt.id}-${suffix}-label`} className="nzs-block__label">{opt.label}</span>
+                  </div>
+                )
+              })}
             </div>
 
             <button id="nzs-check-button" style={{ marginTop: 30}} className="pz-start-btn pz-start-btn--large" onClick={handleCheck} disabled={!canCheck}>

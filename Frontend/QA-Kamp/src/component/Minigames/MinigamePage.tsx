@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
 import PrinterSlaatOpHolGame from './PrinterSlaatOpHol/PrinterSlaatOpHolGame.tsx'
 import BugCleanupGame from './BugCleanup/BugCleanupGame.tsx'
@@ -50,6 +50,10 @@ export function MinigamePage() {
   const q = useQuery()
   const navigate = useNavigate()
   const location = useLocation()
+  // track initial mount so a refresh doesn't immediately navigate away
+  // on initial mount we prefer a soft reset (show start modal) instead of
+  // clearing sessionStorage/localStorage which would log the player out
+  const initialMountRef = useRef(true)
   // allow game to be specified either via ?game=... or via pathname (/minigame/passwordzapper)
   const game = q.get('game') || (location?.pathname?.toLowerCase().includes('passwordzapper') ? 'passwordzapper' : '')
   // Prefer stored playerCategory over ?age param so a player's saved category
@@ -192,20 +196,16 @@ export function MinigamePage() {
     }
     return () => { cancelled = true }
   }, [rawSessionValue, ageGroup])
-  // whether the hint button (top-level control) is unlocked; the game will
+  // whether the hint button (top-level control) is unlocked. Games will
   // dispatch a global event `minigame:hint-unlocked` when the mistake threshold
-  // is reached and the hint modal should appear. We also read a transient
-  // global flag so a late-mounted controller can pick up the state.
-  const [hintUnlocked, setHintUnlocked] = useState(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        const w = window as unknown as Record<string, unknown>
-        return Boolean(w['__pz_hint_unlocked'])
-      }
-    } catch { /* ignore */ }
-    return false
-  })
-  // Ensure player-side state is present so other components can read it
+  // is reached and the hint modal should appear. We intentionally keep the
+  // hint locked at the start of every game and only enable it when a game
+  // dispatches the unlock event.
+  const [hintUnlocked, setHintUnlocked] = useState(false)
+
+  // Listen for global hint unlock/lock events and reset the global transient
+  // lock when the active game changes so the hint button is disabled at the
+  // start of each new game run.
   useEffect(() => {
     function onHintUnlocked() {
       try { setHintUnlocked(true) } catch { /* ignore */ }
@@ -215,6 +215,18 @@ export function MinigamePage() {
     }
     window.addEventListener('minigame:hint-unlocked', onHintUnlocked)
     window.addEventListener('minigame:hint-locked', onHintLocked)
+
+    // reset global transient flag so hint is disabled at the start of the game
+    // but only on subsequent mounts, not initial load to preserve hint state on refresh
+    try {
+      if (typeof window !== 'undefined' && !initialMountRef.current) {
+        const w = window as unknown as Record<string, unknown>
+        try { w['__pz_hint_unlocked'] = false } catch { /* ignore */ }
+        window.dispatchEvent(new CustomEvent('minigame:hint-locked'))
+        setHintUnlocked(false)
+      }
+    } catch { /* ignore */ }
+
     try {
       const existing = sessionStorage.getItem('playerActiveGame')
       if (!existing) {
@@ -227,6 +239,12 @@ export function MinigamePage() {
         try { sessionStorage.setItem('playerActiveGame', JSON.stringify(info)) } catch { /* ignore */ }
       }
     } catch { /* ignore */ }
+
+    // Set initialMountRef to false after initial mount
+    if (initialMountRef.current) {
+      initialMountRef.current = false
+    }
+
     return () => { window.removeEventListener('minigame:hint-unlocked', onHintUnlocked); window.removeEventListener('minigame:hint-locked', onHintLocked); }
   }, [game, ageGroup])
 
@@ -403,21 +421,33 @@ export function MinigamePage() {
       <style>{practiceControlHide}</style>
       {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' ? (
         <>
-          <div className="pz-controls">
-            <button
-              className="pz-btn"
-              aria-label="Hint"
-              onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:hint')) } catch { void 0 } }}
-              // allow hint button only for games that support hints AND when hints unlocked
-              disabled={!(game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat') || !hintUnlocked}
-              title={(game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat') ? (hintUnlocked ? 'Toon hint' : 'Hints worden beschikbaar na enkele fouten') : 'Hints niet beschikbaar voor dit spel'}
-            >
-              <img src={HINT_IMG} alt="hint" />
-            </button>
-            <button className="pz-btn" aria-label="Pause" onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:pause')) } catch { void 0 } }}>
-              <img src={PAUSE_IMG} alt="pause" />
-            </button>
-          </div>
+          {/* compute support flag to avoid TS narrowing issues in JSX */}
+          {(() => {
+            const supportsHint = (game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' || game === 'passwordzapper' || game === 'printerslaatophol')
+            return (
+              <>
+                <div className="pz-controls">
+                  <button
+                    className="pz-btn"
+                    aria-label="Hint"
+                    onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:hint')) } catch { void 0 } }}
+                    // BugCleanup should always allow the hint button; other games require hintUnlocked
+                    disabled={!supportsHint || (game !== 'bugcleanup' && !hintUnlocked)}
+                    title={
+                      game === 'bugcleanup'
+                        ? 'Toon hint'
+                        : (supportsHint ? (hintUnlocked ? 'Toon hint' : 'Hints worden beschikbaar na enkele fouten') : 'Hints niet beschikbaar voor dit spel')
+                    }
+                  >
+                    <img src={HINT_IMG} alt="hint" />
+                  </button>
+                  <button className="pz-btn" aria-label="Pause" onClick={() => { try { window.dispatchEvent(new CustomEvent('minigame:pause')) } catch { void 0 } }}>
+                    <img src={PAUSE_IMG} alt="pause" />
+                  </button>
+                </div>
+              </>
+            )
+          })()}
           {game === 'printerslaatophol' ? (
             <PrinterSlaatOpHolGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : game === 'bugcleanup' ? (

@@ -138,20 +138,13 @@ img {
 }
 
 /* Desktop: ensure the device overlay is absolutely positioned */
-.thermostaat-office-intro__device {
-  position: absolute;
-  left: 2%;
-  top: 2%;
-  pointer-events: none;
-}
 
 .thermostaat-office-intro__device-btn {
   position: absolute;
-  /* place button over the overlay (top-left area) */
-  left: 6%;
-  top: 6%;
-  width: 160px;
-  max-width: 18%;
+  /* place button over the overlay (more to the left/top) */
+  left: 2%;
+  top: 4%;
+  width: auto; /* let the wrap size determine button area */
   border: 0;
   background: transparent;
   padding: 0;
@@ -164,7 +157,13 @@ img {
   outline-offset: 4px;
 }
 
-.thermostaat-office-intro__device-img { display:block; width:420px; height:auto }
+.thermostaat-office-intro__device-img {
+  display: block;
+  width: 260px; /* default desktop size */
+  height: auto;
+  position: static; /* flow within the wrap */
+  margin: 0 auto;
+}
 
 .thermostaat-office-intro__wrap { display:flex; align-items:center; justify-content:center }
 
@@ -174,12 +173,14 @@ img {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 10px;
-  border-radius: 18px;
+  padding: 8px; /* breathing room inside border */
   box-sizing: border-box;
-  border: 14px solid #f0b000;
+  border: 14px solid #f0b000; /* full border around the thermostat */
+  border-radius: 18px;
   background: rgba(255,255,255,0.03);
   overflow: visible;
+  left: 0; /* no negative offset */
+  height: auto; /* size determined by content */
 }
 
 .thermostaat-office-intro__label {
@@ -301,14 +302,14 @@ img {
     max-width: none;
   }
   .thermostaat-office-intro__device {
-    left: 2.5%;
-    top: 2.5%;
+    left: 1.5%;
+    top: 1.5%;
     width: 18vw; /* overlay scales with viewport */
     max-width: 260px;
   }
   .thermostaat-office-intro__device-btn {
-    left: 2.5%;
-    top: 2.5%;
+    left: 1.5%;
+    top: 1.5%;
     width: 18vw;
     max-width: 260px;
   }
@@ -338,8 +339,8 @@ img {
   }
   .thermostaat-office-intro__device,
   .thermostaat-office-intro__device-btn {
-    left: 4%;
-    top: 4%;
+    left: 2%;
+    top: 2%;
     width: 28vw;
     max-width: 180px;
   }
