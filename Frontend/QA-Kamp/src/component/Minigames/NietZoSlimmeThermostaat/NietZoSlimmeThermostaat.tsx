@@ -654,7 +654,16 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       )}
 
       {!showEnd && feedback && (
-        <div className={`nzs-feedback ${feedbackType === 'good' ? 'nzs-feedback--good' : 'nzs-feedback--bad'}`}>{feedback}</div>
+        <div
+          className={
+            'pz-feedback ' +
+            (feedbackType === 'good' ? 'pz-feedback--good' : 'pz-feedback--bad') +
+            ' nzs-feedback ' +
+            (feedbackType === 'good' ? 'nzs-feedback--good' : 'nzs-feedback--bad')
+          }
+        >
+          {feedback}
+        </div>
       )}
 
       {!showEnd && (
