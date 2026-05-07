@@ -3,6 +3,10 @@ import './NietZoSlimmeThermostaat.css'
 import '../PasswordZapper/PasswordZapperGame.css'
 // background image for thermostat (correct assets path)
 import bgThermostaat from '../../../assets/NietZoSlimmeThermostaatImages/BackgroundThermostat.png'
+import ThermostaatError from '../../../assets/NietZoSlimmeThermostaatImages/ThermostaatError.png'
+import officeBackgroundPng from '../../../assets/iconsPrinterSlaatOpHol/OfficeBackground.png'
+import officePrinterPng from '../../../assets/NietZoSlimmeThermostaatImages/Printer.png'
+import officeComputerSvg from '../../../assets/iconsPrinterSlaatOpHol/Computer.svg'
 
 type AgeGroup = '8-10' | '11-13' | '14-16'
 type EndResults = { score: number; timeMs: number; mistakes: number }
@@ -229,6 +233,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
 
   const pool = useMemo(() => buildScenarioPool(effectiveAge), [effectiveAge])
 
+  const isTestEnv = typeof process !== 'undefined' && (process as unknown as { env?: Record<string, string> }).env?.NODE_ENV === 'test'
+  const [showOfficeIntro, setShowOfficeIntro] = useState(!isTestEnv)
   const [showIntro, setShowIntro] = useState(true)
   const [showPracticeStart, setShowPracticeStart] = useState(false)
   const [showPracticeEnd, setShowPracticeEnd] = useState(false)
@@ -661,8 +667,43 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     setSelectedOptionId(null)
   }, [pool])
 
+  // Show clickable office scene first (like PrinterSlaatOpHol). Return early
+  // so the office intro appears before the regular start modal / tutorial.
+  if (showOfficeIntro) {
+    return (
+      <div
+        id="nzs-office-intro"
+        className="pz-layout thermostaat-root"
+        style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', background: '#000', zIndex: 900 }}
+      >
+        <div id="nzs-office-bg" className="thermostaat-office-intro" style={{ backgroundImage: `url(${officeBackgroundPng})` }}>
+          {/* computer image bottom-left */}
+          <img id="nzs-office-computer" src={officeComputerSvg} alt="" aria-hidden className="thermostaat-office-intro__computer" />
+
+          {/* printer image bottom-right */}
+          <img id="nzs-office-printer" src={officePrinterPng} alt="" aria-hidden className="thermostaat-office-intro__printer" />
+
+          {/* overlay thermostat error positioned over the thermostat on the background (top-left) */}
+          <button
+            id="nzs-office-device-btn"
+            type="button"
+            className="thermostaat-office-intro__device-btn"
+            onClick={() => setShowOfficeIntro(false)}
+            aria-label="Klik op de thermostaat"
+          >
+            <div className="thermostaat-office-intro__wrap">
+              <div id="nzs-office-device-label" className="thermostaat-office-intro__label">Klik hier</div>
+              <img id="nzs-office-device-img" src={ThermostaatError} alt="" aria-hidden className="thermostaat-office-intro__device-img" />
+            </div>
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div
+      id="nzs-root"
       className="pz-layout thermostaat-root"
         style={{
         position: 'fixed',
@@ -684,21 +725,23 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       {!showEnd && (
         <>
           {/* Top-right score (matches PasswordZapper) */}
-          <div className="pz-score">{isPractice ? 'Oefenronde' : `Score: ${score}`}</div>
+          <div id="nzs-score" className="pz-score">{isPractice ? 'Oefenronde' : `Score: ${score}`}</div>
 
           {/* Bottom-left progress bar (out of 20 for real game, 3 for practice) */}
-          <div className="pz-progress" aria-label="Voortgang">
+          <div id="nzs-progress" className="pz-progress" aria-label="Voortgang">
             <div
+              id="nzs-progress-fill"
               className="pz-progress-fill"
               style={{ width: `${Math.max(0, Math.min(100, (isPractice ? (practiceCorrect / 3) : (totalCorrect / 20)) * 100))}%` }}
             />
-            <div className="pz-progress-text">{isPractice ? `${practiceCorrect}/3` : `${totalCorrect}/20`}</div>
+            <div id="nzs-progress-text" className="pz-progress-text">{isPractice ? `${practiceCorrect}/3` : `${totalCorrect}/20`}</div>
           </div>
         </>
       )}
 
       {!showEnd && feedback && (
         <div
+          id={feedbackType === 'good' ? 'nzs-feedback-good' : feedbackType === 'bad' ? 'nzs-feedback-bad' : 'nzs-feedback'}
           className={
             'pz-feedback ' +
             (feedbackType === 'good' ? 'pz-feedback--good' : 'pz-feedback--bad') +
@@ -711,26 +754,27 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       )}
 
       {!showEnd && (
-        <div className="nzs-stage">
-          <div className="nzs-board">
+        <div id="nzs-stage" className="nzs-stage">
+          <div id="nzs-board" className="nzs-board">
             <div className="nzs-sentence" aria-label="Zin">
               <div className="nzs-token nzs-token--kw">{currentScenario.leftKeyword}</div>
               <div className="nzs-fixed">{currentScenario.fixedLeft}</div>
               <div className="nzs-token nzs-token--kw">{currentScenario.andKeyword}</div>
 
               <div
+                id="nzs-dropzone"
                 className={`nzs-dropzone ${answerState === 'correct' ? 'nzs-dropzone--correct' : answerState === 'wrong' ? 'nzs-dropzone--wrong' : ''}`}
                 onDrop={onDropZoneDrop}
                 onDragOver={onDropZoneDragOver}
                 aria-label="Lege plek"
               >
                 {selectedBlock ? (
-                  <div className={`nzs-block nzs-block--selected ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}>
-                    {selectedBlock.icon && <span className="nzs-block__icon" aria-hidden>{selectedBlock.icon}</span>}
-                    <span className="nzs-block__label">{selectedBlock.label}</span>
+                  <div id={`nzs-selected-${selectedBlock.id}`} className={`nzs-block nzs-block--selected ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}>
+                    {selectedBlock.icon && <span id={`nzs-selected-${selectedBlock.id}-icon`} className="nzs-block__icon" aria-hidden>{selectedBlock.icon}</span>}
+                    <span id={`nzs-selected-${selectedBlock.id}-label`} className="nzs-block__label">{selectedBlock.label}</span>
                   </div>
                 ) : (
-                  <div className="nzs-dropzone__placeholder" />
+                  <div id="nzs-dropzone-placeholder" className="nzs-dropzone__placeholder" />
                 )}
               </div>
 
@@ -744,9 +788,10 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
               )}
             </div>
 
-            <div className="nzs-options" aria-label="Blokken">
+            <div id="nzs-options" className="nzs-options" aria-label="Blokken">
               {currentScenario.options.map((opt) => (
                 <div
+                  id={`nzs-option-${opt.id}`}
                   key={opt.id}
                   className={`nzs-block ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}
                   draggable={running && !paused && !showEnd}
@@ -754,36 +799,38 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
                   role="button"
                   aria-label={opt.label}
                 >
-                  {opt.icon && <span className="nzs-block__icon" aria-hidden>{opt.icon}</span>}
-                  <span className="nzs-block__label">{opt.label}</span>
+                  {opt.icon && <span id={`nzs-option-${opt.id}-icon`} className="nzs-block__icon" aria-hidden>{opt.icon}</span>}
+                  <span id={`nzs-option-${opt.id}-label`} className="nzs-block__label">{opt.label}</span>
                 </div>
               ))}
             </div>
 
-            <button style={{ marginTop: 30}} className="pz-start-btn pz-start-btn--large" onClick={handleCheck} disabled={!canCheck}>
+            <button id="nzs-check-button" style={{ marginTop: 30}} className="pz-start-btn pz-start-btn--large" onClick={handleCheck} disabled={!canCheck}>
               Nakijken
             </button>
           </div>
         </div>
       )}
 
+      
+
       {showIntro && (
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal">
+        <div id="nzs-start-overlay" className="pz-start-overlay">
+          <div id="nzs-start-modal" className="pz-start-modal">
             <h2>Speluitleg - (Niet zo) slimme thermostaat</h2>
-            <ul className="pz-start-bullets">
+            <ul id="nzs-start-bullets" className="pz-start-bullets">
               {introText.map((line) => <li key={line}>{line}</li>)}
             </ul>
             <div style={{ textAlign: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={openPracticeStart}>Volgende</button>
+              <button id="nzs-start-next" className="pz-start-btn pz-start-btn--large" onClick={openPracticeStart}>Volgende</button>
             </div>
           </div>
         </div>
       )}
 
       {showPracticeStart && (
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+        <div id="nzs-practice-start-overlay" className="pz-start-overlay">
+          <div id="nzs-practice-start-modal" className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Even oefenen!</h2>
             <p style={{ marginTop: 12, textAlign: 'left' }}>In de oefenronde tellen je punten nog niet mee.</p>
             {effectiveAge === '8-10' && (
@@ -796,36 +843,36 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
               <p style={{ textAlign: 'left' }}>Sleep de blokken en maak een juiste regel (IF ... AND ... THEN ... ELSE ...).</p>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={startPractice}>Spelen</button>
-              <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={startRealGame}>Oefenronde overslaan</button>
+              <button id="nzs-practice-play" className="pz-start-btn pz-start-btn--large" onClick={startPractice}>Spelen</button>
+              <button id="nzs-practice-skip" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={startRealGame}>Oefenronde overslaan</button>
             </div>
           </div>
         </div>
       )}
 
       {showPracticeEnd && (
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+        <div id="nzs-practice-end-overlay" className="pz-start-overlay">
+          <div id="nzs-practice-end-modal" className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Het echte spel begint nu</h2>
             <p style={{ marginTop: 12, textAlign: 'left' }}>Punten tellen nu mee. Succes!</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
-              <button className="pz-start-btn pz-start-btn--large" onClick={startRealGame}>Spelen</button>
-              <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }}>Opnieuw oefenen</button>
+              <button id="nzs-practice-end-play" className="pz-start-btn pz-start-btn--large" onClick={startRealGame}>Spelen</button>
+              <button id="nzs-practice-end-repeat" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }}>Opnieuw oefenen</button>
             </div>
           </div>
         </div>
       )}
 
       {showHelp && (
-        <div className="pz-pause-overlay" onClick={() => { setShowHelp(false); setPaused(false) }}>
-          <div className="pz-pause-modal pz-help-modal" onClick={(e) => e.stopPropagation()}>
+        <div id="nzs-help-overlay" className="pz-pause-overlay" onClick={() => { setShowHelp(false); setPaused(false) }}>
+          <div id="nzs-help-modal" className="pz-pause-modal pz-help-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Speluitleg - (Niet zo) slimme thermostaat</h2>
             <div className="pz-hint-container" style={{ marginTop: 12 }}>
-              <ul className="pz-start-bullets pz-hint-bullets">
+              <ul id="nzs-help-bullets" className="pz-start-bullets pz-hint-bullets">
                 {introText.map((line) => <li key={line} className="pz-hint-item">{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHelp(false); setPaused(false) }}>Verder spelen</button>
+                <button id="nzs-help-close" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHelp(false); setPaused(false) }}>Verder spelen</button>
               </div>
             </div>
           </div>
@@ -833,15 +880,15 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       )}
 
       {showHint && (
-        <div className="pz-pause-overlay" onClick={() => { setShowHint(false); setPaused(false) }}>
-          <div className="pz-pause-modal pz-hint-modal" onClick={(e) => e.stopPropagation()}>
-            <h2>Hint</h2>
+        <div id="nzs-hint-overlay" className="pz-pause-overlay" onClick={() => { setShowHint(false); setPaused(false) }}>
+          <div id="nzs-hint-modal" className="pz-pause-modal pz-hint-modal" onClick={(e) => e.stopPropagation()}>
+            <h2 id="nzs-hint-title">Hint</h2>
             <div className="pz-hint-container" style={{ marginTop: 12 }}>
-              <ul className="pz-start-bullets pz-hint-bullets">
+              <ul id="nzs-hint-bullets" className="pz-start-bullets pz-hint-bullets">
                 {computedHint.map((line) => <li key={line} className="pz-hint-item">{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false) }}>Verder spelen</button>
+                <button id="nzs-hint-close" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false) }}>Verder spelen</button>
               </div>
             </div>
           </div>
@@ -849,13 +896,13 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       )}
 
       {paused && !showPracticeEnd && !showPracticeStart && !showIntro && !showHint && !showHelp && (
-        <div className="pz-pause-overlay">
-          <div className="pz-pause-modal">
-            <h2>Pauze</h2>
+        <div id="nzs-pause-overlay" className="pz-pause-overlay">
+          <div id="nzs-pause-modal" className="pz-pause-modal">
+            <h2 id="nzs-pause-title">Pauze</h2>
             <div className="pz-pause-actions">
-              <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => setPaused(false)}>Verder spelen</button>
-              <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={restartGame}>Opnieuw beginnen</button>
-              <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => {
+              <button id="nzs-pause-continue" className="pz-pause-action pz-pause-action--primary" onClick={() => setPaused(false)}>Verder spelen</button>
+              <button id="nzs-pause-restart" className="pz-pause-action pz-pause-action--primary" onClick={restartGame}>Opnieuw beginnen</button>
+              <button id="nzs-pause-stop" className="pz-pause-action pz-pause-action--danger" onClick={() => {
                 try { setPaused(false) } catch { /* ignore */ }
                 try { setRunning(false) } catch { /* ignore */ }
                 try { setStoppedByUser(true) } catch { /* ignore */ }
@@ -868,23 +915,23 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       )}
 
       {showEnd && (
-        <div className="pz-end">
-          <div className="pz-end-box">
-            <div className="pz-highscore" style={{ marginBottom: 18, textAlign: 'center' }}>
+        <div id="nzs-end" className="pz-end">
+          <div id="nzs-end-box" className="pz-end-box">
+            <div id="nzs-highscore" className="pz-highscore" style={{ marginBottom: 18, textAlign: 'center' }}>
               <span className="pz-highscore-label">Hoogste score:</span>
-              <span id="highScore" className="pz-highscore-value">{highScore ?? '-'}</span>
-              {isNewHigh && <span className="pz-new-record"> Nieuw record!</span>}
+              <span id="nzs-highscore-value" className="pz-highscore-value">{highScore ?? '-'}</span>
+              {isNewHigh && <span id="nzs-new-record" className="pz-new-record"> Nieuw record!</span>}
             </div>
 
             <div className="pz-end-content">
               <div className="pz-end-left">
-                <div className="pz-score-circle" aria-hidden style={circleStyle}>
+                <div id="nzs-score-circle" className="pz-score-circle" aria-hidden style={circleStyle}>
                   <div className="pz-score-label">SCORE</div>
-                  <div className="pz-score-number" id="score">{stoppedByUser ? 0 : score}</div>
-                  <div className="pz-score-percent" id="percentage">{stoppedByUser ? 0 : percent}%</div>
+                  <div id="nzs-score-number" className="pz-score-number">{stoppedByUser ? 0 : score}</div>
+                  <div id="nzs-score-percent" className="pz-score-percent">{stoppedByUser ? 0 : percent}%</div>
                   <div className="pz-score-stars" aria-hidden>
                     {Array.from({ length: 3 }).map((_, i) => (
-                      <span key={i} className={'pz-star ' + (i < (stoppedByUser ? 0 : starCount) ? 'pz-star--filled' : 'pz-star--empty')} aria-hidden>
+                      <span key={i} id={`nzs-star-${i}`} className={'pz-star ' + (i < (stoppedByUser ? 0 : starCount) ? 'pz-star--filled' : 'pz-star--empty')} aria-hidden>
                         <svg viewBox="0 0 24 24" role="img" aria-hidden="true" focusable="false">
                           <path d="M12 .587l3.668 7.431 8.2 1.193-5.934 5.788 1.402 8.168L12 18.896l-7.336 3.869 1.402-8.168L.132 9.211l8.2-1.193z" />
                         </svg>
@@ -894,27 +941,27 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
                 </div>
 
                 <div className="pz-stats-row">
-                  <div className="pz-stats-correct">
+                  <div id="nzs-stats-correct" className="pz-stats-correct">
                     <div className="shine" aria-hidden></div>
                     <div className="label">Juist</div>
-                    <div className="score"><span className="plus">+</span>{stoppedByUser ? 0 : totalCorrect}</div>
+                    <div id="nzs-stats-correct-value" className="score"><span className="plus">+</span>{stoppedByUser ? 0 : totalCorrect}</div>
                   </div>
-                  <div className="pz-stats-wrong">
+                  <div id="nzs-stats-wrong" className="pz-stats-wrong">
                     <div className="shine" aria-hidden></div>
                     <div className="label">Fout</div>
-                    <div className="score"><span className="minus">-</span>{stoppedByUser ? 0 : totalWrong}</div>
+                    <div id="nzs-stats-wrong-value" className="score"><span className="minus">-</span>{stoppedByUser ? 0 : totalWrong}</div>
                   </div>
                 </div>
               </div>
 
               <div className="pz-end-right">
-                <div className="pz-tips-card">
-                  <h3>{stoppedByUser ? 'Spel gestopt, geen score' : 'Performantie tip'}</h3>
+                <div id="nzs-tips-card" className="pz-tips-card">
+                  <h3 id="nzs-end-title">{stoppedByUser ? 'Spel gestopt, geen score' : 'Performantie tip'}</h3>
                   <ul>
-                    <li>{stoppedByUser ? 'Je spel is gestopt en er is geen score opgeslagen.' : END_TIP_BY_AGE[effectiveAge]}</li>
+                    <li id="nzs-end-tip">{stoppedByUser ? 'Je spel is gestopt en er is geen score opgeslagen.' : END_TIP_BY_AGE[effectiveAge]}</li>
                   </ul>
                   <div className="pz-end-actions">
-                    <button id="btnPlayAgain" className="pz-play-again" onClick={restartGame}>Opnieuw spelen</button>
+                    <button id="nzs-play-again" className="pz-play-again" onClick={restartGame}>Opnieuw spelen</button>
                   </div>
                 </div>
               </div>

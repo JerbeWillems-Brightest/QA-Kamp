@@ -5,6 +5,12 @@
   overflow: hidden;
 }
 
+img {
+    max-width: none;
+  height: auto;
+    display: block;
+}
+
 .nzs-top {
   position: absolute;
   top: 10px;
@@ -100,6 +106,99 @@
   border: none;
 }
 
+/* Office intro (click the thermostat) - mirrors printer office intro layout */
+.thermostaat-office-intro {
+  position: absolute;
+  inset: 10px;
+  background-size: 100% 100%;
+  background-position: center top;
+  background-repeat: no-repeat;
+  height: 100%;
+  overflow: hidden;
+}
+
+.thermostaat-office-intro__computer {
+  position: absolute;
+  left: 0;
+  bottom: 1%;
+  width: min(250vw, 900px);
+  max-width: 75%;
+  height: auto;
+  pointer-events: none;
+}
+
+.thermostaat-office-intro__printer {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(100vw, 450px);
+  max-width: 100%;
+  height: auto;
+  pointer-events: none;
+}
+
+/* Desktop: ensure the device overlay is absolutely positioned */
+.thermostaat-office-intro__device {
+  position: absolute;
+  left: 2%;
+  top: 2%;
+  pointer-events: none;
+}
+
+.thermostaat-office-intro__device-btn {
+  position: absolute;
+  /* place button over the overlay (top-left area) */
+  left: 6%;
+  top: 6%;
+  width: 160px;
+  max-width: 18%;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 14px;
+}
+
+.thermostaat-office-intro__device-btn:focus-visible {
+  outline: 4px solid #ffd400;
+  outline-offset: 4px;
+}
+
+.thermostaat-office-intro__device-img { display:block; width:420px; height:auto }
+
+.thermostaat-office-intro__wrap { display:flex; align-items:center; justify-content:center }
+
+.thermostaat-office-intro__wrap {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+  border-radius: 18px;
+  box-sizing: border-box;
+  border: 14px solid #f0b000;
+  background: rgba(255,255,255,0.03);
+  overflow: visible;
+}
+
+.thermostaat-office-intro__label {
+  position: absolute;
+  top: -5%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: #f0b000;
+  color: #fff;
+  font-weight: 900;
+  font-size: 1.6rem;
+  line-height: 1;
+  padding: 10px 22px;
+  border-radius: 18px;
+  z-index: 60;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 .nzs-sentence {
   display: flex;
   flex-wrap: wrap;
@@ -180,6 +279,69 @@
 @media (max-width: 820px) {
   .nzs-options {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Tablet-specific adjustments: scale and reposition intro images */
+@media (min-width: 641px) and (max-width: 1024px) {
+  .thermostaat-office-intro {
+    background-size: cover;
+    background-position: center center;
+  }
+  .thermostaat-office-intro__computer {
+    left: 2%;
+    bottom: 2%;
+    width: 46vw; /* scale with viewport width */
+    max-width: none;
+  }
+  .thermostaat-office-intro__printer {
+    right: 2%;
+    bottom: 2%;
+    width: 36vw;
+    max-width: none;
+  }
+  .thermostaat-office-intro__device {
+    left: 2.5%;
+    top: 2.5%;
+    width: 18vw; /* overlay scales with viewport */
+    max-width: 260px;
+  }
+  .thermostaat-office-intro__device-btn {
+    left: 2.5%;
+    top: 2.5%;
+    width: 18vw;
+    max-width: 260px;
+  }
+  /* ensure images remain fluid inside wrappers */
+  .thermostaat-office-intro__computer,
+  .thermostaat-office-intro__printer,
+  .thermostaat-office-intro__device-img,
+  .thermostaat-office-intro__device {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
+/* Narrow tablets / large phones - tighten sizes so layout doesn't overflow */
+@media (max-width: 640px) {
+  .thermostaat-office-intro__computer {
+    left: 2%;
+    bottom: 2%;
+    width: 60vw;
+    max-width: none;
+  }
+  .thermostaat-office-intro__printer {
+    right: 2%;
+    bottom: 2%;
+    width: 44vw;
+    max-width: none;
+  }
+  .thermostaat-office-intro__device,
+  .thermostaat-office-intro__device-btn {
+    left: 4%;
+    top: 4%;
+    width: 28vw;
+    max-width: 180px;
   }
 }
 
