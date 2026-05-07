@@ -212,7 +212,6 @@ function pickNextScenario(pool: Scenario[], lastId?: string) {
 }
 
 export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
-  const isTestEnv = typeof process !== 'undefined' && (process as unknown as { env?: Record<string, string> }).env?.NODE_ENV === 'test'
   const effectiveAge: AgeGroup = useMemo(() => {
     if (ageGroup) return ageGroup
     try {
@@ -227,7 +226,6 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   }, [ageGroup])
 
   const introText = INTRO_BY_AGE[effectiveAge]
-  const hintText = HINT_BY_AGE[effectiveAge]
 
   const pool = useMemo(() => buildScenarioPool(effectiveAge), [effectiveAge])
 
@@ -253,6 +251,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   const wrongRef = useRef(0)
   // lock to prevent multiple rapid submissions for the same scenario
   const checkingRef = useRef(false)
+  const wrongInRoundRef = useRef(0)
 
   useEffect(() => { scoreRef.current = score }, [score])
   useEffect(() => { correctRef.current = totalCorrect }, [totalCorrect])
@@ -285,6 +284,59 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     }
   })
   const [isNewHigh, setIsNewHigh] = useState(false)
+
+  // compute hint text per round based on the current scenario and age group
+  const computedHint = useMemo<string[]>(() => {
+    try {
+      const s = currentScenario
+      if (!s) return HINT_BY_AGE[effectiveAge] || []
+
+      // find the correct option label (if present)
+      const correctOpt = s.options.find((o) => o.id === s.correctOptionId)
+      const condLabel = (correctOpt && correctOpt.label) ? String(correctOpt.label).trim() : ''
+
+      // helper map for extra contextual explanation (Dutch phrasing)
+      const extraMap: Record<string, string> = {
+        'het warm is': 'dan ga je zweten.',
+        'het koud is': 'dan krijg je het koud.',
+        'het regent': 'dan neem je een paraplu mee.',
+        'het dag is': 'dan is het licht.',
+        'het nacht is': 'dan is het donker.',
+        'het is warm': 'dan ga je zweten.',
+        'het is koud': 'dan krijg je het koud.',
+        'het is dag': 'dan is het licht.',
+        'het is nacht': 'dan is het donker.',
+        'iswarm': 'dan ga je zweten.',
+        'iscold': 'dan krijg je het koud.',
+        'israining': 'dan neem je een paraplu mee.',
+        'isday': 'dan is het licht.',
+        'isnight': 'dan is het donker.'
+      }
+
+      if (effectiveAge === '14-16') {
+        // for older kids show code-like hint with THEN/ELSE
+        const lines: string[] = []
+        const left = s.leftKeyword || 'IF'
+        const cond = condLabel || s.correctOptionId || ''
+        const thenAct = s.fixedAction || s.fixedAction === '' ? s.fixedAction : ''
+        const elseAct = s.fixedElse || ''
+        if (cond) lines.push(`${left} ${cond} ${s.andKeyword ? s.andKeyword : ''} ... ${s.thenKeyword} ${thenAct}`.replace(/\s+/g, ' ').trim())
+        if (elseAct) lines.push(`${s.elseKeyword || 'ELSE'} ${elseAct}`)
+        return lines.length ? lines : (HINT_BY_AGE[effectiveAge] || [])
+      }
+
+      // natural-language hint for younger ages
+      const leftWord = s.leftKeyword === 'ALS' ? 'Als' : (s.leftKeyword || 'Als')
+      const thenWord = s.thenKeyword === 'DAN' ? 'dan' : (s.thenKeyword || 'dan')
+      const main = condLabel ? `${leftWord} ${condLabel}, ${thenWord} ${s.fixedAction}.` : `${leftWord} ..., ${thenWord} ${s.fixedAction}.`
+      // try to find an extra explanation from map (case-insensitive)
+      const key = condLabel ? condLabel.toLowerCase().replace(/\s+/g, ' ') : ''
+      const extra = extraMap[key] || ''
+      return extra ? [main, extra] : [main]
+    } catch {
+      return HINT_BY_AGE[effectiveAge] || []
+    }
+  }, [currentScenario, effectiveAge])
 
   // ensure hint button is locked at start until mistakes threshold is reached
   useEffect(() => {
@@ -363,36 +415,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   // load local highscore
   // NOTE: high score is initialized via lazy useState above, so no effect is required.
 
-  // hint unlock after mistakes threshold (real game only)
-  useEffect(() => {
-    try {
-      if (isPractice) return
-      const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
-      if (!hintAutoShownRef.current && totalWrong >= threshold) {
-        hintAutoShownRef.current = true
-        try {
-          if (!isTestEnv) {
-            const w = window as unknown as Record<string, unknown>
-            w['__pz_hint_unlocked'] = true
-            window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
-          }
-        } catch { /* ignore */ }
-        // Auto-open the hint overlay now (but avoid showing the pause overlay
-        // first). We only auto-open if the game is running and no modal is
-        // currently visible.
-        try {
-          if (!isTestEnv && running && !showHint && !showHelp && !showIntro && !showPracticeStart && !showPracticeEnd && !paused && !showEnd) {
-            // Defer to next tick to avoid set-state-in-effect lint and to
-            // ensure the unlock event has been processed by any listeners.
-            setTimeout(() => {
-              try { setShowHint(true) } catch { /* ignore */ }
-              try { setPaused(true) } catch { /* ignore */ }
-            }, 0)
-          }
-        } catch { /* ignore */ }
-      }
-    } catch { /* ignore */ }
-  }, [effectiveAge, isPractice, isTestEnv, paused, running, showEnd, showHelp, showHint, showIntro, showPracticeEnd, showPracticeStart, totalWrong])
+  // Per-round hint unlock: handled inline when a wrong answer is recorded.
+  // (We intentionally do not unlock based on cumulative totalWrong.)
 
   const openPracticeStart = () => {
     setShowIntro(false)
@@ -524,6 +548,13 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   const goNextScenario = () => {
     const next = pickNextScenario(pool, currentScenario.id)
     lastScenarioIdRef.current = currentScenario.id
+    // reset per-round wrong counter and lock hint for the new round
+    wrongInRoundRef.current = 0
+    try {
+      const w = window as unknown as Record<string, unknown>
+      w['__pz_hint_unlocked'] = false
+      window.dispatchEvent(new CustomEvent('minigame:hint-locked'))
+    } catch { /* ignore */ }
     setCurrentScenario(next)
     setSelectedOptionId(null)
     setAnswerState('idle')
@@ -595,6 +626,19 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         wrongRef.current = nextWrong
         setScore(nextScore)
         setTotalWrong(nextWrong)
+        // increment per-round wrong counter and unlock hint for this round
+        try {
+          wrongInRoundRef.current = (wrongInRoundRef.current || 0) + 1
+          const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
+          if (wrongInRoundRef.current >= threshold) {
+            try {
+              const w = window as unknown as Record<string, unknown>
+              // only unlock for real game (not practice); do not auto-open
+              w['__pz_hint_unlocked'] = true
+              window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
+            } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
       }
       // stay on same scenario; player can try again
       window.setTimeout(() => {
@@ -794,7 +838,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
             <h2>Hint</h2>
             <div className="pz-hint-container" style={{ marginTop: 12 }}>
               <ul className="pz-start-bullets pz-hint-bullets">
-                {hintText.map((line) => <li key={line} className="pz-hint-item">{line}</li>)}
+                {computedHint.map((line) => <li key={line} className="pz-hint-item">{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
                 <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false) }}>Verder spelen</button>
