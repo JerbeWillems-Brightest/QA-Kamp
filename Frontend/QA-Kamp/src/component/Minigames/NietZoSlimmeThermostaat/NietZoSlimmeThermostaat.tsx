@@ -4,6 +4,8 @@ import '../PasswordZapper/PasswordZapperGame.css'
 // background image for thermostat (correct assets path)
 import bgThermostaat from '../../../assets/NietZoSlimmeThermostaatImages/BackgroundThermostat.png'
 import ThermostaatError from '../../../assets/NietZoSlimmeThermostaatImages/ThermostaatError.png'
+// new warning image requested by designer
+import WarningImg from '../../../assets/NietZoSlimmeThermostaatImages/warning.png'
 import officeBackgroundPng from '../../../assets/NietZoSlimmeThermostaatImages/BackgroundThermostaat.png'
 import officePrinterPng from '../../../assets/NietZoSlimmeThermostaatImages/Printer.png'
 import officeComputerSvg from '../../../assets/iconsPrinterSlaatOpHol/Computer.svg'
@@ -235,6 +237,10 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
 
   const isTestEnv = typeof process !== 'undefined' && (process as unknown as { env?: Record<string, string> }).env?.NODE_ENV === 'test'
   const [showOfficeIntro, setShowOfficeIntro] = useState(!isTestEnv)
+  // intermediate catastrophe popup shown after clicking the thermostat in the
+  // office intro and before the normal intro modal. Starts false and is only
+  // enabled when the player clicks the thermostat overlay.
+  const [showCatastrophe, setShowCatastrophe] = useState(false)
   const [showIntro, setShowIntro] = useState(true)
   const [showPracticeStart, setShowPracticeStart] = useState(false)
   const [showPracticeEnd, setShowPracticeEnd] = useState(false)
@@ -255,6 +261,9 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   const scoreRef = useRef(0)
   const correctRef = useRef(0)
   const wrongRef = useRef(0)
+  // DOM refs for badge width syncing
+  const scoreBadgeRef = useRef<HTMLDivElement | null>(null)
+  const feedbackBadgeRef = useRef<HTMLDivElement | null>(null)
   // lock to prevent multiple rapid submissions for the same scenario
   const checkingRef = useRef(false)
   const wrongInRoundRef = useRef(0)
@@ -266,6 +275,32 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
   const [answerState, setAnswerState] = useState<'idle' | 'correct' | 'wrong'>('idle')
+
+  // Sync feedback badge width to the main score badge so both are the same width
+  useEffect(() => {
+    function updateWidth() {
+      try {
+        const w = scoreBadgeRef.current ? scoreBadgeRef.current.getBoundingClientRect().width : 0
+        if (feedbackBadgeRef.current) {
+          if (w && (answerState === 'correct' || answerState === 'wrong')) {
+            feedbackBadgeRef.current.style.width = `${w}px`
+          } else {
+            // clear explicit width so it collapses when not shown
+            feedbackBadgeRef.current.style.width = ''
+          }
+        }
+      } catch { /* ignore measurement errors */ }
+    }
+
+    // update immediately and when window resizes while feedback is visible
+    updateWidth()
+    if (answerState === 'correct' || answerState === 'wrong') {
+      window.addEventListener('resize', updateWidth)
+      return () => window.removeEventListener('resize', updateWidth)
+    }
+    return undefined
+  }, [answerState, score, isPractice])
+
 
   const [currentScenario, setCurrentScenario] = useState<Scenario>(() => pickNextScenario(pool))
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
@@ -688,7 +723,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
             id="nzs-office-device-btn"
             type="button"
             className="thermostaat-office-intro__device-btn"
-            onClick={() => setShowOfficeIntro(false)}
+            onClick={() => { setShowOfficeIntro(false); setShowCatastrophe(true) }}
             aria-label="Klik op de thermostaat"
           >
             <div className="thermostaat-office-intro__wrap">
@@ -700,6 +735,62 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       </div>
     )
   }
+
+  // Catastrophe popup: appears after the office intro and before the
+  // main intro. Uses the thermostat background (no blur) so the modal looks
+  // like it's popping up on the device.
+  if (showCatastrophe) {
+    return (
+      <div
+        id="nzs-office-catastrophe"
+        className="pz-layout thermostaat-root"
+        style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', zIndex: 900 }}
+      >
+        {/* Use the explicit thermostat background asset (no blur) so the popup
+            appears directly on the device image. */}
+        <div id="nzs-office-bg" className="thermostaat-office-intro" style={{ backgroundImage: `url(${bgThermostaat})`, backgroundRepeat: 'no-repeat', backgroundSize: '100% 100%', backgroundPosition: 'center top' }}>
+        </div>
+
+        <div className="pz-start-overlay pz-no-blur">
+          <div className="pz-start-modal" onClick={(e) => e.stopPropagation()} style={{ position: 'relative' }}>
+            {/* Close button top-right (small circular ×) */}
+            <button
+              type="button"
+              aria-label="Sluit"
+              onClick={() => { setShowCatastrophe(false); setShowIntro(true); }}
+              style={{
+                position: 'absolute',
+                top: 8,
+                right: 8,
+                width: 48,
+                height: 48,
+                borderRadius: '50%',
+                border: 'none',
+                background: '#fff',
+                color: '#000',
+                /* Removed box-shadow per request */
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer',
+                fontSize: 50,
+                lineHeight: 1,
+                padding: 0
+              }}
+            >
+              ×
+            </button>
+             {/* big warning icon */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+              <img src={WarningImg} alt="Waarschuwing" style={{ width: 140, height: 'auto' }} />
+            </div>
+             <h2 style={{ textAlign: 'center', marginTop: 12 }}>Alle programma's zijn gecrasht</h2>
+            {/* 'Volgende' button removed per request - use the top-right close button */}
+           </div>
+         </div>
+       </div>
+     )
+   }
 
   return (
     <div
@@ -724,8 +815,19 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
           {/* background image is applied via CSS background (contain) so it's behind the UI */}
       {!showEnd && (
         <>
-          {/* Top-right score (matches PasswordZapper) */}
-          <div id="nzs-score" className="pz-score">{isPractice ? 'Oefenronde' : `Score: ${score}`}</div>
+          {/* Top-left score (stacked) */}
+          <div className="pz-score-stack" style={{ position: 'absolute', top: 20, left: 30, display: 'flex', flexDirection: 'column', gap: 8, zIndex: 950, alignItems: 'flex-start' }}>
+            <div id="nzs-score" ref={scoreBadgeRef} className="pz-score">{isPractice ? 'Oefenronde' : `Score: ${score}`}</div>
+            {/* Feedback box: only render when there's text to show so we don't leave an empty yellow box */}
+            {
+              (() => {
+                const fbText = answerState === 'correct' ? '+2' : answerState === 'wrong' ? '-1' : null
+                if (!fbText) return null
+                const cls = answerState === 'correct' ? 'pz-score nzs-feedback--good' : 'pz-score nzs-feedback--bad'
+                return <div id="nzs-score-2" ref={feedbackBadgeRef} className={cls} aria-live="polite">{fbText}</div>
+              })()
+            }
+          </div>
 
           {/* Bottom-left progress bar (out of 20 for real game, 3 for practice) */}
           <div id="nzs-progress" className="pz-progress" aria-label="Voortgang">
@@ -977,4 +1079,5 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     </div>
   )
 }
+
 

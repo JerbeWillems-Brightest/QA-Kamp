@@ -23,6 +23,58 @@ img {
   z-index: 5;
 }
 
+/* Ensure stacked score in thermostat game is visible and not affected by global .pz-score absolute positioning */
+.pz-score-stack {
+  position: absolute;
+  top: 20px;
+  right: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 950;
+  align-items: center;
+  pointer-events: none; /* match other UI badges that are non-interactive */
+}
+.pz-score-stack .pz-score {
+  /* override absolute positioning from shared pz CSS so items stack naturally */
+  position: static;
+  display: block;
+}
+
+/* feedback pill when shown via the stacked score area */
+.pz-score.nzs-feedback--good {
+  background: linear-gradient(180deg, #4caf50, #388e3c);
+  color: #fff;
+  /* Smaller vertical padding and slightly smaller font so height is reduced */
+  padding: 6px 12px;
+  font-size: 1.5rem;
+  line-height: 1;
+  border-radius: 999px;
+  font-weight: 900;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.12);
+  transition: transform 160ms ease, opacity 160ms ease;
+  transform-origin: left top;
+}
+.pz-score.nzs-feedback--bad {
+  background: linear-gradient(180deg, #f44336, #d32f2f);
+  color: #fff;
+  /* Smaller vertical padding and slightly smaller font so height is reduced */
+  padding: 6px 12px;
+  font-size: 1.5rem;
+  line-height: 1;
+  border-radius: 999px;
+  font-weight: 900;
+  box-shadow: 0 6px 0 rgba(0,0,0,0.12);
+  transition: transform 160ms ease, opacity 160ms ease;
+  transform-origin: left top;
+}
+
+.pz-score.nzs-feedback--good,
+.pz-score.nzs-feedback--bad {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .nzs-pill {
   pointer-events: none;
   background: #f2c200;
@@ -216,14 +268,14 @@ img {
 .nzs-token {
   font-weight: 900;
   color: #111;
-  font-size: 1.5rem; /* increase base token size */
+  font-size: 1.2rem; /* increase base token size */
 }
 
 .nzs-token--kw {
   padding: 10px 16px; /* more padding so the keyword pills are larger */
   border-radius: 12px;
   background: rgba(0,0,0,0.06);
-  font-size: 1.25rem;
+  font-size: 1.2rem;
 }
 
 .nzs-fixed,
@@ -232,7 +284,7 @@ img {
   padding: 10px 16px; /* increased padding for action/fixed labels */
   border-radius: 14px;
   background: rgba(0,0,0,0.05);
-  font-size: 1.3rem; /* larger font for readability */
+  font-size: 1.2rem; /* larger font for readability */
 }
 
 .nzs-action--code,
@@ -410,3 +462,11 @@ img {
   box-shadow: none;
 }
 
+/* Allow specific modals to disable the backdrop blur while keeping the semi-transparent dim
+   Useful for the catastrophe popup which should appear directly on the thermostat image */
+.pz-no-blur {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  /* remove the dark translucent overlay so the device shows through */
+  background: transparent !important;
+}
