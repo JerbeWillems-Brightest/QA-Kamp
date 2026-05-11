@@ -190,7 +190,6 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef<number | null>(null)
   const nextBugIdRef = useRef(1)
-  // ...existing code...
   const shouldFinishRef = useRef(false)
   const SPLIT_INVULNERABLE_MS = 600
 
@@ -432,20 +431,27 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     // miss: increment mistakes (no time/score penalty)
     setMistakes((m) => {
       const next = m + 1
-      // show hint once per run when reaching the per-age threshold
+      // show/unlock hint once per run when reaching the per-age threshold
       try {
         const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
-        if (!hintShownRef.current && next >= threshold) {
+        if (!hintShownRef.current && next >= threshold && !inPractice) {
           hintShownRef.current = true
+          // pause and show the hint modal
           setPaused(true)
           setShowHint(true)
+          // set global transient flag so the top-level hint button becomes enabled
+          try {
+            const w = window as unknown as Record<string, unknown>
+            w['__pz_hint_unlocked'] = true
+            window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
+          } catch { /* ignore */ }
         }
       } catch {
         void 0
       }
       return next
     })
-  }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge])
+  }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge, inPractice])
 
   // penalties/minpunten logic removed
 
@@ -535,15 +541,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     return () => window.removeEventListener('mousemove', onMove)
   }, [])
 
-  useEffect(() => {
-    try {
-      const w = window as unknown as Record<string, unknown>
-      w.__pz_hint_unlocked = true
-      window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
-    } catch {
-      void 0
-    }
-  }, [])
+  // Do NOT unlock the global hint on mount. The hint must be locked at the
+  // start of every game and only be unlocked by the game when the player's
+  // mistakes in a round reach the per-age threshold.
 
   useEffect(() => {
     // Ignore pause/help/hint events while practice modals are visible so the
@@ -558,6 +558,13 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     }
     const onHint = () => {
       if (showPracticeStart || showPracticeEnd) return
+      try {
+        // mark as seen/unlocked so opening via global control doesn't re-fire auto-open
+        hintShownRef.current = true
+        const w = window as unknown as Record<string, unknown>
+        try { w['__pz_hint_unlocked'] = true } catch { /* ignore */ }
+        try { window.dispatchEvent(new CustomEvent('minigame:hint-unlocked')) } catch { /* ignore */ }
+      } catch { /* ignore */ }
       setShowHint(true)
     }
     window.addEventListener('minigame:pause', onPause as EventListener)

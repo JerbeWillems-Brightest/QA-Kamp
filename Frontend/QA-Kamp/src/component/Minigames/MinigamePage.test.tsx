@@ -82,7 +82,7 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '8-10')
   })
 
-  it('hint button is initially disabled and unlocks after global event', async () => {
+  it('hint button is initially enabled for bugcleanup and stays enabled', async () => {
     window.history.replaceState({}, '', '/?game=bugcleanup')
 
     render(
@@ -93,7 +93,8 @@ describe('MinigamePage', () => {
 
     const hintButton = screen.getByLabelText('Hint') as HTMLButtonElement
     expect(hintButton).toBeInTheDocument()
-    expect(hintButton.disabled).toBe(true)
+    expect(hintButton.disabled).toBe(false)
+    expect(hintButton.title).toBe('Toon hint')
 
     // dispatch the global event that the game uses to signal hints unlocked
     window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
@@ -261,7 +262,7 @@ describe('MinigamePage', () => {
     )
   })
 
-  it('hint button is initially disabled', async () => {
+  it('hint button is initially enabled for bugcleanup', async () => {
     // Clear any existing global flag
     const w = window as unknown as Record<string, unknown>
     delete w['__pz_hint_unlocked']
@@ -275,8 +276,8 @@ describe('MinigamePage', () => {
     )
 
     const hintButton = screen.getByLabelText('Hint') as HTMLButtonElement
-    expect(hintButton.disabled).toBe(true)
-    expect(hintButton.title).toBe('Hints worden beschikbaar na enkele fouten')
+    expect(hintButton.disabled).toBe(false)
+    expect(hintButton.title).toBe('Toon hint')
   })
 
   it('initializes sessionStorage playerActiveGame when not present', async () => {
@@ -378,7 +379,7 @@ describe('MinigamePage', () => {
   })
 
   it('initializes hintUnlocked to false when no global flag', async () => {
-    window.history.replaceState({}, '', '/?game=bugcleanup')
+    window.history.replaceState({}, '', '/?game=passwordzapper')
     
     // Ensure no global flag
     const w = window as unknown as Record<string, unknown>

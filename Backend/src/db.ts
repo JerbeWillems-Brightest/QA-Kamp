@@ -6,7 +6,7 @@ import { Organizer } from './models/Organizer'
 mongoose.set('autoCreate', false)
 mongoose.set('autoIndex', false)
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://QA-KampAdmin:BrightestQaKamp@qa-kamp.4vsjlqg.mongodb.net/qa-kamp?retryWrites=true&w=majority'
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://QA-KampAdmin:BrightestQaKamp@qa-kamp.4vsjlqg.mongodb.net/?appName=qa-kamp'
 
 let cached: Promise<typeof mongoose> | null = null
 
@@ -15,7 +15,9 @@ export async function connectDB(): Promise<void> {
   if (mongoose.connection.readyState >= 1) return
 
   if (!cached) {
+
     console.log('Connecting to MongoDB...', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'))
+      console.log(MONGO_URI)
     cached = mongoose.connect(MONGO_URI, {
       serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 15000,
