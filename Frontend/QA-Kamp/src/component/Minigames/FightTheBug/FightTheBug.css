@@ -151,6 +151,20 @@
   text-shadow: 0 1px 0 rgba(0,0,0,0.25);
 }
 
+/* Make the player energy container a positioning context for the floating delta */
+#ftb-energy-player{
+  position: relative;
+}
+
+/* Place the player delta above the progress bar and center it */
+#ftb-delta-player{
+  position: absolute;
+  top: -34px; /* sits above the bar */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 970;
+}
+
 /* HUD energy bars */
 .ftb-hud{
   position: absolute;
@@ -160,6 +174,27 @@
   flex-direction: column;
   gap: 12px;
   z-index: 3;
+}
+
+/* Wrapper for bug energy + floating delta so delta can be placed under the bar */
+.ftb-energy-bug-wrapper{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px; /* space between bar and detached delta */
+  position: relative;
+}
+
+/* place the bug delta absolutely relative to the wrapper so it can be
+   horizontally aligned with the current fill percentage but visually sits
+   under the bar instead of being attached to the bar element */
+#ftb-delta-bug{
+  position: absolute;
+  bottom: -28px; /* place under the bar area */
+  left: 50%;
+  transform: translateX(-50%);
+  /* ensure it does not overlap with other hud items */
+  z-index: 960;
 }
 
 /* Place the bug energy bar more to the top-left corner regardless of the HUD wrapper
@@ -247,7 +282,6 @@
 }
 
 .ftb-delta{
-  margin-top: 6px;
   display: inline-block;
   font-weight: 900;
   font-size: 12px;
@@ -277,7 +311,7 @@
 .ftb-bug{
   position: absolute;
   left: 50%;
-  top: 110px;
+  top: 90px;
   transform: translateX(-50%);
   width: min(260px, 58vw);
   height: min(260px, 58vw);
@@ -406,7 +440,7 @@
 .ftb-question{
   position: absolute;
   left: 50%;
-  bottom: 98px;
+  bottom: 85px;
   transform: translateX(-50%);
   width: min(720px, calc(100% - 40px));
   z-index: 3;
@@ -437,7 +471,7 @@
 
 @media (max-width: 740px){
   .ftb-options{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .ftb-question{ bottom: 84px; }
+  .ftb-question{ bottom: 60px; }
 }
 
 .ftb-option{

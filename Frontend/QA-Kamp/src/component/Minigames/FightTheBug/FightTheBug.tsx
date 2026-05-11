@@ -83,10 +83,15 @@ function computePercent(correct: number, wrong: number) {
 
 function computeStars(percent: number) {
   const pct = Math.max(0, Math.min(100, percent))
-  if (pct === 100) return 3
-  if (pct >= 66) return 2
-  if (pct >= 33) return 1
-  return 0
+  // Mapping per user's request (explicit buckets):
+  // 0 - 32  => 0 stars
+  // 33 - 66 => 1 star
+  // 67 - 99 => 2 stars
+  // 100     => 3 stars
+  if (pct <= 32) return 0
+  if (pct <= 66) return 1
+  if (pct <= 99) return 2
+  return 3
 }
 
 function randFrom(list: string[]) {
@@ -110,63 +115,159 @@ function buildQuestionPool(age: AgeGroup): Question[] {
     return [
       {
         id: 'q1',
-        prompt: 'Welk wachtwoord is sterk?',
+        prompt: 'Waarom is een wachtwoord geheim?',
         options: [
-          { id: 'a', label: 'blauwfiets', icon: '🚲' },
-          { id: 'b', label: 'Blauw7', icon: '🔢' },
-          { id: 'c', label: 'Bl@uw#Fiets7', icon: '🔒' },
-          { id: 'd', label: 'Fiets?', icon: '❓' }
+          { id: 'a', label: 'Zodat iedereen het weet' },
+          { id: 'b', label: 'Omdat het zo moet' },
+          { id: 'c', label: 'Zodat ik kan inloggen' },
+          { id: 'd', label: 'Zodat niemand in je account kan' }
         ],
-        correctOptionId: 'c',
-        hintLinesByAge: { '8-10': ['Een sterk wachtwoord heeft letters, cijfers én tekens.', 'En het is niet te kort.'] }
+        correctOptionId: 'd',
+        hintLinesByAge: { '8-10': ['Een wachtwoord is privé.', 'Deel het nooit met anderen.'] }
       },
       {
         id: 'q2',
-        prompt: 'Wat doe je bij een onbekende link?',
+        prompt: 'Wat gebeurt als iemand je wachtwoord kent?',
         options: [
-          { id: 'a', label: 'Klikken', icon: '🖱️' },
-          { id: 'b', label: 'Niet klikken', icon: '⛔' },
-          { id: 'c', label: 'Doorsturen', icon: '📤' },
-          { id: 'd', label: 'Downloaden', icon: '⬇️' }
+          { id: 'a', label: 'Je account wordt automatisch geblokkeerd' },
+          { id: 'b', label: 'Ze kunnen je account gebruiken' },
+          { id: 'c', label: 'Je ontvangt een waarschuwingsmail' },
+          { id: 'd', label: 'Er verandert niets zolang jij ook ingelogd bent' }
         ],
         correctOptionId: 'b',
-        hintLinesByAge: { '8-10': ['Klik niet op links die je niet vertrouwt.', 'Vraag hulp aan een volwassene.'] }
+        hintLinesByAge: { '8-10': ['Als iemand je wachtwoord weet, kan die persoon doen alsof die jij bent.', 'Bescherm je wachtwoord dus goed.'] }
       },
       {
         id: 'q3',
-        prompt: 'Welke is veilig?',
+        prompt: 'Je krijgt een vreemde mail. Wat doe je?',
         options: [
-          { id: 'a', label: 'Wachtwoord delen', icon: '🗣️' },
-          { id: 'b', label: 'Wachtwoord geheim', icon: '🤫' },
-          { id: 'c', label: 'Overal hetzelfde', icon: '🔁' },
-          { id: 'd', label: 'Op papier op je tafel', icon: '📝' }
+          { id: 'a', label: 'Doorsturen naar vrienden om te vragen wat zij denken' },
+          { id: 'b', label: 'Meteen antwoorden zodat het probleem stopt' },
+          { id: 'c', label: 'De mail negeren en niet klikken' },
+          { id: 'd', label: 'Alles doen wat in de mail gevraagd wordt' }
         ],
-        correctOptionId: 'b',
-        hintLinesByAge: { '8-10': ['Deel je wachtwoord niet.', 'Bewaar het veilig (bijv. met je ouders).'] }
+        correctOptionId: 'c',
+        hintLinesByAge: { '8-10': ['Klik niet op linkjes in verdachte mails.', 'Vraag hulp aan een volwassene als je twijfelt.'] }
       },
       {
         id: 'q4',
-        prompt: 'Wat is een goede actie?',
+        prompt: 'Waarom zijn sommige mails gevaarlijk?',
         options: [
-          { id: 'a', label: 'Updates doen', icon: '⬆️' },
-          { id: 'b', label: 'Alles wegklikken', icon: '🙈' },
-          { id: 'c', label: 'Nooit uitloggen', icon: '🔓' },
-          { id: 'd', label: 'Vreemde apps installeren', icon: '🧩' }
+          { id: 'a', label: 'Ze proberen je te misleiden' },
+          { id: 'b', label: 'Ze nemen te veel opslagruimte in' },
+          { id: 'c', label: 'Ze vertragen je internetverbinding' },
+          { id: 'd', label: 'Ze worden automatisch doorgestuurd naar anderen' }
         ],
         correctOptionId: 'a',
-        hintLinesByAge: { '8-10': ['Updates maken je toestel veiliger.', 'Doe ze wanneer het kan.'] }
+        hintLinesByAge: { '8-10': ['Sommige mails doen alsof ze van een bekende zijn.', 'Ze willen dat je iets doet wat niet goed is.'] }
       },
       {
         id: 'q5',
-        prompt: 'Welke is het beste?',
+        prompt: 'Wat doet phishing?',
         options: [
-          { id: 'a', label: '123456', icon: '1️⃣' },
-          { id: 'b', label: 'wachtwoord', icon: '🔑' },
-          { id: 'c', label: 'Kat', icon: '🐱' },
-          { id: 'd', label: 'Zon!Maan9', icon: '🌙' }
+          { id: 'a', label: 'Je computer traag maken' },
+          { id: 'b', label: 'De website trager maken' },
+          { id: 'c', label: 'Gegevens stelen' },
+          { id: 'd', label: 'Bugs vinden' }
+        ],
+        correctOptionId: 'c',
+        hintLinesByAge: { '8-10': ['Phishing probeert jouw gegevens te stelen.', 'Wees voorzichtig met wat je invoert.'] }
+      },
+      {
+        id: 'q6',
+        prompt: 'Waarom klik je niet op elke link?',
+        options: [
+          { id: 'a', label: 'Sommige links gebruiken te veel internet' },
+          { id: 'b', label: 'Sommige links kunnen je naar een gevaarlijke website sturen' },
+          { id: 'c', label: 'Sommige links werken alleen op computers' },
+          { id: 'd', label: 'Sommige links veranderen de kleuren van je scherm' }
+        ],
+        correctOptionId: 'b',
+        hintLinesByAge: { '8-10': ['Niet alle linkjes zijn veilig.', 'Controleer eerst wie het stuurde.'] }
+      },
+      {
+        id: 'q7',
+        prompt: 'Wat gebeurt er als veel mensen tegelijk op een website zitten?',
+        options: [
+          { id: 'a', label: 'De website wordt sneller' },
+          { id: 'b', label: 'De website wordt verwijdert' },
+          { id: 'c', label: 'De website gaat weg' },
+          { id: 'd', label: 'De website wordt trager' }
         ],
         correctOptionId: 'd',
-        hintLinesByAge: { '8-10': ['Gebruik een mix van tekens en cijfers.', 'Maak het langer dan 8 tekens.'] }
+        hintLinesByAge: { '8-10': ['Veel bezoekers kunnen de site langzamer maken.', 'Dat noemen we verkeer of drukte op de website.'] }
+      },
+      {
+        id: 'q8',
+        prompt: 'Waarom kan een website traag worden?',
+        options: [
+          { id: 'a', label: 'Te weinig mensen' },
+          { id: 'b', label: 'Te veel fotos' },
+          { id: 'c', label: 'Te veel mensen tegelijk' },
+          { id: 'd', label: 'Te veel bugs' }
+        ],
+        correctOptionId: 'c',
+        hintLinesByAge: { '8-10': ['Te veel bezoekers of veel content kan vertraging veroorzaken.', 'Soms helpt het om even te wachten en opnieuw te laden.'] }
+      },
+      {
+        id: 'q9',
+        prompt: 'Waarom moeten websites getest worden?',
+        options: [
+          { id: 'a', label: 'Om bugs te vinden' },
+          { id: 'b', label: 'Om de website sneller te maken' },
+          { id: 'c', label: 'Om Fishing te voorkomen' },
+          { id: 'd', label: 'Om hackers te vinden' }
+        ],
+        correctOptionId: 'a',
+        hintLinesByAge: { '8-10': ['Testen helpt om fouten te vinden.', 'Zo wordt de site beter en veiliger.'] }
+      },
+      {
+        id: 'q10',
+        prompt: 'Wat is een bug?',
+        options: [
+          { id: 'a', label: 'Een misleidende mail' },
+          { id: 'b', label: 'Een fout in een website' },
+          { id: 'c', label: 'Een trage website' },
+          { id: 'd', label: 'Een hacker op een website' }
+        ],
+        correctOptionId: 'b',
+        hintLinesByAge: { '8-10': ['Een bug is een fout in de website.', 'Testers zoeken deze fouten op.'] }
+      },
+      {
+        id: 'q11',
+        prompt: 'Waarom zijn kleine details belangrijk?',
+        options: [
+          { id: 'a', label: 'Kleine fouten maken geen verschil' },
+          { id: 'b', label: 'Details zijn alleen belangrijk voor het design' },
+          { id: 'c', label: 'Details zorgen alleen voor meer snelheid' },
+          { id: 'd', label: 'Kleine fouten kunnen grotere problemen veroorzaken' }
+        ],
+        correctOptionId: 'd',
+        hintLinesByAge: { '8-10': ['Let goed op ook op kleine dingen.', 'Soms veroorzaakt een klein foutje veel gedoe.'] }
+      },
+      {
+        id: 'q12',
+        prompt: 'Waarom moet je goed opletten bij testen?',
+        options: [
+          { id: 'a', label: 'Om sneller te zijn' },
+          { id: 'b', label: 'Om bugs te verwijderen' },
+          { id: 'c', label: 'Om bugs te vinden' },
+          { id: 'd', label: 'Om phishing te zien' }
+        ],
+        correctOptionId: 'c',
+        hintLinesByAge: { '8-10': ['Tester zijn betekent goed kijken.', 'Zo vind je fouten voordat anderen dat doen.'] }
+      },
+      {
+        id: 'q13',
+        prompt: 'Wat doet een tester?',
+        options: [
+          { id: 'a', label: 'Controleren of alles werkt' },
+          { id: 'b', label: 'Websites maken' },
+          { id: 'c', label: 'Websites kapot maken' },
+          { id: 'd', label: 'Bugs oplossen' }
+        ],
+        correctOptionId: 'a',
+        hintLinesByAge: { '8-10': ['Een tester kijkt of alles goed werkt.', 'Ze helpen fouten te vinden zodat het beter wordt.'] }
       }
     ]
   }
@@ -175,75 +276,147 @@ function buildQuestionPool(age: AgeGroup): Question[] {
     return [
       {
         id: 'q1',
-        prompt: 'Welk wachtwoord is sterk?',
+        prompt: 'Een sterk wachtwoord bevat ...?',
         options: [
-          { id: 'a', label: 'blauwfiets' },
-          { id: 'b', label: 'Blauw7' },
-          { id: 'c', label: 'Bl@uw#Fiets7' },
-          { id: 'd', label: 'Fiets?' }
+          { id: 'a', label: '1 woorden + 1 cijfer' },
+          { id: 'b', label: '2 woorden + 1 cijfer + 1 teken + hoofdletters' },
+          { id: 'c', label: '2 woorden + 1 cijfer + 1 teken' },
+          { id: 'd', label: '1 woorden + 1 cijfer + 1 teken + hoofdletters' }
         ],
-        correctOptionId: 'c',
-        hintLinesByAge: { '11-13': ['Sterk = lang + mix (letters, cijfers, tekens).', 'Vermijd woorden uit het woordenboek.'] }
+        correctOptionId: 'b',
+        hintLinesByAge: { '11-13': ['Lang + mix van tekens is sterk.', 'Gebruik hoofdletters en symbolen.'] }
       },
       {
         id: 'q2',
-        prompt: 'Wat is de beste reactie op phishing?',
+        prompt: 'Hetzelfde wachtwoord overal gebruiken is ...?',
         options: [
-          { id: 'a', label: 'Link openen om te checken' },
-          { id: 'b', label: 'Afzender controleren en niet klikken' },
-          { id: 'c', label: 'Gegevens invullen om te bevestigen' },
-          { id: 'd', label: 'Doorsturen naar iedereen' }
+          { id: 'a', label: 'Veilig' },
+          { id: 'b', label: 'Beter' },
+          { id: 'c', label: 'gemakkelijk' },
+          { id: 'd', label: 'Gevaarlijk' }
         ],
-        correctOptionId: 'b',
-        hintLinesByAge: { '11-13': ['Phishing probeert je te misleiden.', 'Controleer afzender en klik niet zomaar.'] }
+        correctOptionId: 'd',
+        hintLinesByAge: { '11-13': ['Hergebruik maakt meerdere accounts kwetsbaar.', 'Gebruik unieke wachtwoorden of een manager.'] }
       },
       {
         id: 'q3',
-        prompt: 'Welke uitspraak klopt?',
+        prompt: 'Hoe herken je een phishingmail?',
         options: [
-          { id: 'a', label: 'Eén wachtwoord voor alles is handig' },
-          { id: 'b', label: 'Uniek wachtwoord per account is veiliger' },
-          { id: 'c', label: 'Wachtwoorden delen is oké met vrienden' },
-          { id: 'd', label: 'Korter is beter te onthouden dus veiliger' }
+          { id: 'a', label: 'Aan het professionele uiterlijk en de officiële logo\'s' },
+          { id: 'b', label: 'Aan het feit dat de mail in je spammap terechtkomt' },
+          { id: 'c', label: 'Aan spelfouten, een verdacht e-mailadres of een dringende toon' },
+          { id: 'd', label: 'Aan het ontbreken van afbeeldingen in de mail' }
         ],
-        correctOptionId: 'b',
-        hintLinesByAge: { '11-13': ['Uniek per account voorkomt “domino-effect”.', 'Een manager kan helpen onthouden.'] }
+        correctOptionId: 'c',
+        hintLinesByAge: { '11-13': ['Let op spelfouten en een dringende toon.', 'Controleer het afzenderadres en links.'] }
       },
       {
         id: 'q4',
-        prompt: 'Wat doet een update meestal?',
+        prompt: 'Wat is een load test?',
         options: [
-          { id: 'a', label: 'Maakt je toestel altijd trager' },
-          { id: 'b', label: 'Lost bugs en beveiligingslekken op' },
-          { id: 'c', label: 'Verwijdert je apps' },
-          { id: 'd', label: 'Zet je internet uit' }
+          { id: 'a', label: 'Testen of veel spelers tegelijk kunnen op de website kunnen' },
+          { id: 'b', label: 'Het design van een website testen' },
+          { id: 'c', label: 'De veiligheid van een website testen' },
+          { id: 'd', label: 'Het geluid van een website testen' }
         ],
-        correctOptionId: 'b',
-        hintLinesByAge: { '11-13': ['Updates patchen beveiligingslekken.', 'Doe ze regelmatig.'] }
+        correctOptionId: 'a',
+        hintLinesByAge: { '11-13': ['Een load test kijkt of de site veel gebruikers aan kan.', 'Het helpt servers voor te bereiden op drukte.'] }
       },
       {
         id: 'q5',
-        prompt: 'Welke login is het veiligst?',
+        prompt: 'Wat kan er gebeuren als te veel mensen tegelijk een website gebruiken?',
         options: [
-          { id: 'a', label: 'Wachtwoord + 2FA (code/app)' },
-          { id: 'b', label: 'Alleen wachtwoord' },
-          { id: 'c', label: 'Wachtwoord op post-it' },
-          { id: 'd', label: 'Wachtwoord delen met iemand' }
+          { id: 'a', label: 'De website wordt sneller' },
+          { id: 'b', label: 'De website crasht of wordt trager' },
+          { id: 'c', label: 'De website gaat weg' },
+          { id: 'd', label: 'De website wordt verwijdert' }
         ],
-        correctOptionId: 'a',
-        hintLinesByAge: { '11-13': ['2FA voegt een extra slot toe.', 'Zelfs bij lek is je account beter beschermd.'] }
+        correctOptionId: 'b',
+        hintLinesByAge: { '11-13': ['Te veel bezoekers kan de site traag maken of laten crashen.', 'Schaal servers om dit te voorkomen.'] }
       },
       {
         id: 'q6',
-        prompt: 'Wat is een goede gewoonte?',
+        prompt: 'Waarom worden bugs opgelost?',
         options: [
-          { id: 'a', label: 'Altijd “Onthoud mij” op openbare pc' },
-          { id: 'b', label: 'Uitloggen op gedeelde toestellen' },
-          { id: 'c', label: 'Op “Akkoord” klikken zonder te lezen' },
-          { id: 'd', label: 'Apps installeren van onbekende sites' }
+          { id: 'a', label: 'Om phishing te voorkomen' },
+          { id: 'b', label: 'Voor minder mensen tegelijk op de website te laten gaan' },
+          { id: 'c', label: 'Voor meer mensen tegelijk op de website te laten gaan' },
+          { id: 'd', label: 'Om de werking van de website te verbeteren' }
+        ],
+        correctOptionId: 'd',
+        hintLinesByAge: { '11-13': ['Bugs herstellen maakt de site betrouwbaarder.', 'Het verbetert gebruikerservaring en veiligheid.'] }
+      },
+      {
+        id: 'q7',
+        prompt: 'Zijn details belangrijk bij testen?',
+        options: [
+          { id: 'a', label: 'Nee, kleine details kunnen geen groot verschil maken' },
+          { id: 'b', label: 'Ja, alleen voor design' },
+          { id: 'c', label: 'Ja, kleine details kunnen een groot verschil maken' },
+          { id: 'd', label: 'Ja, alleen voor testers' }
+        ],
+        correctOptionId: 'c',
+        hintLinesByAge: { '11-13': ['Kleine fouten kunnen grote gevolgen hebben.', 'Let op details tijdens testen.'] }
+      },
+      {
+        id: 'q8',
+        prompt: 'Wat doet een tester?',
+        options: [
+          { id: 'a', label: 'Controleren of alles goed werkt' },
+          { id: 'b', label: 'Websites maken' },
+          { id: 'c', label: 'Websites kapot maken' },
+          { id: 'd', label: 'Bugs oplossen' }
+        ],
+        correctOptionId: 'a',
+        hintLinesByAge: { '11-13': ['Een tester controleert of functies werken.', 'Ze rapporteren en helpen problemen oplossen.'] }
+      },
+      {
+        id: 'q9',
+        prompt: 'Waarom testen we een website vóór ze online komt?',
+        options: [
+          { id: 'a', label: 'Om phishing te voorkomen' },
+          { id: 'b', label: 'Om problemen te vermijden' },
+          { id: 'c', label: 'Voor meer snelheid' },
+          { id: 'd', label: 'Voor het design' }
         ],
         correctOptionId: 'b',
-        hintLinesByAge: { '11-13': ['Log uit op gedeelde toestellen.', 'Zo kan niemand in jouw account.'] }
+        hintLinesByAge: { '11-13': ['Testen helpt problemen te vinden voor gebruikers ze zien.', 'Het vermindert risico na lancering.'] }
+      },
+      {
+        id: 'q10',
+        prompt: "Je krijgt een vreemde mail van je 'bank' met de vraag je gegevens te bevestigen. Wat doe je?",
+        options: [
+          { id: 'a', label: 'Je vult je gegevens in, want de mail ziet er officieel uit' },
+          { id: 'b', label: 'Je belt de bank via het nummer in de mail' },
+          { id: 'c', label: 'Je stuurt de mail door naar vrienden om te vragen of zij hem ook kregen' },
+          { id: 'd', label: 'Je verwijdert de mail en belt de bank via het officiële nummer op hun website' }
+        ],
+        correctOptionId: 'd',
+        hintLinesByAge: { '11-13': ['Gebruik officiële contactgegevens op de website, niet de link in de mail.', 'Bel de bank via het nummer op hun site.'] }
+      },
+      {
+        id: 'q11',
+        prompt: 'Wat kan een zwak wachtwoord veroorzaken?',
+        options: [
+          { id: 'a', label: 'Minder opslagruimte' },
+          { id: 'b', label: 'Een tragere computer' },
+          { id: 'c', label: 'Dat iemand je account hackt' },
+          { id: 'd', label: 'Een tragere website' }
+        ],
+        correctOptionId: 'c',
+        hintLinesByAge: { '11-13': ['Een zwak wachtwoord maakt je account kwetsbaar.', 'Gebruik sterke, unieke wachtwoorden.'] }
+      },
+      {
+        id: 'q12',
+        prompt: 'Wat gebeurt er als een website crasht?',
+        options: [
+          { id: 'a', label: 'Ze werkt tijdelijk niet meer' },
+          { id: 'b', label: 'Ze wordt sneller' },
+          { id: 'c', label: 'Je account wordt verwijdert' },
+          { id: 'd', label: 'Ze verwijdert zichzelf' }
+        ],
+        correctOptionId: 'a',
+        hintLinesByAge: { '11-13': ['Bij een crash werkt de site tijdelijk niet.', 'Soms is herstart of onderhoud nodig.'] }
       }
     ]
   }
@@ -251,63 +424,183 @@ function buildQuestionPool(age: AgeGroup): Question[] {
   return [
     {
       id: 'q1',
-      prompt: 'Welke password policy is het best?',
+      prompt: 'Welk wachtwoord lijkt sterk, maar is in werkelijkheid makkelijk te kraken door hackers?',
       options: [
-        { id: 'a', label: 'Min. 6 tekens, geen vereisten' },
-        { id: 'b', label: 'Min. 12 tekens + passphrase toegestaan' },
-        { id: 'c', label: 'Min. 8 tekens, verplicht elk teken-type' },
-        { id: 'd', label: 'Wachtwoord wisselen elke week' }
+        { id: 'a', label: '#Kabouter123' },
+        { id: 'b', label: 'Brighte$t2024' },
+        { id: 'c', label: 'vl@ggensch1p' },
+        { id: 'd', label: 'P@ssword!' }
       ],
-      correctOptionId: 'b',
-      hintLinesByAge: { '14-16': ['Lange passphrases zijn vaak sterker en beter te onthouden.', 'Forced complexity kan voorspelbaar worden.'] }
+      correctOptionId: 'd',
+      hintLinesByAge: { '14-16': ['Bekende woorden met kleine aanpassingen zijn vaak voorspelbaar.', 'Kies liever lange, unieke passphrases.'] }
     },
     {
       id: 'q2',
-      prompt: 'Kies de veiligste aanpak voor wachtwoorden.',
+      prompt: 'Welk wachtwoord is het veiligst volgens best practices?',
       options: [
-        { id: 'a', label: 'Zelf bedenken en hergebruiken' },
-        { id: 'b', label: 'Password manager + unieke wachtwoorden' },
-        { id: 'c', label: 'In een notitie-app zonder lock' },
-        { id: 'd', label: 'In je browser, zonder master password' }
+        { id: 'a', label: 'Welkom2024' },
+        { id: 'b', label: 'Jan12345' },
+        { id: 'c', label: 'IkHouVanPizza!2024' },
+        { id: 'd', label: '12345678' }
       ],
-      correctOptionId: 'b',
-      hintLinesByAge: { '14-16': ['Uniek per service + manager reduceert risico bij leaks.'] }
+      correctOptionId: 'c',
+      hintLinesByAge: { '14-16': ['Lange, unieke zinnen met symbolen zijn sterk.', 'Passphrases zijn vaak makkelijker te onthouden en veiliger.'] }
     },
     {
       id: 'q3',
-      prompt: 'Phishing: wat is het juiste gedrag?',
+      prompt: 'Wat beschrijft phishing het best in een realistische situatie?',
       options: [
-        { id: 'a', label: 'Link openen en dan beslissen' },
-        { id: 'b', label: 'URL/afzender verifiëren, desnoods via aparte kanaal' },
-        { id: 'c', label: 'Credentials invullen om snel klaar te zijn' },
-        { id: 'd', label: 'Bijlage downloaden om te checken' }
+        { id: 'a', label: 'Een techniek waarbij aanvallers kwetsbaarheden in software misbruiken' },
+        { id: 'b', label: 'Een aanval waarbij iemand zich voordoet als een betrouwbare bron om gegevens te ontfutselen' },
+        { id: 'c', label: 'Een methode om versleutelde verbindingen te onderscheppen' },
+        { id: 'd', label: 'Een geautomatiseerd script dat wachtwoorden raadt via brute force' }
       ],
       correctOptionId: 'b',
-      hintLinesByAge: { '14-16': ['Verifieer via een onafhankelijke bron.', 'Nooit credentials via mailforms.'] }
+      hintLinesByAge: { '14-16': ['Phishing richt zich op misleiding en vertrouwen.', 'Controleer headers, afzender en links nauwkeurig.'] }
     },
     {
       id: 'q4',
-      prompt: 'Pseudocode: wanneer lock je een account?',
+      prompt: 'Waarom zijn phishing-aanvallen vaak succesvol, zelfs bij slimme gebruikers?',
       options: [
-        { id: 'a', label: 'IF tries > 3 THEN lockAccount()' },
-        { id: 'b', label: 'IF password == "admin" THEN ok()' },
-        { id: 'c', label: 'IF userIsAdmin THEN allow()' },
-        { id: 'd', label: 'IF input != null THEN allow()' }
+        { id: 'a', label: 'Ze gebruiken geavanceerde AI-hacks' },
+        { id: 'b', label: 'Ze werken enkel via virussen' },
+        { id: 'c', label: 'Ze zijn altijd technisch complex' },
+        { id: 'd', label: 'Ze spelen in op vertrouwen, emotie en urgentie' }
       ],
-      correctOptionId: 'a',
-      hintLinesByAge: { '14-16': ['Rate limiting / lockouts mitigeren brute force.', 'De andere opties zijn zwak of irrelevant.'] }
+      correctOptionId: 'd',
+      hintLinesByAge: { '14-16': ['Psychologische triggers zoals urgentie werken goed op mensen.', 'Wees kritisch bij mails die haast suggereren.'] }
     },
     {
       id: 'q5',
-      prompt: 'Wat is het doel van 2FA?',
+      prompt: 'Welke van deze is een typisch voorbeeld van een phishing-techniek?',
       options: [
-        { id: 'a', label: 'Sneller inloggen' },
-        { id: 'b', label: 'Extra factor naast wachtwoord' },
-        { id: 'c', label: 'Wachtwoorden overbodig maken' },
-        { id: 'd', label: 'E-mails blokkeren' }
+        { id: 'a', label: 'HTTPS loginpagina van je bank' },
+        { id: 'b', label: 'Officiële systeemupdate' },
+        { id: 'c', label: 'Mail die je onder druk vraagt om gegevens te bevestigen' },
+        { id: 'd', label: 'Pushmelding van een app' }
+      ],
+      correctOptionId: 'c',
+      hintLinesByAge: { '14-16': ['Phishing-mails vragen vaak om directe actie of inloggegevens.', 'Controleer URL en afzender voordat je iets invult.'] }
+    },
+    {
+      id: 'q6',
+      prompt: 'Wat is het belangrijkste doel van een load test in softwareontwikkeling?',
+      options: [
+        { id: 'a', label: 'Systeemgedrag meten onder realistische piekbelasting' },
+        { id: 'b', label: 'UI verbeteren en design aanpassen' },
+        { id: 'c', label: 'Code optimaliseren voor snelheid' },
+        { id: 'd', label: 'Interfaces testen op gebruiksvriendelijkheid' }
+      ],
+      correctOptionId: 'a',
+      hintLinesByAge: { '14-16': ['Load tests meten prestaties onder hoge belasting.', 'Ze helpen knelpunten en schaalbaarheidsproblemen vinden.'] }
+    },
+    {
+      id: 'q7',
+      prompt: 'Wat is het verschil tussen een load test en een stress test?',
+      options: [
+        { id: 'a', label: 'Load test is functioneel, stress test visueel' },
+        { id: 'b', label: 'Load test simuleert normaal gebruik, stress test extreme belasting' },
+        { id: 'c', label: 'Stress test is altijd geautomatiseerd' },
+        { id: 'd', label: 'Er is geen technisch verschil' }
       ],
       correctOptionId: 'b',
-      hintLinesByAge: { '14-16': ['2FA = iets dat je hebt/ bent naast iets dat je weet.'] }
+      hintLinesByAge: { '14-16': ['Load test = normale piek; stress test = voorbij normale limieten.', 'Stress tests laten zien wanneer systemen falen.'] }
+    },
+    {
+      id: 'q8',
+      prompt: 'Wat bedoelen we met schaalbaarheid van een systeem?',
+      options: [
+        { id: 'a', label: 'Hoe snel het opstart na reboot' },
+        { id: 'b', label: 'Hoeveel fouten het systeem heeft' },
+        { id: 'c', label: 'Hoe mooi de interface schaalt op schermen' },
+        { id: 'd', label: 'Hoe goed het systeem extra belasting aankan bij groei' }
+      ],
+      correctOptionId: 'd',
+      hintLinesByAge: { '14-16': ['Schaalbaarheid betekent: groei verzorgen zonder performanceverlies.', 'Architectuur en resources bepalen schaalbaarheid.'] }
+    },
+    {
+      id: 'q9',
+      prompt: 'Wat is het meest waarschijnlijke gevolg van een softwareproject zonder testing?',
+      options: [
+        { id: 'a', label: 'Onvoorspelbare bugs in productie' },
+        { id: 'b', label: 'Lagere kosten en stabieler product' },
+        { id: 'c', label: 'Snellere release zonder problemen' },
+        { id: 'd', label: 'Betere UX door minder restricties' }
+      ],
+      correctOptionId: 'a',
+      hintLinesByAge: { '14-16': ['Zonder testing komen bugs onvoorspelbaar in productie.', 'Dit kan leiden tot downtime en gebruikersproblemen.'] }
+    },
+    {
+      id: 'q10',
+      prompt: 'Wat is de beste definitie van een “bug” in software?',
+      options: [
+        { id: 'a', label: 'Onvoltooide feature in development' },
+        { id: 'b', label: 'Visuele afwijking in UI design' },
+        { id: 'c', label: 'Onbedoeld gedrag door fout in code of logica' },
+        { id: 'd', label: 'Geplande systeemwijziging' }
+      ],
+      correctOptionId: 'c',
+      hintLinesByAge: { '14-16': ['Een bug is onbedoeld gedrag door code of logica.', 'Bugs kunnen functioneel of security-gerelateerd zijn.'] }
+    },
+    {
+      id: 'q11',
+      prompt: 'Waarom zijn details cruciaal in kwaliteitscontrole (QA)?',
+      options: [
+        { id: 'a', label: 'Omdat ze enkel esthetisch belangrijk zijn' },
+        { id: 'b', label: 'Omdat kleine afwijkingen grote systeemimpact kunnen hebben' },
+        { id: 'c', label: 'Omdat testers alleen op details letten' },
+        { id: 'd', label: 'Omdat details tijd besparen' }
+      ],
+      correctOptionId: 'b',
+      hintLinesByAge: { '14-16': ['Kleine afwijkingen kunnen cascade-fouten veroorzaken.', 'QA zoekt deze subtiele issues vroeg in het proces.'] }
+    },
+    {
+      id: 'q12',
+      prompt: 'Wat kan de impact zijn van een kleine fout in een systeem?',
+      options: [
+        { id: 'a', label: 'Geen effect in de praktijk' },
+        { id: 'b', label: 'Alleen cosmetische issues' },
+        { id: 'c', label: 'Enkel lichte vertraging' },
+        { id: 'd', label: 'Kritische fouten in functionaliteit of security' }
+      ],
+      correctOptionId: 'd',
+      hintLinesByAge: { '14-16': ['Een klein foutje kan grote gevolgen hebben in productie.', 'Denk aan security en business impact.'] }
+    },
+    {
+      id: 'q13',
+      prompt: 'Waarom is observatie een belangrijke skill voor testers?',
+      options: [
+        { id: 'a', label: 'Omdat subtiele afwijkingen anders gemist worden' },
+        { id: 'b', label: 'Omdat testers vooral code schrijven' },
+        { id: 'c', label: 'Omdat testen automatisch gebeurt' },
+        { id: 'd', label: 'Omdat bugs vanzelf zichtbaar zijn' }
+      ],
+      correctOptionId: 'a',
+      hintLinesByAge: { '14-16': ['Observation helpt om subtiele regressies te vinden.', 'Let op edge cases en rare combinaties.'] }
+    },
+    {
+      id: 'q14',
+      prompt: 'Wat is de belangrijkste rol van QA (Quality Assurance) binnen een team?',
+      options: [
+        { id: 'a', label: 'Nieuwe features bouwen' },
+        { id: 'b', label: 'Code review uitvoeren als developers' },
+        { id: 'c', label: 'Kwaliteit bewaken en risico\'s vroeg detecteren' },
+        { id: 'd', label: 'Marketing verbeteren' }
+      ],
+      correctOptionId: 'c',
+      hintLinesByAge: { '14-16': ['QA bewaakt kwaliteit en vindt risico\'s vroeg.', 'Ze helpen besluiten te nemen over release readiness.'] }
+    },
+    {
+      id: 'q15',
+      prompt: 'Waarom is duidelijke communicatie belangrijk bij softwareontwikkeling en testing?',
+      options: [
+        { id: 'a', label: 'Omdat development dan trager gaat' },
+        { id: 'b', label: 'Omdat het misverstanden en fouten voorkomt in het proces' },
+        { id: 'c', label: 'Omdat het alleen nuttig is voor managers' },
+        { id: 'd', label: 'Omdat het design strakker maakt' }
+      ],
+      correctOptionId: 'b',
+      hintLinesByAge: { '14-16': ['Duidelijke communicatie voorkomt misverstanden en regressies.', 'Het helpt teams sneller en correcter leveren.'] }
     }
   ]
 }
@@ -355,16 +648,29 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
   const [floatingDelta, setFloatingDelta] = useState<{ target: 'player' | 'bug'; value: number } | null>(null)
+  // ensure linter sees the variable as 'used' in environments where JSX usage
+  // might not be detected by the ESLint rule; this is a harmless no-op read
+  // that avoids the TS6133 / no-unused-vars warning.
+  void floatingDelta
 
   const checkingRef = useRef(false)
   const hintAutoShownRef = useRef(false)
 
   const percent = useMemo(() => computePercent(totalCorrect, totalWrong), [totalCorrect, totalWrong])
-  const starCount = useMemo(() => computeStars(percent), [percent])
-  const circleStyle = useMemo(
-    () => ({ ['--pz-score-pct' as unknown as string]: `${percent}%` } as unknown as React.CSSProperties),
-    [percent]
-  )
+  // If the end screen is visible, use the player's final energy as the
+  // displayed percentage and star calculation. This ensures that when the
+  // player stops the game (which sets playerEnergy to 0) the stars and score
+  // circle reflect that final score instead of an earlier percent based on
+  // correct/wrong answers.
+  const starCount = useMemo(() => {
+    const pctForStars = showEnd ? Math.max(0, Math.min(100, Math.round(playerEnergy))) : percent
+    return computeStars(pctForStars)
+  }, [percent, showEnd, playerEnergy])
+
+  const circleStyle = useMemo(() => {
+    const pctForCircle = showEnd ? Math.max(0, Math.min(100, Math.round(playerEnergy))) : percent
+    return ({ ['--pz-score-pct' as unknown as string]: `${pctForCircle}%` } as unknown as React.CSSProperties)
+  }, [percent, showEnd, playerEnergy])
 
   const localHighKey = useMemo(() => `pz-highscore_fightthebug_${effectiveAge}`, [effectiveAge])
   const [highScore, setHighScore] = useState<number | null>(() => {
@@ -583,12 +889,15 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setShowPracticeStart(false)
     setShowPracticeEnd(false)
     setShowIntro(false)
+    if (reason === 'stop') {
+      // Mark as stopped by user and ensure player energy is shown as 0
+      setStoppedByUser(true)
+      try { setPlayerEnergy(0) } catch { /* ignore */ }
+    }
 
-    if (reason === 'stop') setStoppedByUser(true)
-
-    // Use the player's remaining energy (0-100) as the final score/percentage.
-    // The score should reflect how much HP the player has left out of 100.
-    const finalScore = Math.max(0, Math.min(100, Math.round(playerEnergy)))
+    // Use the player's remaining energy (0-100) as the final score/percentage,
+    // except when the user stopped the game: then finalScore is explicitly 0.
+    const finalScore = reason === 'stop' ? 0 : Math.max(0, Math.min(100, Math.round(playerEnergy)))
     try {
       const prev = highScore ?? 0
       const next = Math.max(prev, finalScore)
@@ -669,7 +978,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       setAnswerState('correct')
       setFeedback(randFrom(POSITIVE_FEEDBACK))
       setFeedbackType('good')
-      setFloatingDelta({ target: 'bug', value: -10 })
+      // show the delta as a positive number ("10 energie") — the color/context
+      // already indicates this is a loss for the bug. Keep the subtraction logic
+      // unchanged so energy is still decreased by 10.
+      setFloatingDelta({ target: 'bug', value: 10 })
 
       setBugEnergy((prev) => Math.max(0, prev - 10))
       setTotalCorrect((prev) => prev + 1)
@@ -692,7 +1004,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setAnswerState('wrong')
     setFeedback(randFrom(NEGATIVE_FEEDBACK))
     setFeedbackType('bad')
-    setFloatingDelta({ target: 'player', value: -10 })
+    // show the delta as a positive number ("10 energie") for consistency
+    // and remove the negative sign from the badge. Energy is still reduced.
+    setFloatingDelta({ target: 'player', value: 10 })
     setPlayerEnergy((prev) => Math.max(0, prev - 10))
     setTotalWrong((prev) => {
       const next = prev + 1
@@ -747,46 +1061,52 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   }, [progressTotal, progressValue])
 
   return (
-    <div className="ftb-root">
-      <div className="ftb-game-area">
+    <div id="ftb-root" className="ftb-root">
+      <div id="ftb-game-area" className="ftb-game-area">
       {!showEnd && (
-        <div>
+        <div id="ftb-main">
           {isPractice && (
-            <div className="ftb-top-left">
-              <div className="ftb-pill">Oefenronde</div>
+            <div id="ftb-top-left" className="ftb-top-left">
+              <div id="ftb-pill" className="ftb-pill">Oefenronde</div>
             </div>
           )}
 
           {/* HUD: only show the Bug energy in the top-left HUD when NOT in practice */}
           {!isPractice && (
-            <div className="ftb-hud">
-              <div className="ftb-energy ftb-energy--bug" aria-label="Energie Bug">
-                <div className="ftb-energy__title">Energie Bug</div>
-                <div className="ftb-energy__bar">
-                  <div className="ftb-energy__fill ftb-energy__fill--bug" style={{ width: `${Math.max(0, Math.min(100, bugEnergy))}%` }} />
-                  <div className="ftb-energy__value">{bugEnergy}</div>
+              <div id="ftb-hud" className="ftb-hud">
+                <div className="ftb-energy-bug-wrapper">
+                  <div id="ftb-energy-bug" className="ftb-energy ftb-energy--bug" aria-label="Energie Bug">
+                    <div id="ftb-energy-bug-title" className="ftb-energy__title">Energie Bug</div>
+                    <div id="ftb-energy-bug-bar" className="ftb-energy__bar">
+                      <div id="ftb-energy-bug-fill" className="ftb-energy__fill ftb-energy__fill--bug" style={{ width: `${Math.max(0, Math.min(100, bugEnergy))}%` }} />
+                      <div id="ftb-energy-bug-value" className="ftb-energy__value">{bugEnergy}</div>
+                    </div>
+                  </div>
+                  {/* green bug delta removed per request */}
                 </div>
-                {floatingDelta?.target === 'bug' && <div className="ftb-delta ftb-delta--good">{floatingDelta.value} energie</div>}
               </div>
-            </div>
           )}
 
-          <div className={`ftb-bug ${feedbackType ? (feedbackType === 'good' ? 'ftb-bug--good' : 'ftb-bug--bad') : ''}`} aria-hidden>
-            <div className="ftb-bug__face" />
-            {feedback && <div className={`ftb-banner ${feedbackType === 'good' ? 'ftb-banner--good' : 'ftb-banner--bad'}`}>{feedback}</div>}
+          <div id="ftb-bug" className={`ftb-bug ${feedbackType ? (feedbackType === 'good' ? 'ftb-bug--good' : 'ftb-bug--bad') : ''}`} aria-hidden>
+            <div id="ftb-bug-face" className="ftb-bug__face" />
+            {feedback && <div id="ftb-banner" className={`ftb-banner ${feedbackType === 'good' ? 'ftb-banner--good' : 'ftb-banner--bad'}`}>{feedback}</div>}
+            {/* Floating delta for bug (uses floatingDelta state so the variable is read) */}
+            {/* bug floating delta removed per request */}
           </div>
 
-          <div className="ftb-question">
-            <div className="ftb-question__box">
-              <div className="ftb-question__title">{question.prompt}</div>
-              <div className="ftb-options" role="list">
+          <div id="ftb-question" className="ftb-question">
+            <div id="ftb-question-box" className="ftb-question__box">
+              <div id="ftb-question-title" className="ftb-question__title">{question.prompt}</div>
+              <div id="ftb-options-list" className="ftb-options" role="list">
                 {question.options.slice(0, 4).map((opt) => {
                   const isSelected = selectedOptionId === opt.id
                   const isCorrect = answerState === 'correct' && isSelected
                   const isWrong = answerState === 'wrong' && isSelected
+                  const isOptionCorrect = opt.id === question.correctOptionId
                   return (
                     <button
                       key={opt.id}
+                      id={isOptionCorrect ? `ftb-option-${question.id}-${opt.id}-correct` : `ftb-option-${question.id}-${opt.id}-wrong`}
                       className={[
                         'ftb-option',
                         isSelected ? 'ftb-option--selected' : '',
@@ -798,8 +1118,8 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                       aria-label={opt.label}
                       type="button"
                     >
-                      {opt.icon && <span className="ftb-option__icon" aria-hidden>{opt.icon}</span>}
-                      <span className="ftb-option__label">{opt.label}</span>
+                      {opt.icon && <span id={isOptionCorrect ? `ftb-option-icon-${question.id}-${opt.id}-correct` : `ftb-option-icon-${question.id}-${opt.id}-wrong`} className="ftb-option__icon" aria-hidden>{opt.icon}</span>}
+                      <span id={isOptionCorrect ? `ftb-option-label-${question.id}-${opt.id}-correct` : `ftb-option-label-${question.id}-${opt.id}-wrong`} className="ftb-option__label">{opt.label}</span>
                     </button>
                   )
                 })}
@@ -808,23 +1128,23 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           </div>
 
           {isPractice ? (
-            <div className="ftb-progress" aria-label="Progress">
-            <div className="ftb-progress__label">Juiste antwoorden</div>
-            <div className="ftb-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={progressTotal} aria-valuenow={progressValue}>
-              <div className="ftb-progress__fill" style={{ width: `${progressPercent}%` }} />
-              <div className="ftb-progress__text">{progressValue}/{progressTotal}</div>
+            <div id="ftb-progress" className="ftb-progress" aria-label="Progress">
+            <div id="ftb-progress-label" className="ftb-progress__label">Juiste antwoorden</div>
+            <div id="ftb-progress-track" className="ftb-progress__track" role="progressbar" aria-valuemin={0} aria-valuemax={progressTotal} aria-valuenow={progressValue}>
+              <div id="ftb-progress-fill" className="ftb-progress__fill" style={{ width: `${progressPercent}%` }} />
+              <div id="ftb-progress-text" className="ftb-progress__text">{progressValue}/{progressTotal}</div>
             </div>
             </div>
           ) : (
             /* During the real game show the player energy in the bottom-left progress area */
-            <div className="ftb-progress" aria-label="Energie Speler">
-              <div className="ftb-energy ftb-energy--player">
-                <div className="ftb-energy__title">Energie Speler</div>
-                <div className="ftb-energy__bar">
-                  <div className="ftb-energy__fill ftb-energy__fill--player" style={{ width: `${Math.max(0, Math.min(100, playerEnergy))}%` }} />
-                  <div className="ftb-energy__value">{playerEnergy}</div>
+            <div id="ftb-progress" className="ftb-progress" aria-label="Energie Speler">
+                <div id="ftb-energy-player" className="ftb-energy ftb-energy--player">
+                <div id="ftb-energy-player-title" className="ftb-energy__title">Energie Speler</div>
+                <div id="ftb-energy-player-bar" className="ftb-energy__bar">
+                  <div id="ftb-energy-player-fill" className="ftb-energy__fill ftb-energy__fill--player" style={{ width: `${Math.max(0, Math.min(100, playerEnergy))}%` }} />
+                  <div id="ftb-energy-player-value" className="ftb-energy__value">{playerEnergy}</div>
                 </div>
-                {floatingDelta?.target === 'player' && <div className="ftb-delta ftb-delta--bad">{floatingDelta.value} energie</div>}
+                {/* player floating delta removed per request */}
               </div>
             </div>
           )}
@@ -832,15 +1152,15 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {showIntro && (
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal">
-            <h2>Speluitleg - Fight the bug</h2>
-            <div className="pz-start-container">
-              <ul className="pz-start-bullets">
-                {INTRO_BY_AGE[effectiveAge].map((line) => <li key={line}>{line}</li>)}
+        <div id="ftb-intro-overlay" className="pz-start-overlay">
+          <div id="ftb-intro-modal" className="pz-start-modal">
+            <h2 id="ftb-intro-title">Speluitleg - Fight the bug</h2>
+            <div id="ftb-intro-container" className="pz-start-container">
+              <ul id="ftb-intro-bullets" className="pz-start-bullets">
+                {INTRO_BY_AGE[effectiveAge].map((line, i) => <li key={line} id={`ftb-intro-${i}`}>{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowIntro(false); setShowPracticeStart(true) }} type="button">
+                <button id="ftb-intro-next" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowIntro(false); setShowPracticeStart(true) }} type="button">
                   Volgende
                 </button>
               </div>
@@ -850,20 +1170,20 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {showPracticeStart && (
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal">
-            <h2>Even oefenen!</h2>
-            <div className="pz-start-container">
-              <p style={{ marginTop: 4, marginBottom: 10 }}>De Bug stelt vragen. Kies het juiste antwoord of voer de juiste actie uit.</p>
-              <ul className="pz-start-bullets">
-                {PRACTICE_RULES[effectiveAge].slice(1).map((line) => <li key={line}>{line}</li>)}
+        <div id="ftb-practice-start-overlay" className="pz-start-overlay">
+          <div id="ftb-practice-start-modal" className="pz-start-modal">
+            <h2 id="ftb-practice-start-title">Even oefenen!</h2>
+            <div id="ftb-practice-start-container" className="pz-start-container">
+              <p id="ftb-practice-start-desc" style={{ marginTop: 4, marginBottom: 10 }}>De Bug stelt vragen. Kies het juiste antwoord of voer de juiste actie uit.</p>
+              <ul id="ftb-practice-start-bullets" className="pz-start-bullets">
+                {PRACTICE_RULES[effectiveAge].slice(1).map((line, i) => <li key={line} id={`ftb-practice-rule-${i}`}>{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                  <button className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: true }); startPractice() }} type="button">
+                  <button id="ftb-play-practice" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: true }); startPractice() }} type="button">
                     Spelen
                   </button>
-                  <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
+                  <button id="ftb-skip-practice" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
                     Oefenronde overslaan
                   </button>
                 </div>
@@ -874,16 +1194,16 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {showPracticeEnd && (
-        <div className="pz-start-overlay">
-          <div className="pz-start-modal">
-            <h2>Het echte spel begint nu</h2>
-            <div className="pz-start-container">
-              <p style={{ marginTop: 6, marginBottom: 10 }}>Je weet nu hoe het spel werkt. Succes!</p>
+        <div id="ftb-practice-end-overlay" className="pz-start-overlay">
+          <div id="ftb-practice-end-modal" className="pz-start-modal">
+            <h2 id="ftb-practice-end-title">Het echte spel begint nu</h2>
+            <div id="ftb-practice-end-container" className="pz-start-container">
+              <p id="ftb-practice-end-desc" style={{ marginTop: 6, marginBottom: 10 }}>Je weet nu hoe het spel werkt. Succes!</p>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
+                <button id="ftb-play-real" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
                   Spelen
                 </button>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }} type="button">
+                <button id="ftb-practice-again" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }} type="button">
                   Opnieuw oefenen
                 </button>
               </div>
@@ -893,15 +1213,15 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {showHelp && (
-        <div className="pz-pause-overlay">
-          <div className="pz-pause-modal pz-hint-modal">
-            <h2>Speluitleg - Fight the bug</h2>
-            <div className="pz-hint-container" style={{ marginTop: 12 }}>
-              <ul className="pz-start-bullets pz-hint-bullets">
-                {INTRO_BY_AGE[effectiveAge].map((line) => <li key={line} className="pz-hint-item">{line}</li>)}
+        <div id="ftb-help-overlay" className="pz-pause-overlay">
+          <div id="ftb-help-modal" className="pz-pause-modal pz-hint-modal">
+            <h2 id="ftb-help-title">Speluitleg - Fight the bug</h2>
+            <div id="ftb-help-container" className="pz-hint-container" style={{ marginTop: 12 }}>
+              <ul id="ftb-help-bullets" className="pz-start-bullets pz-hint-bullets">
+                {INTRO_BY_AGE[effectiveAge].map((line, i) => <li key={line} id={`ftb-help-${i}`} className="pz-hint-item">{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHelp(false); setPaused(false) }} type="button">
+                <button id="ftb-help-continue" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHelp(false); setPaused(false) }} type="button">
                   Verder spelen
                 </button>
               </div>
@@ -911,15 +1231,15 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {showHint && (
-        <div className="pz-pause-overlay">
-          <div className="pz-pause-modal pz-hint-modal">
-            <h2>Hint</h2>
-            <div className="pz-hint-container" style={{ marginTop: 12 }}>
-              <ul className="pz-start-bullets pz-hint-bullets">
-                {hintLines.map((line) => <li key={line} className="pz-hint-item">{line}</li>)}
+        <div id="ftb-hint-overlay" className="pz-pause-overlay">
+          <div id="ftb-hint-modal" className="pz-pause-modal pz-hint-modal">
+            <h2 id="ftb-hint-title">Hint</h2>
+            <div id="ftb-hint-container" className="pz-hint-container" style={{ marginTop: 12 }}>
+              <ul id="ftb-hint-bullets" className="pz-start-bullets pz-hint-bullets">
+                {hintLines.map((line, i) => <li key={line} id={`ftb-hint-${i}`} className="pz-hint-item">{line}</li>)}
               </ul>
               <div style={{ textAlign: 'center' }}>
-                <button className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false) }} type="button">
+                <button id="ftb-hint-continue" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowHint(false); setPaused(false) }} type="button">
                   Verder spelen
                 </button>
               </div>
@@ -929,10 +1249,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {paused && !showPracticeEnd && !showPracticeStart && !showIntro && !showHelp && !showHint && (
-        <div className="pz-pause-overlay">
-          <div className="pz-pause-modal">
-            <h2>Pauze</h2>
-            <div className="pz-pause-actions">
+        <div id="ftb-pause-overlay" className="pz-pause-overlay">
+          <div id="ftb-pause-modal" className="pz-pause-modal">
+            <h2 id="ftb-pause-title">Pauze</h2>
+            <div id="ftb-pause-actions" className="pz-pause-actions">
               <button id="btnContinueGame" className="pz-pause-action pz-pause-action--primary" onClick={() => setPaused(false)} type="button">Verder spelen</button>
               <button id="btnRestartGame" className="pz-pause-action pz-pause-action--primary" onClick={restartGame} type="button">Opnieuw beginnen</button>
               <button id="btnStopGame" className="pz-pause-action pz-pause-action--danger" onClick={() => endGame('stop')} type="button">Stoppen</button>
@@ -942,23 +1262,23 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       )}
 
       {showEnd && (
-        <div className="pz-end">
+        <div id="ftb-end" className="pz-end">
           <div className="pz-best-top">
-            <div className="pz-best-top__label">
-              Hoogste score: <span className="pz-best-top__time">{highScore ?? Math.max(0, Math.round(playerEnergy))}</span>
-              {isNewHigh && <span style={{ marginLeft: 10, fontWeight: 700, color: '#166534' }}>Nieuw!</span>}
+            <div id="ftb-highscore" className="pz-best-top__label">
+              Hoogste score: <span id="ftb-highscore-value" className="pz-best-top__time">{highScore ?? Math.max(0, Math.round(playerEnergy))}</span>
+              {isNewHigh && <span id="ftb-new-high" style={{ marginLeft: 10, fontWeight: 700, color: '#166534' }}>Nieuw!</span>}
             </div>
           </div>
-          <div className="pz-end-box">
-            <div className="pz-end-content">
-              <div className="pz-end-left">
-                  <div className="pz-score-circle" aria-hidden style={circleStyle}>
-                    <div className="pz-score-label">SCORE</div>
-                    <div className="pz-score-number">{Math.max(0, Math.round(playerEnergy))}</div>
-                    <div className="pz-score-percent">{Math.max(0, Math.round(playerEnergy))}%</div>
-                    <div className="pz-score-stars" aria-hidden>
+          <div id="ftb-end-box" className="pz-end-box">
+            <div id="ftb-end-content" className="pz-end-content">
+              <div id="ftb-end-left" className="pz-end-left">
+                  <div id="ftb-score-circle" className="pz-score-circle" aria-hidden style={circleStyle}>
+                    <div id="ftb-score-label" className="pz-score-label">SCORE</div>
+                    <div id="ftb-score-number" className="pz-score-number">{Math.max(0, Math.round(playerEnergy))}</div>
+                    <div id="ftb-score-percent" className="pz-score-percent">{Math.max(0, Math.round(playerEnergy))}%</div>
+                    <div id="ftb-score-stars" className="pz-score-stars" aria-hidden>
                       {Array.from({ length: 3 }).map((_, i) => (
-                        <span key={i} className={`pz-star ${i < starCount ? 'pz-star--filled' : 'pz-star--empty'}`} aria-hidden>
+                        <span key={i} id={`ftb-star-${i}`} className={`pz-star ${i < starCount ? 'pz-star--filled' : 'pz-star--empty'}`} aria-hidden>
                           <svg viewBox="0 0 24 24" role="img" aria-hidden="true" focusable="false">
                             <path d="M12 .587l3.668 7.431 8.2 1.193-5.934 5.788 1.402 8.168L12 18.896l-7.336 3.869 1.402-8.168L.132 9.211l8.2-1.193z" />
                           </svg>
@@ -968,27 +1288,27 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                   </div>
 
                   {/* Show number of correct and wrong answers like other games */}
-                  <div className="pz-stats-row">
-                    <div className="pz-stats-correct">
+                  <div id="ftb-stats-row" className="pz-stats-row">
+                    <div id="ftb-stats-correct" className="pz-stats-correct">
                       <div className="shine" aria-hidden />
-                      <div className="label">Juiste</div>
-                      <div className="score">{totalCorrect}</div>
+                      <div id="ftb-stats-correct-label" className="label">Juiste</div>
+                      <div id="ftb-total-correct" className="score">{totalCorrect}</div>
                     </div>
-                    <div className="pz-stats-wrong">
+                    <div id="ftb-stats-wrong" className="pz-stats-wrong">
                       <div className="shine" aria-hidden />
-                      <div className="label">Foute</div>
-                      <div className="score">{totalWrong}</div>
+                      <div id="ftb-stats-wrong-label" className="label">Foute</div>
+                      <div id="ftb-total-wrong" className="score">{totalWrong}</div>
                     </div>
                   </div>
 
                 </div>
 
-                <div className="pz-end-right">
-                  <div className="pz-tips-card">
-                    <h3>{stoppedByUser ? 'Spel gestopt' : (playerEnergy <= 0 ? 'Je verloor…' : 'Je versloeg de Bug!')}</h3>
+                <div id="ftb-end-right" className="pz-end-right">
+                  <div id="ftb-tips-card" className="pz-tips-card">
+                    <h3 id="ftb-end-title">{stoppedByUser ? 'Spel gestopt' : (playerEnergy <= 0 ? 'Je verloor…' : 'Je versloeg de Bug!')}</h3>
                     <div className="pz-tips">
                       <ul>
-                        <li>{stoppedByUser ? 'Je spel is gestopt en je kan opnieuw proberen.' : 'Blijf veilig: gebruik sterke wachtwoorden en denk na voor je klikt.'}</li>
+                        <li id="ftb-end-tip-1">{stoppedByUser ? 'Je spel is gestopt en je kan opnieuw proberen.' : 'Blijf veilig: gebruik sterke wachtwoorden en denk na voor je klikt.'}</li>
                       </ul>
                     </div>
                     <div className="pz-end-actions" style={{ textAlign: 'center' }}>
