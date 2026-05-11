@@ -82,8 +82,8 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '8-10')
   })
 
-  it('hint button is initially disabled and unlocks after global event', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
+  it('hint button is initially enabled for bugcleanup and stays enabled', async () => {
+    window.history.replaceState({}, '', '/?game=bugcleanup')
 
     render(
       <MemoryRouter>
@@ -93,7 +93,8 @@ describe('MinigamePage', () => {
 
     const hintButton = screen.getByLabelText('Hint') as HTMLButtonElement
     expect(hintButton).toBeInTheDocument()
-    expect(hintButton.disabled).toBe(true)
+    expect(hintButton.disabled).toBe(false)
+    expect(hintButton.title).toBe('Toon hint')
 
     // dispatch the global event that the game uses to signal hints unlocked
     window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
@@ -128,6 +129,9 @@ describe('MinigamePage', () => {
   })
 
   it('maps age parameter correctly with various inputs', async () => {
+    // Clear any existing sessionStorage that might interfere
+    sessionStorage.clear()
+    
     // Test URL-encoded age parameter
     window.history.replaceState({}, '', '/?game=passwordzapper&age=8%2D10')
     render(
@@ -139,6 +143,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '8-10')
     cleanup()
 
+    // Clear sessionStorage again
+    sessionStorage.clear()
+    
     // Test age starting with 8
     window.history.replaceState({}, '', '/?game=passwordzapper&age=8')
     render(
@@ -150,6 +157,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '8-10')
     cleanup()
 
+    // Clear sessionStorage again
+    sessionStorage.clear()
+    
     // Test age starting with 14
     window.history.replaceState({}, '', '/?game=passwordzapper&age=14')
     render(
@@ -161,6 +171,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '14-16')
     cleanup()
 
+    // Clear sessionStorage again
+    sessionStorage.clear()
+    
     // Test invalid age defaults to 11-13
     window.history.replaceState({}, '', '/?game=passwordzapper&age=invalid')
     render(
@@ -249,8 +262,12 @@ describe('MinigamePage', () => {
     )
   })
 
-  it('hint button is initially disabled', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
+  it('hint button is initially enabled for bugcleanup', async () => {
+    // Clear any existing global flag
+    const w = window as unknown as Record<string, unknown>
+    delete w['__pz_hint_unlocked']
+    
+    window.history.replaceState({}, '', '/?game=bugcleanup')
 
     render(
       <MemoryRouter>
@@ -259,8 +276,8 @@ describe('MinigamePage', () => {
     )
 
     const hintButton = screen.getByLabelText('Hint') as HTMLButtonElement
-    expect(hintButton.disabled).toBe(true)
-    expect(hintButton.title).toBe('Hints worden beschikbaar na enkele fouten')
+    expect(hintButton.disabled).toBe(false)
+    expect(hintButton.title).toBe('Toon hint')
   })
 
   it('initializes sessionStorage playerActiveGame when not present', async () => {
@@ -313,7 +330,7 @@ describe('MinigamePage', () => {
   })
 
   it('initializes hintUnlocked from global window flag', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
+    window.history.replaceState({}, '', '/?game=bugcleanup')
     
     // Set global flag before rendering
     const w = window as unknown as Record<string, unknown>
@@ -427,6 +444,9 @@ describe('MinigamePage', () => {
   })
 
   it('tests more age mapping edge cases', async () => {
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
     // Test with URL-encoded dash
     window.history.replaceState({}, '', '/?game=passwordzapper&age=11%2D13')
     render(
@@ -438,6 +458,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '11-13')
     cleanup()
 
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
     // Test with 14%2D16
     window.history.replaceState({}, '', '/?game=passwordzapper&age=14%2D16')
     render(
@@ -449,6 +472,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '14-16')
     cleanup()
 
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
     // Test with empty string
     window.history.replaceState({}, '', '/?game=passwordzapper&age=')
     render(
@@ -478,7 +504,7 @@ describe('MinigamePage', () => {
   })
 
   it('handles hint button click when unlocked', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
+    window.history.replaceState({}, '', '/?game=bugcleanup')
     
     const mockDispatch = vi.fn()
     Object.defineProperty(window, 'dispatchEvent', {
@@ -589,7 +615,7 @@ describe('MinigamePage', () => {
   })
 
   it('tests hint button title changes when unlocked', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
+    window.history.replaceState({}, '', '/?game=bugcleanup')
     
     // Set global flag before rendering
     const w = window as unknown as Record<string, unknown>
@@ -606,6 +632,9 @@ describe('MinigamePage', () => {
   })
 
   it('tests age mapping with special characters', async () => {
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
     // Test with various special characters between numbers
     window.history.replaceState({}, '', '/?game=passwordzapper&age=8*10')
     render(
@@ -617,6 +646,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '8-10')
     cleanup()
 
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
     window.history.replaceState({}, '', '/?game=passwordzapper&age=11@13')
     render(
       <MemoryRouter>
@@ -627,6 +659,9 @@ describe('MinigamePage', () => {
     expect(mock).toHaveAttribute('data-age', '11-13')
     cleanup()
 
+    // Clear sessionStorage
+    sessionStorage.clear()
+    
     window.history.replaceState({}, '', '/?game=passwordzapper&age=14#16')
     render(
       <MemoryRouter>
@@ -902,7 +937,7 @@ describe('MinigamePage', () => {
   })
 
   it('tests hintUnlocked state initialization with window flag true', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
+    window.history.replaceState({}, '', '/?game=bugcleanup')
     const w = window as unknown as Record<string, unknown>
     w['__pz_hint_unlocked'] = true
 
