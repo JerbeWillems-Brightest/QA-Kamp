@@ -46,7 +46,12 @@ function useQuery() {
   return new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
 }
 
-export function MinigamePage() {
+interface MinigamePageProps {
+  game?: string
+  ageGroup?: '8-10' | '11-13' | '14-16'
+}
+
+export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: MinigamePageProps = {}) {
   const q = useQuery()
   const navigate = useNavigate()
   const location = useLocation()
@@ -54,8 +59,8 @@ export function MinigamePage() {
   // on initial mount we prefer a soft reset (show start modal) instead of
   // clearing sessionStorage/localStorage which would log the player out
   const initialMountRef = useRef(true)
-  // allow game to be specified either via ?game=... or via pathname (/minigame/passwordzapper)
-  const game = q.get('game') || (location?.pathname?.toLowerCase().includes('passwordzapper') ? 'passwordzapper' : '')
+  // allow game to be specified either via prop, ?game=... or via pathname (/minigame/passwordzapper)
+  const game = gameProp || q.get('game') || (location?.pathname?.toLowerCase().includes('passwordzapper') ? 'passwordzapper' : '')
   // Prefer stored playerCategory over ?age param so a player's saved category
   // isn't silently overridden by a URL. Sanitize sessionStorage values like
   // 'null'/'undefined'/'false' so they don't count as valid.
@@ -72,7 +77,7 @@ export function MinigamePage() {
   })() : null
 
   const urlAgeParam = q.get('age') || null
-  const initialAgeSource = rawSessionValue ?? urlAgeParam ?? ''
+  const initialAgeSource = ageGroupProp ?? rawSessionValue ?? urlAgeParam ?? ''
 
   // Map age query value to component prop expected values
   function mapAge(a: string) {
