@@ -4,6 +4,7 @@ import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
 import PrinterSlaatOpHolGame from './PrinterSlaatOpHol/PrinterSlaatOpHolGame.tsx'
 import BugCleanupGame from './BugCleanup/BugCleanupGame.tsx'
 import NietZoSlimmeThermostaat from './NietZoSlimmeThermostaat/NietZoSlimmeThermostaat.tsx'
+import FightTheBug from './FightTheBug/FightTheBug.tsx'
 import type { ApiPlayer } from '../../api'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
@@ -424,11 +425,11 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
   return (
     <div className="pz-root">
       <style>{practiceControlHide}</style>
-      {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' ? (
+      {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' || game === 'fightthebug' ? (
         <>
           {/* compute support flag to avoid TS narrowing issues in JSX */}
           {(() => {
-            const supportsHint = (game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' || game === 'passwordzapper' || game === 'printerslaatophol')
+            const supportsHint = (game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' || game === 'passwordzapper' || game === 'printerslaatophol' || game === 'fightthebug')
             return (
               <>
                 <div className="pz-controls">
@@ -457,6 +458,8 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
             <PrinterSlaatOpHolGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : game === 'bugcleanup' ? (
             <BugCleanupGame ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
+          ) : game === 'fightthebug' ? (
+            <FightTheBug ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' ? (
             <NietZoSlimmeThermostaat ageGroup={ageGroup as "8-10" | "11-13" | "14-16"} />
           ) : (
