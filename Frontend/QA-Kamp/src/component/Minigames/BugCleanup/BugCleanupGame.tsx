@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
+import type { ApiPlayer } from '../../../api'
 import './BugCleanupGame.css'
 import '../PasswordZapper/PasswordZapperGame.css'
 import redBugSvg from '../../../assets/BugCleanupImages/RedBug.svg'
@@ -106,9 +108,25 @@ function randomFeedback() {
 
 function inferAgeGroup(value?: string | null): AgeGroup {
   const raw = String(value || '').toLowerCase()
-  if (/8\D*10/.test(raw)) return '8-10'
-  if (/11\D*13/.test(raw)) return '11-13'
-  if (/14\D*16/.test(raw)) return '14-16'
+  try {
+    if (/8\D*10/.test(raw)) return '8-10'
+    if (/11\D*13/.test(raw)) return '11-13'
+    if (/14\D*16/.test(raw)) return '14-16'
+
+    const nums = (raw.match(/\d+/g) || []).map(n => parseInt(n, 10)).filter(n => !Number.isNaN(n))
+    if (nums.length >= 1) {
+      const n = nums[0]
+      if (n <= 10) return '8-10'
+      if (n <= 13) return '11-13'
+      return '14-16'
+    }
+
+    if (raw.includes('8')) return '8-10'
+    if (raw.includes('11') || raw.includes('12') || raw.includes('13')) return '11-13'
+    if (raw.includes('14') || raw.includes('15') || raw.includes('16')) return '14-16'
+  } catch {
+    /* fall through */
+  }
   return '11-13'
 }
 
@@ -172,7 +190,6 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const rafRef = useRef<number | null>(null)
   const lastFrameRef = useRef<number | null>(null)
   const nextBugIdRef = useRef(1)
-  // ...existing code...
   const shouldFinishRef = useRef(false)
   const SPLIT_INVULNERABLE_MS = 600
 
@@ -414,20 +431,27 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     // miss: increment mistakes (no time/score penalty)
     setMistakes((m) => {
       const next = m + 1
-      // show hint once per run when reaching the per-age threshold
+      // show/unlock hint once per run when reaching the per-age threshold
       try {
         const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
-        if (!hintShownRef.current && next >= threshold) {
+        if (!hintShownRef.current && next >= threshold && !inPractice) {
           hintShownRef.current = true
+          // pause and show the hint modal
           setPaused(true)
           setShowHint(true)
+          // set global transient flag so the top-level hint button becomes enabled
+          try {
+            const w = window as unknown as Record<string, unknown>
+            w['__pz_hint_unlocked'] = true
+            window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
+          } catch { /* ignore */ }
         }
       } catch {
         void 0
       }
       return next
     })
-  }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge])
+  }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge, inPractice])
 
   // penalties/minpunten logic removed
 
@@ -517,15 +541,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     return () => window.removeEventListener('mousemove', onMove)
   }, [])
 
-  useEffect(() => {
-    try {
-      const w = window as unknown as Record<string, unknown>
-      w.__pz_hint_unlocked = true
-      window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
-    } catch {
-      void 0
-    }
-  }, [])
+  // Do NOT unlock the global hint on mount. The hint must be locked at the
+  // start of every game and only be unlocked by the game when the player's
+  // mistakes in a round reach the per-age threshold.
 
   useEffect(() => {
     // Ignore pause/help/hint events while practice modals are visible so the
@@ -540,6 +558,13 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     }
     const onHint = () => {
       if (showPracticeStart || showPracticeEnd) return
+      try {
+        // mark as seen/unlocked so opening via global control doesn't re-fire auto-open
+        hintShownRef.current = true
+        const w = window as unknown as Record<string, unknown>
+        try { w['__pz_hint_unlocked'] = true } catch { /* ignore */ }
+        try { window.dispatchEvent(new CustomEvent('minigame:hint-unlocked')) } catch { /* ignore */ }
+      } catch { /* ignore */ }
       setShowHint(true)
     }
     window.addEventListener('minigame:pause', onPause as EventListener)
@@ -628,6 +653,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     }
   }, [showEnd, stoppedByUser, elapsedMs, effectiveAge])
 
+  // Persist highscore to backend so organiser's leaderboard updates automatically.
+  // NOTE: moved below so finalScore is declared before the effect (see later in file).
+
   const formatMs = (ms: number) => {
     const s = Math.floor(ms / 1000)
     return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`
@@ -690,7 +718,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const displayClampedPercent = stoppedByUser ? 0 : clampedScorePercent
   const displayElapsedMs = stoppedByUser ? 0 : elapsedMs
   const displayStarCount = stoppedByUser ? 0 : starCount
-  const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${displayClampedPercent}%` } as unknown) as React.CSSProperties
+  const circleStyle = ({ ['--pz-score-pct' as unknown as string]: `${displayClampedPercent}%` } as unknown) as CSSProperties
 
   // bestTimeMs kept for persistence, formatted string not needed here
 
@@ -702,6 +730,150 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     'big-red-orange': bigRedOrangeBugSvg,
     'big-purple-green': bigPurpleGreenBugSvg
   }
+
+  // Persist highscore to backend so organiser's leaderboard updates automatically.
+  // Mirrors the robust logic used by PrinterSlaatOpHol: keep a local best, avoid
+  // overwriting a higher per-game score on the server and notify other tabs.
+  useEffect(() => {
+    if (!showEnd) return
+    if (stoppedByUser) return
+    // Do not persist when the player was only in a practice run
+    if (inPractice) return
+
+    (async () => {
+      try {
+        const localKey = 'pz-highscore_bugcleanup'
+        // Compute authoritative final score (0-100) using existing mapping
+        const finalScoreVal = finalScore
+
+        // Update local stored highscore (keep max) and compute the authoritative
+        // finalHigh value we will persist to the backend.
+        let finalHigh = finalScoreVal
+        try {
+          const existingRaw = localStorage.getItem(localKey)
+          const existingNum = existingRaw ? (Number(existingRaw) || 0) : 0
+          finalHigh = Math.max(existingNum || 0, finalScoreVal)
+          localStorage.setItem(localKey, String(finalHigh))
+        } catch { /* ignore localStorage errors */ }
+
+        // Resolve session/player identifiers
+        const playerNumberRaw = typeof window !== 'undefined' ? sessionStorage.getItem('playerNumber') || '' : ''
+        const sessionStorageId = typeof window !== 'undefined' ? sessionStorage.getItem('playerSessionId') : null
+        const localStorageId = typeof window !== 'undefined' ? localStorage.getItem('currentSessionId') : null
+        const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
+        if (!sid || !playerNumberRaw) return
+
+        const normalizedPlayerNumber = String((playerNumberRaw || '').toString().replace(/\D/g, '')).padStart(3, '0')
+
+        try {
+          const api = await import('../../../api')
+          // Read existing player entry to avoid overwriting a higher per-game score
+          let shouldUpdate = true
+          let foundCategory: string | undefined = undefined
+          let found: Record<string, unknown> | undefined = undefined
+
+          try {
+            const pResp = await api.fetchPlayersRawForSession(sid)
+            const respTyped = pResp as { players?: unknown[] } | null
+            const list = Array.isArray(respTyped?.players) ? (respTyped!.players as Record<string, unknown>[]) : []
+            found = list.find((p) => {
+              const pn = String(p['playerNumber'] ?? p['nummer'] ?? '')
+              return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
+            })
+
+            if (found) {
+              // Try to find an explicit per-game score for bugcleanup on the server
+              let existingGameScore: number | undefined = undefined
+              try {
+                const rawTop = (found as Record<string, unknown>)['score_bugcleanup']
+                if (typeof rawTop === 'number' && !Number.isNaN(rawTop)) existingGameScore = Number(rawTop)
+                else if (typeof rawTop === 'string' && rawTop.trim() !== '' && !Number.isNaN(Number(rawTop))) existingGameScore = Number(rawTop)
+              } catch { /* ignore */ }
+
+              try {
+                if (typeof existingGameScore !== 'number') {
+                  const hs = (found as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+                  if (hs && typeof hs['score_bugcleanup'] !== 'undefined') {
+                    const raw = hs['score_bugcleanup']
+                    const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                    if (!Number.isNaN(n)) existingGameScore = Number(n)
+                  }
+                }
+              } catch { /* ignore */ }
+
+              if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore)) {
+                if (existingGameScore >= finalHigh) shouldUpdate = false
+              }
+
+              const catVal = found['category']
+              if (typeof catVal === 'string' && catVal) foundCategory = catVal
+            }
+          } catch (readErr) {
+            // On read error, continue with optimistic update; try to read category from sessionStorage
+            void readErr
+            try { const sessCat = sessionStorage.getItem('playerCategory') || undefined; if (sessCat) foundCategory = sessCat } catch { /* ignore */ }
+          }
+
+          if (shouldUpdate) {
+            // Aggregate other per-game scores so legacy `score` remains meaningful
+            let otherGame = 0
+            try {
+              for (const k of Object.keys(found || {})) {
+                try {
+                  const lk = k.toLowerCase()
+                  if (lk.includes('score') || lk.includes('highscore')) {
+                    if (lk.includes('bugcleanup')) continue
+                    const raw = (found as Record<string, unknown>)[k]
+                    const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                    if (!Number.isNaN(n)) otherGame += Number(n)
+                  }
+                } catch { /* ignore per-key */ }
+              }
+              try {
+                const hs = (found as Record<string, unknown>)['highscores'] as Record<string, unknown> | undefined
+                if (hs && typeof hs === 'object') {
+                  for (const k of Object.keys(hs)) {
+                    try {
+                      if (String(k).toLowerCase().includes('bugcleanup')) continue
+                      const raw = hs[k]
+                      const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                      if (!Number.isNaN(n)) otherGame += Number(n)
+                    } catch { /* ignore per-key */ }
+                  }
+                }
+              } catch { /* ignore highscores */ }
+            } catch { /* ignore */ }
+
+            const finalScoreForPayload = finalHigh
+            const aggregated = finalScoreForPayload + (Number.isNaN(otherGame as unknown as number) ? 0 : otherGame)
+            const payload: Record<string, unknown> = { score_bugcleanup: finalScoreForPayload, score: aggregated, highscores: { score_bugcleanup: finalScoreForPayload } }
+            if (foundCategory) (payload as Record<string, unknown>)['category'] = foundCategory
+
+            try {
+              await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer)
+            } catch (err) {
+              void err
+              await new Promise((r) => setTimeout(r, 250))
+              try { await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload as unknown as ApiPlayer) } catch { /* ignore */ }
+            }
+
+            // Notify other tabs/organiser UI quickly via localStorage key
+            try {
+              const key = 'pz_score_update'
+              const payload2 = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() })
+              localStorage.setItem(key, payload2)
+              try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: payload2 })) } catch { /* ignore */ }
+              try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score: finalHigh, ts: Date.now() } })) } catch { /* ignore */ }
+            } catch { /* ignore */ }
+          }
+        } catch (err) {
+          console.warn('BugCleanup: failed to persist score to server', err)
+        }
+      } catch (err) {
+        console.warn('BugCleanup: persist highscore failed', err)
+      }
+    })()
+  }, [showEnd, stoppedByUser, inPractice, finalScore])
 
   return (
     <div className="pz-layout bugcleanup-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', zIndex: 900 }}>

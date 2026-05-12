@@ -808,7 +808,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
         const ce = ev as CustomEvent
         if (!ce.detail) {
           try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-          try { navigate('/player/waiting') } catch { /* ignore */ }
+          // soft-reset instead of full logout so a refresh returns to the start modal
+          try { safeNavigateHome() } catch { /* ignore */ }
         }
       } catch { /* ignore */ }
     }
@@ -878,7 +879,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
           // consider cleared when newValue is null, undefined, empty string, or the literal 'null'
           if (nv === null || typeof nv === 'undefined' || nv === '' || String(nv) === 'null') {
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-            try { navigate('/player/waiting') } catch { /* ignore */ }
+            // soft-reset instead of full logout so a refresh returns to the start modal
+            try { safeNavigateHome() } catch { /* ignore */ }
           }
         }
       } catch { /* ignore */ }
@@ -899,7 +901,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
         if (resp && (resp.activeGameInfo === null || typeof resp.activeGameInfo === 'undefined')) {
           try { localStorage.removeItem('activeGameInfo') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
-          try { navigate('/player/waiting') } catch { /* ignore */ }
+          // Use safeNavigateHome so an initial refresh shows the game's start modal
+          // (soft reset) instead of forcing a logout to the waiting/home page.
+          try { safeNavigateHome() } catch { /* ignore */ }
           return
         }
       } catch {
