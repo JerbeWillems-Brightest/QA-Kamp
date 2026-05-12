@@ -1080,9 +1080,29 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                     <div id="ftb-energy-bug-bar" className="ftb-energy__bar">
                       <div id="ftb-energy-bug-fill" className="ftb-energy__fill ftb-energy__fill--bug" style={{ width: `${Math.max(0, Math.min(100, bugEnergy))}%` }} />
                       <div id="ftb-energy-bug-value" className="ftb-energy__value">{bugEnergy}</div>
+                      {/* Floating delta for bug shown under the energy bar (e.g. "-10 energie").
+                          By placing it inside the bar, absolute positioning centers relative
+                          to the visible progress track width. */}
+                      {floatingDelta && floatingDelta.target === 'bug' && (
+                        <div
+                          id="ftb-delta-bug"
+                          className={`ftb-delta ${feedbackType === 'good' ? 'ftb-delta--good' : 'ftb-delta--bad'}`}
+                          aria-hidden
+                          style={{ left: `${Math.max(0, Math.min(100, bugEnergy))}%` }}
+                        >
+                          {`-${floatingDelta.value} energie`}
+                        </div>
+                      )}
                     </div>
+                    {/* Floating delta for bug shown under the energy bar (e.g. "-10 energie").
+                        Place as a direct child of #ftb-energy-bug so centering is relative
+                        to the full widget rather than the inner bar. */}
+                    {floatingDelta && floatingDelta.target === 'bug' && (
+                      <div id="ftb-delta-bug" className={`ftb-delta ${feedbackType === 'good' ? 'ftb-delta--good' : 'ftb-delta--bad'}`} aria-hidden>
+                        {`-${floatingDelta.value} energie`}
+                      </div>
+                    )}
                   </div>
-                  {/* green bug delta removed per request */}
                 </div>
               </div>
           )}
@@ -1090,8 +1110,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           <div id="ftb-bug" className={`ftb-bug ${feedbackType ? (feedbackType === 'good' ? 'ftb-bug--good' : 'ftb-bug--bad') : ''}`} aria-hidden>
             <div id="ftb-bug-face" className="ftb-bug__face" />
             {feedback && <div id="ftb-banner" className={`ftb-banner ${feedbackType === 'good' ? 'ftb-banner--good' : 'ftb-banner--bad'}`}>{feedback}</div>}
-            {/* Floating delta for bug (uses floatingDelta state so the variable is read) */}
-            {/* bug floating delta removed per request */}
+            {/* bug floating delta is rendered in the HUD area so it appears under the Energie Bug bar */}
           </div>
 
           <div id="ftb-question" className="ftb-question">
@@ -1144,7 +1163,16 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                   <div id="ftb-energy-player-fill" className="ftb-energy__fill ftb-energy__fill--player" style={{ width: `${Math.max(0, Math.min(100, playerEnergy))}%` }} />
                   <div id="ftb-energy-player-value" className="ftb-energy__value">{playerEnergy}</div>
                 </div>
-                {/* player floating delta removed per request */}
+                {/* player floating delta re-added so the player also shows '-N energie' feedback above the bar */}
+                {floatingDelta && floatingDelta.target === 'player' && (
+                  <div
+                    id="ftb-delta-player"
+                    className={`ftb-delta--bad ftb-delta--player`}
+                    aria-hidden
+                  >
+                    {`-${floatingDelta.value} energie`}
+                  </div>
+                )}
               </div>
             </div>
           )}

@@ -157,12 +157,39 @@
 }
 
 /* Place the player delta above the progress bar and center it */
+/* ID selector is kept for backward-compatibility but prefer the class below */
 #ftb-delta-player{
+  /* Keep minimal fallback positioning for backward-compatibility;
+     exact placement is controlled by the .ftb-delta--player class. */
   position: absolute;
-  top: -34px; /* sits above the bar */
+  z-index: 970;
+}
+
+/* New class for player delta feedback. Use this class on the delta element so
+   its positioning and styling can be customized without touching the id.
+   Example: <div className="ftb-delta ftb-delta--bad ftb-delta--player"> */
+.ftb-delta--player{
+  /* Match the visual size/spacing used by the bug delta so the player
+     feedback badge uses the same width, padding and centering. */
+  position: absolute;
+  top: -60px; /* sits above the bar */
   left: 50%;
   transform: translateX(-50%);
   z-index: 970;
+  pointer-events: none;
+  text-align: center;
+  width: 280px;
+  min-width: 0; /* allow natural shrink on small screens */
+  /* Larger font for better readability */
+    font-weight: 900;
+    /* Increased font-size so the energy delta (e.g. "-10") is more prominent */
+    font-size: 18px;
+    /* Slightly larger padding to keep visual balance with the bigger text */
+    padding: 8px 12px;
+    /* Make the badge fully pill-shaped */
+    border-radius: 9999px;
+    /* subtle border to improve contrast on light/dark backgrounds */
+    border: 2px solid rgba(0,0,0,0.06);
 }
 
 /* HUD energy bars */
@@ -189,12 +216,19 @@
    horizontally aligned with the current fill percentage but visually sits
    under the bar instead of being attached to the bar element */
 #ftb-delta-bug{
+  /* Center the delta relative to the inner bar container. The .ftb-energy__bar
+     is already position: relative, so putting this inside that element and using
+     left:50% + translateX(-50%) ensures exact horizontal centering. */
   position: absolute;
-  bottom: -28px; /* place under the bar area */
-  left: 50%;
+  left: 0;
   transform: translateX(-50%);
-  /* ensure it does not overlap with other hud items */
-  z-index: 960;
+  top: calc(100% + 8px); /* small gap under the bar */
+  z-index: 980;
+  pointer-events: none;
+  width: 335px;
+  min-width: 0; /* allow natural width to avoid forced shift */
+  text-align: center;
+  padding: 6px 12px;
 }
 
 /* Place the bug energy bar more to the top-left corner regardless of the HUD wrapper
@@ -284,9 +318,14 @@
 .ftb-delta{
   display: inline-block;
   font-weight: 900;
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: 999px;
+  /* Increased font-size so the energy delta (e.g. "-10") is more prominent */
+  font-size: 18px;
+  /* Slightly larger padding to keep visual balance with the bigger text */
+  padding: 8px 12px;
+  /* Make the badge fully pill-shaped */
+  border-radius: 9999px;
+  /* subtle border to improve contrast on light/dark backgrounds */
+  border: 2px solid rgba(0,0,0,0.06);
   box-shadow: 0 10px 18px rgba(0,0,0,0.18);
   transform-origin: left center;
   animation: ftbPop 700ms ease both;
@@ -312,6 +351,9 @@
   position: absolute;
   left: 50%;
   top: 90px;
+  /* make the player badge pill-shaped like the bug delta */
+  border-radius: 9999px;
+  border: 2px solid rgba(0,0,0,0.06);
   transform: translateX(-50%);
   width: min(260px, 58vw);
   height: min(260px, 58vw);
@@ -417,15 +459,20 @@
 /* banner feedback like screenshots */
 .ftb-banner{
   position: absolute;
-  top: -20px;
+  /* place the feedback banner higher above the bug so it does not sit on top
+     of the bug sprite (was -20px). Increase the z-index so it visually sits
+     above HUD elements when needed. */
+  top: -56px;
   left: 50%;
   transform: translateX(-50%);
+  z-index: 980;
   font-weight: 900;
   padding: 6px 14px;
   border-radius: 999px;
   border: 3px solid rgba(0,0,0,0.12);
   box-shadow: 0 12px 24px rgba(0,0,0,0.18);
   white-space: nowrap;
+    width: 200px;
 }
 .ftb-banner--good{
   background: #22c55e;
