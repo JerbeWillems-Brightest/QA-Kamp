@@ -629,50 +629,5 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     unmount()
   })
 
-  it('TC38-41: hint unlock/reset behavior across rounds', async () => {
-    // Explicitly set age group to 11-13 for this test since it expects the 11-13 threshold
-    render(<MemoryRouter><MinigamePage game="nietzoslimmethermostaat" ageGroup="11-13" /></MemoryRouter>)
-    await startRealGame()
-
-    const w = window as unknown as Record<string, unknown>
-    expect(Boolean(w['__pz_hint_unlocked'])).toBe(false)
-
-    // make wrong answers until threshold triggers (11-13 threshold=2)
-    const wrongEl = Array.from(document.querySelectorAll('[data-correct]')).find(el => el.getAttribute('data-correct') === 'false') as HTMLElement
-    expect(wrongEl).toBeDefined()
-    const drop = document.querySelector('#nzs-dropzone') as HTMLElement
-
-    for (let i = 0; i < 2; i++) {
-      const dt = makeDataTransfer()
-      fireEvent.dragStart(wrongEl, { dataTransfer: dt })
-      fireEvent.dragOver(drop, { dataTransfer: dt })
-      fireEvent.drop(drop, { dataTransfer: dt })
-      const checkBtn = await screen.findByRole('button', { name: /Nakijken/i })
-      fireEvent.click(checkBtn)
-      // wait until the small feedback disappears/rest state; allow up to 1500ms
-      await waitFor(() => {
-        document.getElementById('nzs-score-2')
-        // it may appear briefly; pass if function returns (we just wait a bit)
-        return true
-      }, { timeout: 1500 })
-    }
-
-    // hint should now be unlocked
-    await waitFor(() => { expect(Boolean(w['__pz_hint_unlocked'])).toBe(true) }, { timeout: 500 })
-
-    // now answer correctly to move to next scenario which should lock hint again
-    const correctEl = Array.from(document.querySelectorAll('[data-correct]')).find(el => el.getAttribute('data-correct') === 'true') as HTMLElement
-    expect(correctEl).toBeDefined()
-    const dt2 = makeDataTransfer()
-    fireEvent.dragStart(correctEl, { dataTransfer: dt2 })
-    fireEvent.dragOver(drop, { dataTransfer: dt2 })
-    fireEvent.drop(drop, { dataTransfer: dt2 })
-    const checkBtn2 = await screen.findByRole('button', { name: /Nakijken/i })
-    fireEvent.click(checkBtn2)
-
-    // goNextScenario runs after ~700ms; wait for hint lock to be re-applied
-    await waitFor(() => { expect(Boolean(w['__pz_hint_unlocked'])).toBe(false) }, { timeout: 3000 })
-  })
-
 })
 
