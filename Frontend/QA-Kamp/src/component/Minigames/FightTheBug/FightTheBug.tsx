@@ -114,6 +114,27 @@ function pickNext<T extends { id: string }>(pool: T[], lastId?: string) {
   return pool[Math.floor(Math.random() * pool.length)]
 }
 
+// Pick a question that has not been used yet in the current run. If all
+// questions have been used, clear the used set and allow reuse (so games with
+// fewer questions than required still continue). Avoid immediate repeat when
+// possible.
+function pickUnusedQuestion<T extends { id: string }>(pool: T[], usedSet: Set<string>, lastId?: string) {
+  if (pool.length <= 1) return pool[0]
+  let candidates = pool.filter((p) => !usedSet.has(p.id))
+  if (candidates.length === 0) {
+    // all used -> reset and allow reuse
+    usedSet.clear()
+    candidates = pool.slice()
+  }
+  if (candidates.length > 1 && lastId) {
+    const filtered = candidates.filter((p) => p.id !== lastId)
+    if (filtered.length > 0) candidates = filtered
+  }
+  const pick = candidates[Math.floor(Math.random() * candidates.length)]
+  usedSet.add(pick.id)
+  return pick
+}
+
 function buildQuestionPool(age: AgeGroup): Question[] {
   if (age === '8-10') {
     return [
@@ -646,6 +667,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   const [question, setQuestion] = useState<Question>(() => pickNext(pool))
   const lastQuestionIdRef = useRef<string | undefined>(undefined)
+  const usedQuestionIdsRef = useRef<Set<string>>(new Set())
   const [selectedOptionId, setSelectedOptionId] = useState<string | null>(null)
   const [answerState, setAnswerState] = useState<'idle' | 'correct' | 'wrong'>('idle')
 
@@ -841,7 +863,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   useEffect(() => {
     // Defer initial question setup to avoid synchronous setState calls
-    const q = pickNext(pool)
+    const q = pickUnusedQuestion(pool, usedQuestionIdsRef.current, lastQuestionIdRef.current)
     const t = window.setTimeout(() => {
       setQuestion(q)
       lastQuestionIdRef.current = q?.id
@@ -885,7 +907,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setIsPractice(practice)
     setPracticeCorrect(0)
 
-    const q = pickNext(pool)
+    // reset the used question ids for the new run
+    try { usedQuestionIdsRef.current.clear() } catch { /* ignore */ }
+    const q = pickUnusedQuestion(pool, usedQuestionIdsRef.current)
     setQuestion(q)
     lastQuestionIdRef.current = q?.id
     setRunning(!practice)
@@ -1017,7 +1041,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   }, [effectiveAge])
 
   const nextQuestion = useCallback(() => {
-    const next = pickNext(pool, lastQuestionIdRef.current)
+    const next = pickUnusedQuestion(pool, usedQuestionIdsRef.current, lastQuestionIdRef.current)
     setQuestion(next)
     lastQuestionIdRef.current = next?.id
     setSelectedOptionId(null)
@@ -1204,8 +1228,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       {!showEnd && (
         <div id="ftb-main">
           {isPractice && (
-            <div id="ftb-top-left" className="ftb-top-left">
-              <div id="ftb-pill" className="ftb-pill">Oefenronde</div>
+            // Use the shared .pz-score markup so the practice pill/timer matches other games
+            <div className="pz-score-stack" aria-hidden>
+              <div className="pz-score">Oefenronde</div>
             </div>
           )}
 
@@ -1366,7 +1391,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
             <h2 id="ftb-practice-end-title">Het echte spel begint nu</h2>
             <div id="ftb-practice-end-container" className="pz-start-container">
               <p id="ftb-practice-end-desc" style={{ marginTop: 6, marginBottom: 10 }}>Je weet nu hoe het spel werkt. Succes!</p>
-              <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <button id="ftb-play-real" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
                   Spelen
                 </button>

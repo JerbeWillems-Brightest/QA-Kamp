@@ -1498,7 +1498,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         <div id="nzs-practice-end-overlay" className="pz-start-overlay">
           <div id="nzs-practice-end-modal" className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Het echte spel begint nu</h2>
-            <p style={{ marginTop: 12, textAlign: 'left' }}>Punten tellen nu mee. Succes!</p>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>Punten tellen mee. Succes!</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
               <button id="nzs-practice-end-play" className="pz-start-btn pz-start-btn--large" onClick={startRealGame}>Spelen</button>
               <button id="nzs-practice-end-repeat" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }}>Opnieuw oefenen</button>
