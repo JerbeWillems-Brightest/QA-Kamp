@@ -38,6 +38,13 @@ jobs:
           # Caching disabled to avoid errors when the Backend/package-lock.json file is missing.
           # Recommended: create and commit Backend/package-lock.json (see instructions) and re-enable caching.
 
+      - name: Install container system packages (libcurl)
+        # In container mode steps run as root; install libraries required by mongod binaries
+        run: |
+          apt-get update -y
+          apt-get install -y libcurl4 ca-certificates
+        shell: bash
+
       # Running inside the ubuntu:20.04 container provides libssl1.1 (libcrypto.so.1.1)
       # so mongodb-memory-server's mongod binary can start. No manual apt install
       # step is required here.
