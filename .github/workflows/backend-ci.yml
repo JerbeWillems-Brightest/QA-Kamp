@@ -12,7 +12,9 @@ on:
 
 jobs:
   build-and-test:
-    runs-on: ubuntu-latest
+    # Use ubuntu-20.04 runner which includes libssl1.1 needed by mongodb-memory-server
+    # (mongod binaries downloaded by mongodb-memory-server are built against OpenSSL 1.1).
+    runs-on: ubuntu-20.04
     # Prefer single secret MONGO_URI; fall back to DB_USERNAME/DB_PASSWORD if needed.
     env:
       # If you add a secret named MONGO_URI in the repo, it will be used.
