@@ -1,0 +1,726 @@
+/* Fight the bug - layout uses shared pz modal styles from PasswordZapperGame.css */
+
+.ftb-root{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  /* reduce overall height so the bottom border sits higher on the page
+     (prevents the lower parts of the game from being cut off on small viewports) */
+  min-height: calc(100vh - 110px);
+  overflow: hidden;
+  font-family: Arial, Helvetica, sans-serif;
+  /* wallpaper image as background; show entire image inside the framed area */
+  background-image: url('../../../assets/WallpaperBugCleanup.png');
+  /* make the image wider while keeping the same visible height inside the frame
+     width: 120% stretches horizontally; height: 100% preserves vertical size */
+  background-size: 100% 100%;
+  /* align image to the bottom so the lower part is visible */
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  /* remove the blue tint overlay so the wallpaper displays with its original colors */
+  background-color: transparent;
+  /* disable blend mode that caused a blue tint over the image */
+  background-blend-mode: normal;
+  /* black frame around the game like other minigames */
+  border: 10px solid #000;
+  box-sizing: border-box;
+}
+
+/* Inner game-area inset so overlays and absolute elements align inside the black frame */
+.ftb-game-area {
+  position: absolute;
+  /* standard inset so the inner area fills the framed box completely */
+  inset: 10px; /* matches the root border width */
+  background: transparent; /* keep the gradient from root visible */
+  overflow: hidden;
+}
+
+
+
+/* top-left label like screenshots */
+.ftb-top-left{
+  /* align with other games' score badge positioning */
+  position: absolute;
+  left: 30px;
+  top: 30px;
+  z-index: 950;
+}
+
+.ftb-pill{
+  /* Use the same visual style as .pz-score in other minigames */
+  background: #d9a800; /* yellow */
+  color: #fff;
+  padding: 16px 24px;
+  border-radius: 40px;
+  font-weight: 800;
+  font-size: 1.25rem;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35);
+  display: inline-block;
+}
+
+/* Compact styling for the energy widget when placed in the top-left */
+.ftb-top-left .ftb-energy{
+  width: 220px;
+  background: rgba(255,255,255,0.95);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 2px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+}
+.ftb-top-left .ftb-energy__title{
+  /* Match the main energy title font used by the red bug bar */
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 6px;
+  text-align: left;
+}
+.ftb-top-left .ftb-energy__bar{
+  /* Match BugCleanup progress track: larger, rounded neutral track */
+  height: 28px;
+  border-radius: 6px;
+  background: #d4d4d4;
+  overflow: hidden;
+  position: relative;
+}
+.ftb-top-left .ftb-energy__value{
+  /* Centered white overlay similar to BugCleanup */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 900;
+  color: #fff;
+}
+
+/* When showing player HP inside the bottom-left progress container, make it compact */
+.ftb-progress .ftb-energy{
+  width: 180px;
+  background: rgba(255,255,255,0.95);
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 2px solid rgba(0,0,0,0.08);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.12);
+}
+.ftb-progress .ftb-energy__title{ font-size: 12px; margin-bottom: 6px; color: white }
+.ftb-progress .ftb-energy__bar{
+  /* Match BugCleanup progress track style */
+  height: 28px;
+  border-radius: 6px;
+  background: #d4d4d4;
+  overflow: hidden;
+  position: relative;
+}
+.ftb-progress .ftb-energy__value{
+  /* Use the same large centered white style as the bug bar */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+}
+
+/* Segmented block style for the player fill when shown in the bottom-left progress area */
+.ftb-progress .ftb-energy__fill--player{
+  /* Green segmented look matching the red segmented style */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.22) 0 2px,
+      rgba(255,255,255,0) 2px 24px
+    ),
+    linear-gradient(90deg, #32d66f 0%, #22b85c 100%);
+  height: 100%;
+  transition: width 220ms ease;
+}
+
+/* Ensure progress numeric uses same font/positioning as the bug bar */
+.ftb-progress .ftb-energy__value{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+}
+
+/* Make the player energy container a positioning context for the floating delta */
+#ftb-energy-player{
+  position: relative;
+}
+
+/* Place the player delta above the progress bar and center it */
+/* ID selector is kept for backward-compatibility but prefer the class below */
+#ftb-delta-player{
+  /* Keep minimal fallback positioning for backward-compatibility;
+     exact placement is controlled by the .ftb-delta--player class. */
+  position: absolute;
+  z-index: 970;
+}
+
+/* New class for player delta feedback. Use this class on the delta element so
+   its positioning and styling can be customized without touching the id.
+   Example: <div className="ftb-delta ftb-delta--bad ftb-delta--player"> */
+.ftb-delta--player{
+  /* Match the visual size/spacing used by the bug delta so the player
+     feedback badge uses the same width, padding and centering. */
+  position: absolute;
+  top: -60px; /* sits above the bar */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 970;
+  pointer-events: none;
+  text-align: center;
+  width: 280px;
+  min-width: 0; /* allow natural shrink on small screens */
+  /* Larger font for better readability */
+    font-weight: 900;
+    /* Increased font-size so the energy delta (e.g. "-10") is more prominent */
+    font-size: 18px;
+    /* Slightly larger padding to keep visual balance with the bigger text */
+    padding: 8px 12px;
+    /* Make the badge fully pill-shaped */
+    border-radius: 9999px;
+    /* subtle border to improve contrast on light/dark backgrounds */
+    border: 2px solid rgba(0,0,0,0.06);
+}
+
+/* HUD energy bars */
+.ftb-hud{
+  position: absolute;
+  left: 18px;
+  top: 58px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  z-index: 3;
+}
+
+/* Wrapper for bug energy + floating delta so delta can be placed under the bar */
+.ftb-energy-bug-wrapper{
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px; /* space between bar and detached delta */
+  position: relative;
+}
+
+/* place the bug delta absolutely relative to the wrapper so it can be
+   horizontally aligned with the current fill percentage but visually sits
+   under the bar instead of being attached to the bar element */
+#ftb-delta-bug{
+  /* Center the delta relative to the inner bar container. The .ftb-energy__bar
+     is already position: relative, so putting this inside that element and using
+     left:50% + translateX(-50%) ensures exact horizontal centering. */
+  position: absolute;
+  left: 0;
+  transform: translateX(-50%);
+  top: calc(100% + 8px); /* small gap under the bar */
+  z-index: 980;
+  pointer-events: none;
+  width: 335px;
+  min-width: 0; /* allow natural width to avoid forced shift */
+  text-align: center;
+  padding: 6px 12px;
+}
+
+/* Place the bug energy bar more to the top-left corner regardless of the HUD wrapper
+   so it sits visually in the upper-left corner of the game area. We intentionally
+   make this absolute so it won't be affected by the .ftb-hud flow. */
+.ftb-energy--bug{
+  position: absolute;
+  top: -30px;  /* nudge further up */
+  z-index: 960;
+  width: 285px; /* match compact width used elsewhere */
+}
+
+.ftb-energy{
+  /* Match BugCleanup-style widget: blue header container with inner track */
+  width: min(340px, calc(100vw - 36px));
+  z-index: 950;
+  background: #2891df;
+  border: 3px solid #5cb2f1;
+  border-radius: 8px;
+  padding: 6px;
+  box-shadow: 0 10px 22px rgba(0,0,0,0.16);
+  backdrop-filter: none;
+}
+
+.ftb-energy__title{
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: none;
+  margin: 0 0 6px;
+    text-align: left;
+}
+
+.ftb-energy__bar{
+  position: relative;
+  height: 28px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #d4d4d4;
+  border: none;
+}
+
+.ftb-energy__fill{
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 100%;
+  height: 100%;
+  transition: width 260ms ease;
+}
+
+.ftb-energy__fill--bug{
+  /* Red segmented look like screenshot */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.22) 0 2px,
+      rgba(255,255,255,0) 2px 24px
+    ),
+    linear-gradient(90deg, #ff2a2a 0%, #d60000 100%);
+}
+
+.ftb-energy__fill--player{
+  /* Green segmented look like screenshot */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.22) 0 2px,
+      rgba(255,255,255,0) 2px 24px
+    ),
+    linear-gradient(90deg, #32d66f 0%, #22b85c 100%);
+}
+
+.ftb-energy__value{
+  /* Centered large white number like screenshot */
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+
+.ftb-delta{
+  display: inline-block;
+  font-weight: 900;
+  /* Increased font-size so the energy delta (e.g. "-10") is more prominent */
+  font-size: 18px;
+  /* Slightly larger padding to keep visual balance with the bigger text */
+  padding: 8px 12px;
+  /* Make the badge fully pill-shaped */
+  border-radius: 9999px;
+  /* subtle border to improve contrast on light/dark backgrounds */
+  border: 2px solid rgba(0,0,0,0.06);
+  box-shadow: 0 10px 18px rgba(0,0,0,0.18);
+  transform-origin: left center;
+  animation: ftbPop 700ms ease both;
+}
+
+.ftb-delta--good{
+  background: #22c55e;
+  color: #fff;
+}
+.ftb-delta--bad{
+  background: #ef4444;
+  color: #fff;
+}
+
+@keyframes ftbPop{
+  0%{ transform: translateY(-6px) scale(0.96); opacity: 0 }
+  30%{ transform: translateY(0) scale(1); opacity: 1 }
+  100%{ transform: translateY(0) scale(1); opacity: 1 }
+}
+
+/* Bug sprite built from CSS */
+.ftb-bug{
+  position: absolute;
+  left: 50%;
+  top: 0;
+  /* make the player badge pill-shaped like the bug delta */
+  border-radius: 9999px;
+  border: 2px solid rgba(0,0,0,0.06);
+  transform: translateX(-50%);
+  /* larger bug: up to 420px or 72vw on narrow screens */
+  width: min(420px, 72vw);
+  height: min(420px, 72vw);
+  background: #ff3b3b;
+  border-radius: 26px;
+  border: 4px solid rgba(0,0,0,0.18);
+  box-shadow: 0 18px 40px rgba(0,0,0,0.22);
+  z-index: 2;
+}
+
+/* Hide complex CSS-drawn face; we'll use an image instead */
+.ftb-bug__face{ display: none !important }
+
+.ftb-bug__img{
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0 !important; /* image itself has no rounded border to keep PNG intact */
+  box-shadow: none !important;
+}
+
+@media (max-width: 740px) {
+  .ftb-bug{
+    width: min(320px, 78vw);
+    height: min(320px, 78vw);
+    top: 70px;
+  }
+}
+
+.ftb-bug::before,
+.ftb-bug::after{
+  content:"";
+  display: none !important;
+}
+
+/* arms / nodes (8 nodes) */
+.ftb-bug__face{
+  position: absolute;
+  inset: 0;
+}
+
+.ftb-bug__face::before,
+.ftb-bug__face::after{
+  content: "";
+  display: none !important;
+}
+
+/* draw arms as circles + lines */
+.ftb-bug{
+  --arm: rgba(185, 28, 28, 0.9);
+}
+.ftb-bug:where(*) .ftb-bug__face{
+  background:
+    radial-gradient(circle at 15% 32%, #111 0px, #111 13px, transparent 14px),
+    radial-gradient(circle at 85% 32%, #111 0px, #111 13px, transparent 14px),
+    radial-gradient(circle at 50% 64%, #111 0px, #111 13px, transparent 14px),
+    linear-gradient(#111,#111);
+  background-repeat: no-repeat;
+  background-size:
+    26px 26px,
+    26px 26px,
+    0 0,
+    88px 12px;
+  background-position:
+    35% 36%,
+    65% 36%,
+    50% 65%,
+    50% 68%;
+  border-radius: 26px;
+}
+
+.ftb-bug::after{
+  content: none !important;
+}
+
+/* nodes */
+.ftb-bug::before{
+  content: none !important;
+}
+
+.ftb-bug{
+  background: transparent !important;
+}
+
+/* reaction states */
+.ftb-bug--good{
+  filter: drop-shadow(0 0 18px rgba(34,197,94,0.35));
+}
+.ftb-bug--bad{
+  filter: drop-shadow(0 0 18px rgba(239,68,68,0.35));
+}
+
+/* Override: remove any decorative frame, border, shadow or background around the bug image.
+   This makes the PNG render 'naked' without the CSS-drawn box or effects. */
+#ftb-bug, .ftb-bug {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  filter: none !important;
+}
+
+#ftb-bug .ftb-bug__img, .ftb-bug__img {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  object-fit: contain !important;
+}
+
+/* banner feedback like screenshots */
+.ftb-banner{
+  position: absolute;
+  /* place the feedback banner higher above the bug so it does not sit on top
+     of the bug sprite (was -20px). Increase the z-index so it visually sits
+     above HUD elements when needed. */
+  top: -56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 980;
+  font-weight: 900;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 3px solid rgba(0,0,0,0.12);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.18);
+  white-space: nowrap;
+    width: 200px;
+}
+.ftb-banner--good{
+  background: #22c55e;
+  color: #fff;
+}
+.ftb-banner--bad{
+  background: #ef4444;
+  color: #fff;
+}
+
+/* question area */
+.ftb-question{
+  position: absolute;
+  left: 50%;
+  bottom: 85px;
+  transform: translateX(-50%);
+  width: min(720px, calc(100% - 40px));
+  z-index: 3;
+}
+
+.ftb-question__box{
+  background: #fff;
+  border-radius: 16px;
+  border: 3px solid rgba(0,0,0,0.12);
+  box-shadow: 0 20px 48px rgba(0,0,0,0.18);
+  padding: 22px 22px 18px;
+}
+
+.ftb-question__title{
+  font-weight: 900;
+  font-size: 20px;
+  text-align: center;
+  margin: 2px 0 14px;
+  color: #111;
+}
+
+.ftb-options{
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+
+@media (max-width: 740px){
+  .ftb-options{ grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ftb-question{ bottom: 60px; }
+}
+
+.ftb-option{
+  background: #e9eef3;
+  border: 3px solid rgba(0,0,0,0.12);
+  border-radius: 14px;
+  padding: 18px 14px;
+  cursor: pointer;
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
+  min-height: 56px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-weight: 900;
+  color: #2a2a2a;
+  box-shadow: 0 10px 18px rgba(0,0,0,0.08);
+}
+
+.ftb-option:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 14px 26px rgba(0,0,0,0.12);
+}
+
+.ftb-option:disabled{
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ftb-option__icon{
+  font-size: 20px;
+}
+.ftb-option__label{
+  font-size: 14px;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.ftb-option--selected{
+  border-color: rgba(59,130,246,0.55);
+  background: #dbeafe;
+}
+
+.ftb-option--correct{
+  border-color: rgba(34,197,94,0.65);
+  background: #dcfce7;
+}
+.ftb-option--wrong{
+  border-color: rgba(239,68,68,0.65);
+  background: #fee2e2;
+}
+
+/* bottom-left progress */
+.ftb-progress{
+  /* Copied visual style from BugCleanup .bc-progress */
+  position: absolute;
+  left: 18px;
+  bottom: 18px;
+  width: 285px;
+  z-index: 950;
+  background: #2891df;
+  border: 3px solid #5cb2f1;
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.ftb-progress__label{
+  color: #fff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+    text-align: left;
+}
+
+.ftb-progress__track{
+  position: relative;
+  background: #d4d4d4;
+  border-radius: 6px;
+  height: 28px;
+  overflow: hidden;
+}
+
+.ftb-progress__fill{
+  height: 100%;
+  /* Segmented green fill to match the red segmented style */
+  background:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255,255,255,0.22) 0 2px,
+      rgba(255,255,255,0) 2px 24px
+    ),
+    linear-gradient(90deg, #32d66f 0%, #22b85c 100%);
+  transition: width 220ms ease;
+}
+
+.ftb-progress__text{
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #fff;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  pointer-events: none;
+}
+
+/* Make inner energy element sit flush inside the progress container similar to BugCleanup */
+.ftb-progress .ftb-energy{
+  width: 100%;
+  background: transparent;
+  padding: 0;
+  border-radius: 6px;
+  border: none;
+  box-shadow: none;
+}
+
+/* Debug helper: when ?ftb-fireworks-debug=1 is present, force the fireworks canvas above UI to verify it renders */
+.pz-fireworks-debug{
+  z-index: 1200 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+/* Place the shared fireworks canvas behind the FightTheBug end UI elements.
+   The shared .pz-end-box rules set other end content to z-index:200, so
+   using a lower z-index here guarantees the canvas stays behind UI. */
+#ftb-end .pz-fireworks-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50 !important; /* behind end UI */
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+/* Ensure end-screen right column stacks vertically and the tips text is left-aligned */
+.pz-end-right { gap: 9px; display: flex; flex-direction: column; align-items: center; }
+.pz-tips-card { text-align: left; }
+.pz-tips { text-align: left; }
+
+/* Make sure the bug image sits above the tips card and does not float beside it */
+#ftb-end-bug-wrapper { width: 100%; display: flex; justify-content: center; }
+
+/* Make the end-screen bug image larger and responsive */
+#ftb-end-bug-image {
+  max-width: 360px; /* default larger size */
+  width: 100%;
+  height: auto;
+  display: block;
+  /* tilt slightly to the left (links scheef) */
+  transform: rotate(-6deg);
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+@media (min-width: 1100px) {
+  #ftb-end-bug-image { max-width: 420px; transform: rotate(-8deg); }
+}
+
+@media (max-width: 600px) {
+  /* reduce tilt on small screens to avoid clipping */
+  #ftb-end-bug-image { transform: rotate(-3deg); }
+}
+
+/* Tighten spacing inside tips card */
+.pz-tips { margin: 0.4rem 0; font-size: 1.12rem; line-height: 1.28; }
+.pz-tips ul { margin: 0.2rem 0 0.6rem 0; padding-left: 1.05rem; }
+.pz-tips-card li { margin-bottom: 6px; padding-left: 24px; font-size: 1.1rem; line-height: 1.24; }
+.pz-tips-card li::before { top: 0.7rem; width: 10px; height: 10px; }
+
+/* Scoped overrides for end-screen layout to increase spacing between elements */
+#ftb-end .pz-end-content {
+  gap: 48px; /* larger gap between score circle and tips card */
+}
+#ftb-end .pz-end-left {
+  gap: 16px; /* increased vertical space inside left column */
+}
+#ftb-end .pz-tips-card {
+  padding: 28px 32px; /* more padding so tips card breathes */
+  width: 680px; /* larger tips box to balance spacing */
+}
+
+/* gap between bug image and tips card: set to 6px per design */
+#ftb-end-bug-wrapper { margin-bottom: 6px; }
+
+
