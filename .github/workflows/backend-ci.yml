@@ -32,6 +32,20 @@ jobs:
           # Caching disabled to avoid errors when the Backend/package-lock.json file is missing.
           # Recommended: create and commit Backend/package-lock.json (see instructions) and re-enable caching.
 
+      - name: Install system dependencies required by mongodb binaries
+        run: |
+          set -e
+          echo "Installing libssl1.1 (needed by mongodb-memory-server mongod binaries)"
+          sudo apt-get update -y
+          # Try to install libssl1.1 from apt. On Ubuntu versions where it's unavailable,
+          # download a focal package and install it as a fallback.
+          if ! sudo apt-get install -y libssl1.1; then
+            echo "libssl1.1 not available from apt, downloading .deb fallback"
+            wget -q -O /tmp/libssl1.1.deb https://security.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
+            sudo dpkg -i /tmp/libssl1.1.deb || sudo apt-get -f install -y
+          fi
+        shell: bash
+
       - name: Ensure Backend exists
         run: |
           if [ ! -d "Backend" ]; then
