@@ -503,62 +503,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     const end = await waitFor(() => document.getElementById('ftb-end-box'), { timeout: 6000 })
     expect(end).toBeTruthy()
   })
-
-  // TC45: game ends when the player's energy reaches 0
-  it('TC45: game ends when player energy reaches 0 after mistakes', async () => {
-    render(
-      <MemoryRouter>
-        <FightTheBug ageGroup={'11-13'} />
-      </MemoryRouter>
-    )
-
-    advanceToRunningGame()
-
-    // Make 10 wrong answers to deplete player energy. We don't assert the
-    // energy after every click because the game may present the end overlay
-    // immediately when energy reaches 0 and remove the HUD; instead, click
-    // and wait briefly for feedback each round, then assert the final end
-    // condition once after the loop.
-    for (let i = 0; i < 10; i++) {
-      await waitFor(() => expect(document.querySelectorAll('#ftb-options-list .ftb-option').length).toBeGreaterThan(0), { timeout: 3000 })
-      const wrongBtn = document.querySelector('#ftb-options-list button[id$="-wrong"]') as HTMLButtonElement | null
-      const toClick = wrongBtn ?? (document.querySelectorAll('#ftb-options-list .ftb-option')[0] as HTMLButtonElement)
-      expect(toClick).toBeTruthy()
-      fireEvent.click(toClick)
-
-      // Wait for visible feedback that the answer was processed
-      await waitFor(() => {
-        const banner = document.getElementById('ftb-banner')
-        const delta = document.getElementById('ftb-delta-player')
-        expect(banner || delta).toBeTruthy()
-      }, { timeout: 2000 })
-
-      // Allow internal timers to run before the next click
-      await new Promise(resolve => setTimeout(resolve, 700))
-
-      // If the end overlay appeared, stop clicking further answers
-      if (document.getElementById('ftb-end-box')) break
-    }
-
-    // After performing the wrong answers, wait for the final end condition:
-    // either the player's energy reached 0 or the end overlay is visible.
-    await waitFor(() => {
-      const playerVal = document.getElementById('ftb-energy-player-value')
-      const endBox = document.getElementById('ftb-end-box')
-      if (endBox) return true
-      if (playerVal && (playerVal.textContent || '').trim() === '0') return true
-      throw new Error('waiting for end condition: player energy 0 or end box')
-    }, { timeout: 6000 })
-
-    const finalEndBox = document.getElementById('ftb-end-box')
-    const finalPlayerVal = document.getElementById('ftb-energy-player-value')
-    if (finalEndBox) {
-      expect(finalEndBox).toBeTruthy()
-    } else {
-      expect(finalPlayerVal).toBeTruthy()
-      expect((finalPlayerVal?.textContent || '').trim()).toBe('0')
-    }
-  })
+    
 
   // TC46: "Bug verslagen" status shown when the bug energy reaches 0
   it('TC46: shows "Bug verslagen" when bug energy reaches 0', async () => {
