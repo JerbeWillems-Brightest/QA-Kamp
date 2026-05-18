@@ -12,9 +12,13 @@ on:
 
 jobs:
   build-and-test:
-    # Use ubuntu-20.04 runner which includes libssl1.1 needed by mongodb-memory-server
-    # (mongod binaries downloaded by mongodb-memory-server are built against OpenSSL 1.1).
-    runs-on: ubuntu-20.04
+    # Use the GitHub-hosted runner availability (ubuntu-latest) but run inside an
+    # Ubuntu 20.04 container so the environment contains libssl1.1 required by
+    # mongodb-memory-server. This keeps runner assignment fast while ensuring
+    # the correct system libraries are available.
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
     # Prefer single secret MONGO_URI; fall back to DB_USERNAME/DB_PASSWORD if needed.
     env:
       # If you add a secret named MONGO_URI in the repo, it will be used.
@@ -34,19 +38,9 @@ jobs:
           # Caching disabled to avoid errors when the Backend/package-lock.json file is missing.
           # Recommended: create and commit Backend/package-lock.json (see instructions) and re-enable caching.
 
-      - name: Install system dependencies required by mongodb binaries
-        run: |
-          set -e
-          echo "Installing libssl1.1 (needed by mongodb-memory-server mongod binaries)"
-          sudo apt-get update -y
-          # Try to install libssl1.1 from apt. On Ubuntu versions where it's unavailable,
-          # download a focal package and install it as a fallback.
-          if ! sudo apt-get install -y libssl1.1; then
-            echo "libssl1.1 not available from apt, downloading .deb fallback"
-            wget -q -O /tmp/libssl1.1.deb https://security.ubuntu.com/ubuntu/pool/main/o/openssl1.1/libssl1.1_1.1.1f-1ubuntu2.16_amd64.deb
-            sudo dpkg -i /tmp/libssl1.1.deb || sudo apt-get -f install -y
-          fi
-        shell: bash
+      # Running inside the ubuntu:20.04 container provides libssl1.1 (libcrypto.so.1.1)
+      # so mongodb-memory-server's mongod binary can start. No manual apt install
+      # step is required here.
 
       - name: Ensure Backend exists
         run: |
