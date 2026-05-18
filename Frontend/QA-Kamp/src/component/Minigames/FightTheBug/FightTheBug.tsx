@@ -1486,12 +1486,12 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                   <div id="ftb-stats-row" className="pz-stats-row">
                     <div id="ftb-stats-correct" className="pz-stats-correct">
                       <div className="shine" aria-hidden />
-                      <div id="ftb-stats-correct-label" className="label">Juiste</div>
+                      <div id="ftb-stats-correct-label" className="label">Juist</div>
                       <div id="ftb-total-correct" className="score">{totalCorrect}</div>
                     </div>
                     <div id="ftb-stats-wrong" className="pz-stats-wrong">
                       <div className="shine" aria-hidden />
-                      <div id="ftb-stats-wrong-label" className="label">Foute</div>
+                      <div id="ftb-stats-wrong-label" className="label">Fout</div>
                       <div id="ftb-total-wrong" className="score">{totalWrong}</div>
                     </div>
                   </div>
