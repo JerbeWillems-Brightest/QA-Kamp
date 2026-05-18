@@ -30,6 +30,9 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+          # Ensure the action looks for the lockfile in the Backend subfolder
+          # so caching works for the backend package.json/package-lock.json.
+          cache-dependency-path: Backend/package-lock.json
 
       - name: Ensure Backend exists
         run: |
