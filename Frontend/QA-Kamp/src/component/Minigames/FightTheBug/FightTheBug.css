@@ -35,6 +35,8 @@
   overflow: hidden;
 }
 
+
+
 /* top-left label like screenshots */
 .ftb-top-left{
   /* align with other games' score badge positioning */
@@ -350,13 +352,14 @@
 .ftb-bug{
   position: absolute;
   left: 50%;
-  top: 90px;
+  top: 0;
   /* make the player badge pill-shaped like the bug delta */
   border-radius: 9999px;
   border: 2px solid rgba(0,0,0,0.06);
   transform: translateX(-50%);
-  width: min(260px, 58vw);
-  height: min(260px, 58vw);
+  /* larger bug: up to 420px or 72vw on narrow screens */
+  width: min(420px, 72vw);
+  height: min(420px, 72vw);
   background: #ff3b3b;
   border-radius: 26px;
   border: 4px solid rgba(0,0,0,0.18);
@@ -364,15 +367,30 @@
   z-index: 2;
 }
 
+/* Hide complex CSS-drawn face; we'll use an image instead */
+.ftb-bug__face{ display: none !important }
+
+.ftb-bug__img{
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 0 !important; /* image itself has no rounded border to keep PNG intact */
+  box-shadow: none !important;
+}
+
+@media (max-width: 740px) {
+  .ftb-bug{
+    width: min(320px, 78vw);
+    height: min(320px, 78vw);
+    top: 70px;
+  }
+}
+
 .ftb-bug::before,
 .ftb-bug::after{
   content:"";
-  position: absolute;
-  inset: -20px;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 8% 20%, rgba(255,59,59,0) 0px, rgba(255,59,59,0) 18px, rgba(255,59,59,0) 19px),
-    radial-gradient(circle at 10% 10%, #ff3b3b 0px, #ff3b3b 6px, transparent 7px);
+  display: none !important;
 }
 
 /* arms / nodes (8 nodes) */
@@ -383,18 +401,8 @@
 
 .ftb-bug__face::before,
 .ftb-bug__face::after{
-  content:"";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: transparent;
-  box-shadow:
-    -120px -20px 0 0 rgba(255,59,59,0),
-    120px -20px 0 0 rgba(255,59,59,0);
+  content: "";
+  display: none !important;
 }
 
 /* draw arms as circles + lines */
@@ -422,30 +430,16 @@
 }
 
 .ftb-bug::after{
-  content:"";
-  position:absolute;
-  inset: -36px;
-  background:
-    radial-gradient(circle at 15% 20%, var(--arm) 0px, transparent 8px),
-    radial-gradient(circle at 85% 20%, var(--arm) 0px, transparent 8px);
-  pointer-events:none;
+  content: none !important;
 }
 
 /* nodes */
 .ftb-bug::before{
-  content:"";
-  position:absolute;
-  inset:-40px;
-  background:
-    radial-gradient(circle at 18% 18%, #ff3b3b 0px, transparent 8px);
-  pointer-events:none;
+  content: none !important;
 }
 
 .ftb-bug{
-  background:
-    radial-gradient(circle at 12% 22%, rgba(255,255,255,0.22) 0px, rgba(255,255,255,0.22) 18px, transparent 19px),
-    radial-gradient(circle at 78% 24%, rgba(255,255,255,0.16) 0px, rgba(255,255,255,0.16) 16px, transparent 17px),
-    #ff3b3b;
+  background: transparent !important;
 }
 
 /* reaction states */
@@ -454,6 +448,27 @@
 }
 .ftb-bug--bad{
   filter: drop-shadow(0 0 18px rgba(239,68,68,0.35));
+}
+
+/* Override: remove any decorative frame, border, shadow or background around the bug image.
+   This makes the PNG render 'naked' without the CSS-drawn box or effects. */
+#ftb-bug, .ftb-bug {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  filter: none !important;
+}
+
+#ftb-bug .ftb-bug__img, .ftb-bug__img {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  display: block !important;
+  object-fit: contain !important;
 }
 
 /* banner feedback like screenshots */
@@ -495,10 +510,10 @@
 
 .ftb-question__box{
   background: #fff;
-  border-radius: 14px;
+  border-radius: 16px;
   border: 3px solid rgba(0,0,0,0.12);
-  box-shadow: 0 18px 40px rgba(0,0,0,0.18);
-  padding: 16px 16px 14px;
+  box-shadow: 0 20px 48px rgba(0,0,0,0.18);
+  padding: 22px 22px 18px;
 }
 
 .ftb-question__title{
@@ -512,7 +527,7 @@
 .ftb-options{
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  gap: 18px;
   align-items: stretch;
 }
 
@@ -524,8 +539,8 @@
 .ftb-option{
   background: #e9eef3;
   border: 3px solid rgba(0,0,0,0.12);
-  border-radius: 12px;
-  padding: 14px 10px;
+  border-radius: 14px;
+  padding: 18px 14px;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, border-color 120ms ease;
   min-height: 56px;
@@ -637,4 +652,75 @@
   border: none;
   box-shadow: none;
 }
+
+/* Debug helper: when ?ftb-fireworks-debug=1 is present, force the fireworks canvas above UI to verify it renders */
+.pz-fireworks-debug{
+  z-index: 1200 !important;
+  pointer-events: none !important;
+  background: transparent !important;
+}
+
+/* Place the shared fireworks canvas behind the FightTheBug end UI elements.
+   The shared .pz-end-box rules set other end content to z-index:200, so
+   using a lower z-index here guarantees the canvas stays behind UI. */
+#ftb-end .pz-fireworks-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 50 !important; /* behind end UI */
+  background: transparent !important;
+  pointer-events: none !important;
+}
+
+/* Ensure end-screen right column stacks vertically and the tips text is left-aligned */
+.pz-end-right { gap: 9px; display: flex; flex-direction: column; align-items: center; }
+.pz-tips-card { text-align: left; }
+.pz-tips { text-align: left; }
+
+/* Make sure the bug image sits above the tips card and does not float beside it */
+#ftb-end-bug-wrapper { width: 100%; display: flex; justify-content: center; }
+
+/* Make the end-screen bug image larger and responsive */
+#ftb-end-bug-image {
+  max-width: 360px; /* default larger size */
+  width: 100%;
+  height: auto;
+  display: block;
+  /* tilt slightly to the left (links scheef) */
+  transform: rotate(-6deg);
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+@media (min-width: 1100px) {
+  #ftb-end-bug-image { max-width: 420px; transform: rotate(-8deg); }
+}
+
+@media (max-width: 600px) {
+  /* reduce tilt on small screens to avoid clipping */
+  #ftb-end-bug-image { transform: rotate(-3deg); }
+}
+
+/* Tighten spacing inside tips card */
+.pz-tips { margin: 0.4rem 0; font-size: 1.12rem; line-height: 1.28; }
+.pz-tips ul { margin: 0.2rem 0 0.6rem 0; padding-left: 1.05rem; }
+.pz-tips-card li { margin-bottom: 6px; padding-left: 24px; font-size: 1.1rem; line-height: 1.24; }
+.pz-tips-card li::before { top: 0.7rem; width: 10px; height: 10px; }
+
+/* Scoped overrides for end-screen layout to increase spacing between elements */
+#ftb-end .pz-end-content {
+  gap: 48px; /* larger gap between score circle and tips card */
+}
+#ftb-end .pz-end-left {
+  gap: 16px; /* increased vertical space inside left column */
+}
+#ftb-end .pz-tips-card {
+  padding: 28px 32px; /* more padding so tips card breathes */
+  width: 680px; /* larger tips box to balance spacing */
+}
+
+/* gap between bug image and tips card: set to 6px per design */
+#ftb-end-bug-wrapper { margin-bottom: 6px; }
+
 

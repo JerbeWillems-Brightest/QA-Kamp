@@ -638,3 +638,21 @@ body, #root { word-break: break-word; overflow-wrap: break-word; }
 @media (max-width: 640px) {
   .back-link { left: 8px; top: calc(var(--nav-height) + 6px); font-size: 14px; }
 }
+
+/* Fix: force the small score/timer/practice pill back to the top-left corner.
+   Some component-level styles position a .pz-score-stack relative to a centered
+   modal which causes the Oefenronde / timer pill to appear in the middle.
+   These overrides ensure the score UI is anchored to the viewport's top-left.
+*/
+.pz-score {
+  left: 30px !important;
+  right: auto !important;
+  top: 30px !important;
+}
+.pz-score-stack {
+  left: 30px !important;
+  right: auto !important;
+  top: 20px !important;
+  align-items: flex-start !important; /* keep stacked items aligned to the left */
+}
+
