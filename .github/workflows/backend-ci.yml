@@ -61,6 +61,19 @@ jobs:
           fi
         shell: bash
 
+      - name: Ensure Backend package-lock exists
+        run: |
+          # If package-lock.json is missing in Backend, create it from package.json so `npm ci` can run.
+          if [ ! -f Backend/package-lock.json ]; then
+            echo "package-lock.json not found in Backend, creating with npm install --package-lock-only"
+            pushd Backend >/dev/null
+            npm install --package-lock-only
+            popd >/dev/null
+          else
+            echo "Found Backend/package-lock.json"
+          fi
+        shell: bash
+
       - name: Install dependencies
         run: npm ci
         working-directory: Backend
