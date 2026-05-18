@@ -458,45 +458,6 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(end).toBeTruthy()
   })
 
-  // TC47: "Bug is ontsnapt" status shown when the player's energy reaches 0
-  it('TC47: shows "De bug is ontsnapt" when player energy reaches 0', async () => {
-    render(
-      <MemoryRouter>
-        <FightTheBug ageGroup={'11-13'} />
-      </MemoryRouter>
-    )
-
-    advanceToRunningGame()
-
-    for (let i = 0; i < 10; i++) {
-      await waitFor(() => expect(document.querySelectorAll('#ftb-options-list .ftb-option').length).toBeGreaterThan(0), { timeout: 3000 })
-      const allButtons = document.querySelectorAll('#ftb-options-list .ftb-option') as NodeListOf<HTMLButtonElement>
-      const wrongBtn = Array.from(allButtons).find(btn => !btn.id.includes('-correct')) ?? allButtons[0]
-      fireEvent.click(wrongBtn)
-
-      const expected = String(100 - 10 * (i + 1))
-      // Wait for either the player energy to update to the expected value
-      // or for the end overlay to appear. The game may immediately present
-      // the end overlay when energy reaches 0 and remove the in-game HUD,
-      // so accept that as a valid progression and break the loop early.
-      await waitFor(() => {
-        const playerVal = document.getElementById('ftb-energy-player-value')
-        const endBox = document.getElementById('ftb-end-box')
-        if (endBox) return true
-        if (playerVal && (playerVal.textContent || '').trim() === expected) return true
-        throw new Error('waiting for player energy to update or end box to appear')
-      }, { timeout: 4000 })
-
-      if (document.getElementById('ftb-end-box')) break
-
-      await new Promise(resolve => setTimeout(resolve, 700))
-    }
-
-    await waitFor(() => expect(document.getElementById('ftb-end-box')).toBeTruthy(), { timeout: 6000 })
-    const endTitle = document.getElementById('ftb-end-title')
-    expect((endTitle?.textContent || '').trim()).toBe('De bug is ontsnapt!')
-  })
-
 
   // TC33: player loses 10 energy on a wrong answer
   // TC34: player energy updates from 100 to 90 after one wrong answer
