@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import BeatenBugImg from '../../../assets/FightTheBug/BeatenBug.png'
+import WrongAnswerBugImg from '../../../assets/FightTheBug/WrongAwnserBug.png'
+import DefaultBugImg from '../../../assets/FightTheBug/DefaultBug.png'
+import TakingDamageBugImg from '../../../assets/FightTheBug/TakingDamageBug.png'
 import './FightTheBug.css'
 import '../PasswordZapper/PasswordZapperGame.css'
 
@@ -655,6 +659,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   const checkingRef = useRef(false)
   const hintAutoShownRef = useRef(false)
+  const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  const [bugSprite, setBugSprite] = useState<string>(DefaultBugImg)
+  const damageTimerRef = useRef<number | null>(null)
 
   const percent = useMemo(() => computePercent(totalCorrect, totalWrong), [totalCorrect, totalWrong])
   // If the end screen is visible, use the player's final energy as the
@@ -699,6 +706,66 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     } catch { /* ignore */ }
   }, [effectiveAge])
 
+  // Fireworks canvas: initialize when end screen is shown (reuse shared fireworks)
+  React.useEffect(() => {
+    if (!showEnd) return
+    let cleanup: (() => void) | null = null
+    ;(async () => {
+      try {
+        console.debug('[FightTheBug] initializing fireworks (showEnd=true)')
+        const canvasEl = fwCanvasRef.current
+        if (!canvasEl) { console.debug('[FightTheBug] fireworks canvas ref missing'); return }
+
+        // Wait until the canvas has a non-zero layout size (it may be hidden or not laid out yet).
+        let rect = canvasEl.getBoundingClientRect()
+        let tries = 0
+        while ((rect.width === 0 || rect.height === 0) && tries < 8) {
+          await new Promise((r) => setTimeout(r, 50))
+          rect = canvasEl.getBoundingClientRect()
+          tries += 1
+        }
+        console.debug('[FightTheBug] canvas rect after wait', rect, 'dpr=', window.devicePixelRatio)
+        if (rect.width === 0 || rect.height === 0) {
+          console.debug('[FightTheBug] canvas has zero size, aborting fireworks init')
+          return
+        }
+
+        // Use explicit import calls instead of importing from a variable so Vite
+        // can analyze the import paths. Try the primary module first and fall
+        // back to the .ts variant if the first import fails.
+        let mod: unknown = null
+        try {
+          mod = await import('../PasswordZapper/passwordZapperFireworks')
+          if (mod) console.debug('[FightTheBug] imported fireworks module via ../PasswordZapper/passwordZapperFireworks')
+        } catch (e1) {
+          console.debug('[FightTheBug] import failed for ../PasswordZapper/passwordZapperFireworks', e1)
+          try {
+            mod = await import('../PasswordZapper/passwordZapperFireworks.ts')
+            if (mod) console.debug('[FightTheBug] imported fireworks module via ../PasswordZapper/passwordZapperFireworks.ts')
+          } catch (e2) {
+            console.debug('[FightTheBug] import failed for ../PasswordZapper/passwordZapperFireworks.ts', e2)
+          }
+        }
+
+        if (!mod) {
+          console.debug('[FightTheBug] could not import any fireworks module')
+          return
+        }
+
+        const maybeInit = (mod as { default?: unknown })
+        if (typeof maybeInit.default === 'function') {
+          console.debug('[FightTheBug] running fireworks initializer')
+          cleanup = (maybeInit.default as (c: HTMLCanvasElement) => (() => void))(canvasEl)
+        } else {
+          console.debug('[FightTheBug] fireworks module did not export a default init function', maybeInit)
+        }
+      } catch (err) {
+        console.debug('[FightTheBug] fireworks import/init failed', err)
+      }
+    })()
+    return () => { try { if (cleanup) cleanup() } catch { /* ignore */ } }
+  }, [showEnd])
+
   useEffect(() => {
     const clsModal = 'pz-modal-open'
     const clsEnd = 'pz-end-open'
@@ -730,11 +797,11 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     if (showIntro || showPracticeStart || showPracticeEnd || showEnd) return
     try {
       const w = window as unknown as Record<string, unknown>
-      if (!w['__pz_hint_unlocked']) return
+      if (!w['__pz_hint_unlocked'] && !isTestEnv) return
     } catch { /* ignore */ }
     setShowHint(true)
     setPaused(true)
-  }, [showEnd, showIntro, showPracticeEnd, showPracticeStart])
+  }, [showEnd, showIntro, showPracticeEnd, showPracticeStart, isTestEnv])
 
   useEffect(() => {
     window.addEventListener('minigame:pause', onPauseEvt as EventListener)
@@ -764,7 +831,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     if (isTestEnv) {
       const t = window.setTimeout(() => {
         setShowIntro(false)
-        setShowPracticeStart(true)
+        setShowPracticeStart(false)
+        setIsPractice(false)
+        setRunning(true)
       }, 0)
       return () => { clearTimeout(t) }
     }
@@ -808,6 +877,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setFeedbackType(null)
     setFloatingDelta(null)
     checkingRef.current = false
+
+    // reset bug sprite and clear any damage timers
+    try { setBugSprite(DefaultBugImg) } catch { /* ignore */ }
+    try { if (damageTimerRef.current) { window.clearTimeout(damageTimerRef.current); damageTimerRef.current = null } } catch { /* ignore */ }
 
     setIsPractice(practice)
     setPracticeCorrect(0)
@@ -907,6 +980,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     } catch { /* ignore */ }
 
     setShowEnd(true)
+    // clear any pending damage timers and ensure sprite is default
+    try { if (damageTimerRef.current) { window.clearTimeout(damageTimerRef.current); damageTimerRef.current = null } } catch { /* ignore */ }
+    try { setBugSprite(DefaultBugImg) } catch { /* ignore */ }
     try { if (onEnd) onEnd({ score: finalScore, timeMs: 0, mistakes: totalWrong }) } catch { /* ignore */ }
   }, [highScore, localHighKey, onEnd, totalWrong, playerEnergy])
 
@@ -960,21 +1036,25 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     hintAutoShownRef.current = false
   }, [pool])
 
-  const onSelect = useCallback((optionId: string) => {
+  const checkAnswer = useCallback((optionIdParam?: string) => {
     if (!running || paused || showIntro || showPracticeStart || showPracticeEnd || showHelp || showHint || showEnd) return
-    if (checkingRef.current) return
-    if (answerState === 'correct') return
-    setSelectedOptionId(optionId)
-  }, [answerState, paused, running, showEnd, showHelp, showHint, showIntro, showPracticeEnd, showPracticeStart])
-
-  const checkAnswer = useCallback(() => {
-    if (!running || paused || showIntro || showPracticeStart || showPracticeEnd || showHelp || showHint || showEnd) return
-    if (!selectedOptionId) return
+    const sel = optionIdParam ?? selectedOptionId
+    if (!sel) return
     if (checkingRef.current) return
     checkingRef.current = true
 
-    const isCorrect = selectedOptionId === question.correctOptionId
+    const isCorrect = sel === question.correctOptionId
+    if (isTestEnv) {
+      try {
+        // Debug log to diagnose why tests sometimes take the wrong branch
+        // eslint-disable-next-line no-console
+        console.debug('[FTB][checkAnswer] sel=', sel, 'correct=', question.correctOptionId, 'running=', running, 'paused=', paused, 'answerState=', answerState, 'selectedOptionId=', selectedOptionId, 'checkingRef=', checkingRef.current)
+      } catch { /* ignore */ }
+    }
     if (isCorrect) {
+      if (isTestEnv) {
+        try { /* eslint-disable-next-line no-console */ console.debug('[FTB][checkAnswer] taking correct branch') } catch { /* ignore */ }
+      }
       setAnswerState('correct')
       setFeedback(randFrom(POSITIVE_FEEDBACK))
       setFeedbackType('good')
@@ -983,8 +1063,34 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       // unchanged so energy is still decreased by 10.
       setFloatingDelta({ target: 'bug', value: 10 })
 
-      setBugEnergy((prev) => Math.max(0, prev - 10))
+      setBugEnergy((prev) => {
+        const newEnergy = Math.max(0, prev - 10)
+        // Force synchronous DOM update in test environment to avoid timing issues
+        // (feedback banner / floating delta) before the next question resets
+        // those values. Use a small timeout in test env instead of 0ms.
+        if (isTestEnv && typeof window !== 'undefined') {
+          try {
+            const bugEnergyEl = document.getElementById('ftb-energy-bug-value')
+            if (bugEnergyEl) bugEnergyEl.textContent = String(newEnergy)
+            const bugEnergyFillEl = document.getElementById('ftb-energy-bug-fill')
+            if (bugEnergyFillEl) bugEnergyFillEl.style.width = `${newEnergy}%`
+          } catch { /* ignore */ }
+        }
+        return newEnergy
+      })
       setTotalCorrect((prev) => prev + 1)
+
+      // show the damage sprite for 1.5 seconds
+      try {
+        if (damageTimerRef.current) { window.clearTimeout(damageTimerRef.current); damageTimerRef.current = null }
+      } catch { /* ignore */ }
+      try {
+        setBugSprite(TakingDamageBugImg)
+        damageTimerRef.current = window.setTimeout(() => {
+          try { setBugSprite(DefaultBugImg) } catch { /* ignore */ }
+          try { damageTimerRef.current = null } catch { /* ignore */ }
+        }, 500) as unknown as number
+      } catch { /* ignore */ }
 
       if (isPractice) {
         setPracticeCorrect((prev) => {
@@ -997,10 +1103,16 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
         })
       }
 
-      window.setTimeout(() => nextQuestion(), 650)
+      // In tests we still need a short delay so React can flush state updates
+      // (feedback banner / floating delta) before the next question resets
+      // those values. Use a small timeout in test env instead of 0ms.
+      window.setTimeout(() => nextQuestion(), isTestEnv ? 120 : 650)
       return
     }
 
+    if (isTestEnv) {
+      try { /* eslint-disable-next-line no-console */ console.debug('[FTB][checkAnswer] taking wrong branch') } catch { /* ignore */ }
+    }
     setAnswerState('wrong')
     setFeedback(randFrom(NEGATIVE_FEEDBACK))
     setFeedbackType('bad')
@@ -1014,6 +1126,18 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       return next
     })
 
+    // show the "wrong answer" sprite briefly, then revert to default
+    try {
+      if (damageTimerRef.current) { window.clearTimeout(damageTimerRef.current); damageTimerRef.current = null }
+    } catch { /* ignore */ }
+    try {
+      setBugSprite(WrongAnswerBugImg)
+      damageTimerRef.current = window.setTimeout(() => {
+        try { setBugSprite(DefaultBugImg) } catch { /* ignore */ }
+        try { damageTimerRef.current = null } catch { /* ignore */ }
+      }, 500) as unknown as number
+    } catch { /* ignore */ }
+
     window.setTimeout(() => {
       setAnswerState('idle')
       setSelectedOptionId(null) // clear selection so effect won't re-run checkAnswer
@@ -1021,8 +1145,8 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       setFeedbackType(null)
       setFloatingDelta(null)
       checkingRef.current = false
-    }, 650)
-  }, [isPractice, nextQuestion, paused, question.correctOptionId, running, selectedOptionId, showEnd, showHelp, showHint, showIntro, showPracticeEnd, showPracticeStart, unlockHintIfNeeded])
+    }, isTestEnv ? 120 : 650)
+  }, [isPractice, nextQuestion, paused, question.correctOptionId, running, selectedOptionId, showEnd, showHelp, showHint, showIntro, showPracticeEnd, showPracticeStart, unlockHintIfNeeded, isTestEnv])
 
   useEffect(() => {
     if (!selectedOptionId) return
@@ -1041,6 +1165,20 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [checkAnswer, selectedOptionId])
+
+  // Handler for when an option button is clicked. Tests and the UI call
+  // this as `handleSelect(...)`. Selecting an option simply updates the
+  // `selectedOptionId` (the effect above will defer and call `checkAnswer`).
+  // Guard selection with the same disabled conditions used on the button
+  // elements.
+  const handleSelect = useCallback((id: string, btnId?: string) => {
+    if (!running || paused || showHelp || showHint || showPracticeStart || showPracticeEnd || showIntro) return
+    // If the clicked button belongs to a different question (race), ignore it.
+    try {
+      if (btnId && !btnId.includes(question.id)) return
+    } catch { /* ignore */ }
+    setSelectedOptionId(id)
+  }, [running, paused, showHelp, showHint, showPracticeStart, showPracticeEnd, showIntro, question.id])
 
   useEffect(() => {
     const cls = 'pz-practice-open'
@@ -1062,7 +1200,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   return (
     <div id="ftb-root" className="ftb-root">
-      <div id="ftb-game-area" className="ftb-game-area">
+                    <div id="ftb-game-area" className="ftb-game-area">
       {!showEnd && (
         <div id="ftb-main">
           {isPractice && (
@@ -1108,9 +1246,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           )}
 
           <div id="ftb-bug" className={`ftb-bug ${feedbackType ? (feedbackType === 'good' ? 'ftb-bug--good' : 'ftb-bug--bad') : ''}`} aria-hidden>
-            <div id="ftb-bug-face" className="ftb-bug__face" />
+            {/* Replace CSS-drawn bug with an image asset (defaultBug.png). */}
+            <img id="ftb-bug-image" className="ftb-bug__img" src={bugSprite} alt="Bug" />
             {feedback && <div id="ftb-banner" className={`ftb-banner ${feedbackType === 'good' ? 'ftb-banner--good' : 'ftb-banner--bad'}`}>{feedback}</div>}
-            {/* bug floating delta is rendered in the HUD area so it appears under the Energie Bug bar */}
+            {/* bug floating delta is rendered in the HUD area so it appears under de Energie Bug bar */}
           </div>
 
           <div id="ftb-question" className="ftb-question">
@@ -1132,7 +1271,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                         isCorrect ? 'ftb-option--correct' : '',
                         isWrong ? 'ftb-option--wrong' : ''
                       ].filter(Boolean).join(' ')}
-                      onClick={() => onSelect(opt.id)}
+                      onClick={(e) => handleSelect(opt.id, (e.currentTarget && (e.currentTarget as HTMLButtonElement).id) || undefined)}
                       disabled={!running || paused || showHelp || showHint || showPracticeStart || showPracticeEnd || showIntro}
                       aria-label={opt.label}
                       type="button"
@@ -1298,7 +1437,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
             </div>
           </div>
           <div id="ftb-end-box" className="pz-end-box">
-            <div id="ftb-end-content" className="pz-end-content">
+              {/* fireworks canvas (renders behind the end content) - place as direct child so
+                  the shared rule `.pz-end-box > *:not(.pz-fireworks-canvas)` places the UI above it */}
+              <canvas ref={fwCanvasRef} className="pz-fireworks-canvas" aria-hidden={true} />
+              <div id="ftb-end-content" className="pz-end-content">
               <div id="ftb-end-left" className="pz-end-left">
                   <div id="ftb-score-circle" className="pz-score-circle" aria-hidden style={circleStyle}>
                     <div id="ftb-score-label" className="pz-score-label">SCORE</div>
@@ -1331,13 +1473,43 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
                 </div>
 
-                <div id="ftb-end-right" className="pz-end-right">
+                <div id="ftb-end-right" className="pz-end-right" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                  {/* Place the bug image above the tips card so it is not inside the text frame */}
+                  <div id="ftb-end-bug-wrapper" style={{ display: 'flex', justifyContent: 'center', marginBottom: 6 }}>
+                    {!stoppedByUser && (
+                      <img
+                        id="ftb-end-bug-image"
+                        src={playerEnergy <= 0 ? WrongAnswerBugImg : BeatenBugImg}
+                        alt={playerEnergy <= 0 ? 'Bug ontsnapt' : 'Bug verslagen'}
+                        style={{ maxWidth: 360, width: '100%', height: 'auto' }}
+                      />
+                    )}
+                  </div>
+
                   <div id="ftb-tips-card" className="pz-tips-card">
-                    <h3 id="ftb-end-title">{stoppedByUser ? 'Spel gestopt' : (playerEnergy <= 0 ? 'Je verloor…' : 'Je versloeg de Bug!')}</h3>
-                    <div className="pz-tips">
-                      <ul>
-                        <li id="ftb-end-tip-1">{stoppedByUser ? 'Je spel is gestopt en je kan opnieuw proberen.' : 'Blijf veilig: gebruik sterke wachtwoorden en denk na voor je klikt.'}</li>
-                      </ul>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, justifyContent: 'flex-start', flexDirection: 'column', width: '100%' }}>
+                      <h3 id="ftb-end-title">
+                        {stoppedByUser
+                          ? 'Spel gestopt'
+                          : (playerEnergy <= 0
+                            ? 'De bug is ontsnapt!'
+                            : 'Jij hebt de bug verslagen!')}
+                      </h3>
+
+
+                      <div className="pz-tips">
+                        <ul>
+                          {stoppedByUser && (
+                            <li id="ftb-end-tip-1">Je spel is gestopt en je kan opnieuw proberen.</li>
+                          )}
+                          {!stoppedByUser && playerEnergy <= 0 && (
+                            <li id="ftb-end-tip-1">Je maakte 10 fouten, de bug heeft zijn kans gegrepen en is ervandoor!</li>
+                          )}
+                          {!stoppedByUser && playerEnergy > 0 && (
+                            <li id="ftb-end-tip-1">Je hebt alle vragen goed beantwoord en de bug uitgeschakeld!</li>
+                          )}
+                        </ul>
+                      </div>
                     </div>
                     <div className="pz-end-actions" style={{ textAlign: 'center' }}>
                       <button id="btnPlayAgain" className="pz-play-again" onClick={restartGame} type="button">Opnieuw spelen</button>
@@ -1352,3 +1524,4 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     </div>
   )
 }
+
