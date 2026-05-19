@@ -542,6 +542,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   // DOM refs for badge width syncing
   const scoreBadgeRef = useRef<HTMLDivElement | null>(null)
   const feedbackBadgeRef = useRef<HTMLDivElement | null>(null)
+  // fireworks canvas ref (used to render celebratory fireworks on end screen)
+  const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
   // lock to prevent multiple rapid submissions for the same scenario
   const checkingRef = useRef(false)
   const wrongInRoundRef = useRef(0)
@@ -752,6 +754,56 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       try { document.body.classList.remove(clsEnd) } catch { /* ignore */ }
     }
   }, [paused, showEnd, showHelp, showHint, showIntro, showPracticeStart, showPracticeEnd])
+
+  // Fireworks canvas: initialize when end screen is shown (dynamically import
+  // the fireworks initializer to avoid bundling heavy canvas code). Wait until
+  // the canvas has layout size (non-zero) before initializing — some renders
+  // mount the canvas but it may not yet have a computed size which caused the
+  // fireworks to never draw in some games. This mirrors the robust logic used
+  // in other minigames (e.g. FightTheBug/PrinterSlaatOpHol).
+  useEffect(() => {
+    if (!showEnd) return
+    let cleanup: (() => void) | null = null
+    ;(async () => {
+      try {
+        const canvasEl = fwCanvasRef.current
+        if (!canvasEl) return
+
+        // Wait until the canvas has a non-zero layout size (it may be hidden
+        // or not laid out yet). Try a few times with small delays.
+        let rect = canvasEl.getBoundingClientRect()
+        let tries = 0
+        while ((rect.width === 0 || rect.height === 0) && tries < 8) {
+          // small delay
+          await new Promise((r) => setTimeout(r, 50))
+          rect = canvasEl.getBoundingClientRect()
+          tries += 1
+        }
+        if (rect.width === 0 || rect.height === 0) {
+          // give up gracefully if canvas still has no size
+          return
+        }
+
+        // Try importing the fireworks module (primary and .ts fallback) and
+        // initialize if it exports a default function.
+        let mod: unknown = null
+        try {
+          mod = await import('../PasswordZapper/passwordZapperFireworks')
+        } catch {
+          try { mod = await import('../PasswordZapper/passwordZapperFireworks.ts') } catch { /* ignore */ }
+        }
+
+        if (!mod) return
+        const maybeInit = (mod as { default?: unknown })
+        if (typeof maybeInit.default === 'function') {
+          cleanup = (maybeInit.default as (c: HTMLCanvasElement) => (() => void))(canvasEl)
+        }
+      } catch {
+        // ignore failures — fireworks are decorative
+      }
+    })()
+    return () => { try { if (cleanup) cleanup() } catch { /* ignore */ } }
+  }, [showEnd])
 
   // listen to global controls (pause/help/hint)
   // Handlers are defined as stable callbacks so the effect only registers
@@ -1561,6 +1613,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       {showEnd && (
         <div id="nzs-end" className="pz-end">
           <div id="nzs-end-box" className="pz-end-box">
+            {/* fireworks canvas (renders behind the end content) */}
+            <canvas ref={fwCanvasRef} className="pz-fireworks-canvas" aria-hidden={true} />
             <div id="nzs-highscore" className="pz-highscore" style={{ marginBottom: 18, textAlign: 'center' }}>
               <span className="pz-highscore-label">Hoogste score:</span>
               <span id="nzs-highscore-value" className="pz-highscore-value">{highScore ?? '-'}</span>
