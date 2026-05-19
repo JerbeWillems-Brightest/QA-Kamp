@@ -710,7 +710,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
 
   // Diagnostic values are rendered inline in the debug badge below (avoid unused-var lint errors)
 
-  const MAX_PROGRESS = effectiveAgeGroup === '8-10' ? 15 : effectiveAgeGroup === '14-16' ? 30 : 25;
+  // Use a fixed max progress of 25 for all age groups (progressbar maximum).
+  // Previously this varied by age (8-10 -> 15, 11-13 -> 25, 14-16 -> 30).
+  const MAX_PROGRESS = 25;
   // whether the player has started the game (controls the start modal)
   const [started, setStarted] = useState(false);
   // whether to show the practice-intro popup (shown after pressing "Volgende" on the rules)
@@ -723,7 +725,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   // so the pz-fall animation uses the current speed. Base values chosen so higher
   // age groups start slightly faster.
   // Increase base durations so initial comets fall more slowly and end speeds remain reasonable
-  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 24 : effectiveAgeGroup === '11-13' ? 19 : 15);
+  // Reduce these base durations slightly to make comets faster across all age groups.
+  // New values chosen to increase overall speed ~20%: 8-10 -> 19s, 11-13 -> 15s, 14-16 -> 12s
+  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 19 : effectiveAgeGroup === '11-13' ? 15 : 12);
   const [fallDuration, setFallDuration] = useState<number>(baseFallDuration);
   // multiplier applied to each item's baseFallDuration to compute final fallDuration
   const [fallMultiplier, setFallMultiplier] = useState<number>(1);
@@ -1329,29 +1333,25 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
         originalPoolRef.current = withDur.slice()
         return
       }
-      // For 8-10: choose 15 random weak passwords from the larger pool of 45
+      // Always choose exactly 25 weak passwords for each session so gameplay is
+      // consistent across age groups (US01). Shuffle each age's weak pool and
+      // pick the first 25 (or fewer if the pool is smaller).
       let chosenWeakPool: string[];
-      switch (effectiveAgeGroup) {
-        case '8-10': {
-          const pool = passwordSets['8-10'].weak.slice();
-          const shuffledPool = shuffle(pool);
-          chosenWeakPool = shuffledPool.slice(0, 15);
-          break;
-        }
-        case '11-13': {
-          const pool = passwordSets['11-13'].weak.slice();
-          const shuffledPool = shuffle(pool);
+      {
+        const pool = passwordSets[effectiveAgeGroup].weak.slice();
+        const shuffledPool = shuffle(pool);
+        if (shuffledPool.length >= 25) {
           chosenWeakPool = shuffledPool.slice(0, 25);
-          break;
-        }
-        case '14-16': {
-          const pool = passwordSets['14-16'].weak.slice();
-          const shuffledPool = shuffle(pool);
-          chosenWeakPool = shuffledPool.slice(0, 30);
-          break;
-        }
-        default: {
-          chosenWeakPool = passwordSets['8-10'].weak.slice();
+        } else if (shuffledPool.length > 0) {
+          // If pool has fewer than 25 items (unlikely), repeat items to reach 25
+          chosenWeakPool = [];
+          let i = 0;
+          while (chosenWeakPool.length < 25) {
+            chosenWeakPool.push(shuffledPool[i % shuffledPool.length]);
+            i++;
+          }
+        } else {
+          chosenWeakPool = [];
         }
       }
 
@@ -1436,11 +1436,12 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   // When zappedWeak increases, update speed rules
   useEffect(() => {
     const age = effectiveAgeGroup;
-    // thresholds by age group
-    // 8-10: no speed changes
-    // 11-13: at 5 correct -> small speed up; reset after 2 mistakes
-    // 14-16: at 5 correct -> speed up (level1); at 10 correct -> speed up again (level2); reset after 2 mistakes
-    if (age === '8-10') return;
+    // Do not change speed during practice rounds
+    if (practiceMode) return;
+    // thresholds by age group (handled via multipliers table below)
+    // Note: older '5 correct' thresholds removed. Speed increases are now
+    // driven by the generic rule (every 3 weak zaps -> +1 level) and the
+    // reset-on-mistakes (>=2 mistakes) applies to all age groups.
 
     // increment streak
     if (zappedWeak > 0) {
@@ -1462,25 +1463,26 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     }
 
     // determine new speed level based on zappedWeak count and age
-    if (age === '11-13') {
-      if (zappedWeak >= 5 && speedLevel < 1) {
-        setSpeedLevel(1);
-        const mult = 0.88; // ~12% faster
-        try { tweenFallMultiplier(mult, 200); } catch { /* ignore */ }
-      }
-    } else if (age === '14-16') {
-      if (zappedWeak >= 5 && speedLevel < 1) {
-        setSpeedLevel(1);
-        const mult = 0.9; // small speed up
-        try { tweenFallMultiplier(mult, 200); } catch { /* ignore */ }
-      }
-      if (zappedWeak >= 10 && speedLevel < 2) {
-        setSpeedLevel(2);
-        const mult = 0.75; // further speed up
-        try { tweenFallMultiplier(mult, 200); } catch { /* ignore */ }
-      }
+    // New rules: every 3 zapped weak passwords triggers one speed increase.
+    // Max increases per age: 8-10 => 1, 11-13 => 2, 14-16 => 3.
+    // Define multiplier table (index = level) where level 0 = base (1.0).
+    const multipliersByAge: Record<string, number[]> = {
+      '8-10': [1, 0.9],             // one increase -> 0.9x duration (~10% faster)
+      '11-13': [1, 0.9, 0.8],       // two increases
+      '14-16': [1, 0.9, 0.8, 0.7] // three increases (progressively faster)
+    };
+
+    const mList = multipliersByAge[age] || [1];
+    const maxLevel = Math.max(0, mList.length - 1);
+    // compute desired level from zappedWeak: 1 per each 3 zappedWeak
+    const desiredLevel = Math.min(maxLevel, Math.floor(zappedWeak / 3));
+    if (desiredLevel > speedLevel) {
+      // apply the multiplier for the desired level
+      const targetMult = mList[desiredLevel] ?? 1;
+      try { tweenFallMultiplier(targetMult, 200); } catch { /* ignore */ }
+      setSpeedLevel(desiredLevel);
     }
-  }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel, applyFallMultiplierToAll, tweenFallMultiplier]);
+  }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel, applyFallMultiplierToAll, tweenFallMultiplier, practiceMode]);
 
   // End practice round after player zaps 3 weak passwords during practiceMode
   useEffect(() => {
@@ -2032,6 +2034,14 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     setZappedWeak(0);
     setMissedWeak(0);
     setZappedStrong(0);
+      // reset speed/tweens back to base
+      try {
+        if (multiplierTweenRef.current) cancelAnimationFrame(multiplierTweenRef.current);
+      } catch { /* ignore */ }
+      try { setSpeedLevel(0); } catch { /* ignore */ }
+      try { setFallMultiplier(1); } catch { /* ignore */ }
+      try { setFallDuration(Math.max(0.2, baseFallDuration)); } catch { /* ignore */ }
+      try { correctStreakRef.current = 0; mistakeCountRef.current = 0; } catch { /* ignore */ }
     setImgOverrides({});
     setLasers([]);
     setLanes(new Array(MAX_LANES).fill(null));
@@ -2055,8 +2065,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     const totalCorrect = zappedWeak;
     const totalWrong = zappedStrong + missedWeak;
 
-    // compute score percentage based on max possible score per age group
-    const maxPossibleScore = effectiveAgeGroup === '14-16' ? 60 : effectiveAgeGroup === '11-13' ? 50 : 30;
+    // compute score percentage based on max possible score (MAX_PROGRESS weak * 2 points each)
+    const maxPossibleScore = MAX_PROGRESS * 2;
     const scorePercent = maxPossibleScore > 0 ? Math.round((score / maxPossibleScore) * 100) : 0;
     const clampedScorePercent = Math.max(0, Math.min(100, scorePercent));
 
@@ -2189,6 +2199,37 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     } catch { /* ignore */ }
   };
 
+  // Skip the practice intro and start the real game immediately
+  const skipPracticeIntro = async () => {
+    try {
+      await markOnline();
+      setPlayerStatus('online');
+    } catch { /* ignore */ }
+    // close the practice intro and start the real (scoring) game
+    setShowPracticeIntro(false);
+    setPracticeMode(false);
+    // reset counters for a fresh real game
+    setProcessed(0);
+    setScore(0);
+    setZappedWeak(0);
+    setMissedWeak(0);
+    setZappedStrong(0);
+    setImgOverrides({});
+    setLasers([]);
+    setLanes(new Array(MAX_LANES).fill(null));
+    setNextToLoad(0);
+    nextToLoadRef.current = 0;
+    // mark started so passwords initialize
+    setStarted(true);
+    try {
+      if (typeof window !== 'undefined') {
+        const w = window as unknown as Record<string, unknown>;
+        w['__pz_hint_unlocked'] = false;
+        window.dispatchEvent(new CustomEvent('minigame:hint-locked'));
+      }
+    } catch { /* ignore */ }
+  };
+
   // Pause controls are implemented inline in the pause modal to avoid unused-variable warnings
 
   if (!started) {
@@ -2199,8 +2240,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
             <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
               <h2>Even oefenen!</h2>
               <p>Zie je een komeet met een slecht wachtwoord? Tik erop om het weg te zappen! Laat de goede sterke wachtwoorden voorbijvliegen</p>
-              <div style={{ display: 'flex', gap: 12, marginTop: 18, justifyContent: 'center' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
                 <button className="pz-start-btn pz-start-btn--large" onClick={() => { void startPractice(); }}>Spelen</button>
+                <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { void skipPracticeIntro(); }}>Oefenronde overslaan</button>
               </div>
             </div>
           </div>
@@ -2355,6 +2397,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   // Progress should reflect how far through the password list the player is,
   // not the score. Use currentIdx (0-based) -> show (currentIdx+1)/passwords.length.
   // Cap progressbar to at most 30 steps so the UI doesn't grow beyond that
+
+  // Practice and real progress tracking: show processed weak-password count.
   const PRACTICE_MAX = 3;
   const effectiveMaxProgress = practiceMode ? PRACTICE_MAX : MAX_PROGRESS;
   const displayedProcessed = Math.min(processed, effectiveMaxProgress);
@@ -2365,8 +2409,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       {/* practice intro is shown before starting the game; do not overlay running game */}
       {/* debug badge removed */}
       <div className="pz-score">{practiceMode && !showPracticeIntro ? 'Oefenronde' : `Score: ${score}`}</div>
-      {/* Local status badge so player understands presence behavior */}
-      <div className="pz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={fillPercent}>
+      {/* Local status badge so player understands progress through the weak passwords */}
+      <div className="pz-progress" role="progressbar" aria-valuemin={0} aria-valuemax={effectiveMaxProgress} aria-valuenow={displayedProcessed}>
         <div className="pz-progress-fill" style={{ width: `${fillPercent}%` }} />
         <div className="pz-progress-text">{displayedProcessed} / {effectiveMaxProgress}</div>
       </div>

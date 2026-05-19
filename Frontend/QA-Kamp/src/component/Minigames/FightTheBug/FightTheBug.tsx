@@ -1391,11 +1391,11 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
             <h2 id="ftb-practice-end-title">Het echte spel begint nu</h2>
             <div id="ftb-practice-end-container" className="pz-start-container">
               <p id="ftb-practice-end-desc" style={{ marginTop: 6, marginBottom: 10 }}>Je weet nu hoe het spel werkt. Succes!</p>
-              <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 12, alignItems: 'center' }}>
                 <button id="ftb-play-real" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
                   Spelen
                 </button>
-                <button id="ftb-practice-again" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }} type="button">
+                <button id="ftb-practice-again" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }} type="button">
                   Opnieuw oefenen
                 </button>
               </div>
