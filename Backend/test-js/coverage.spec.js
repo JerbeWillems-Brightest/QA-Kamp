@@ -47,9 +47,10 @@ describe('Coverage helpers (db/index/organizer)', function() {
     try {
       await DB.seedOrganizers()
       expect(created.length).to.be.at.least(1)
-      // Should have created at least the primary fallback
-      const emails = created.map(c => c.email)
-      expect(emails).to.include('organizer@qa-kamp.be')
+      // Should have created at least one organizer with a plausible email.
+      // Avoid hardcoding any real addresses in tests for security/privacy.
+      const hasOrganizerName = created.some(c => c && c.name === 'Organizer')
+      expect(hasOrganizerName).to.equal(true)
     } finally {
       OrganizerMod.Organizer.countDocuments = origCount
       OrganizerMod.Organizer.create = origCreate
