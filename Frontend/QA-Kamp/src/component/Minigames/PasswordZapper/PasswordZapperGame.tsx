@@ -727,7 +727,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   // Increase base durations so initial comets fall more slowly and end speeds remain reasonable
   // Reduce these base durations slightly to make comets faster across all age groups.
   // New values chosen to increase overall speed ~20%: 8-10 -> 19s, 11-13 -> 15s, 14-16 -> 12s
-  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 19 : effectiveAgeGroup === '11-13' ? 15 : 12);
+  const [baseFallDuration] = useState<number>(() => effectiveAgeGroup === '8-10' ? 12 : effectiveAgeGroup === '11-13' ? 9 : 9);
   const [fallDuration, setFallDuration] = useState<number>(baseFallDuration);
   // multiplier applied to each item's baseFallDuration to compute final fallDuration
   const [fallMultiplier, setFallMultiplier] = useState<number>(1);
@@ -1467,9 +1467,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     // Max increases per age: 8-10 => 1, 11-13 => 2, 14-16 => 3.
     // Define multiplier table (index = level) where level 0 = base (1.0).
     const multipliersByAge: Record<string, number[]> = {
-      '8-10': [1, 0.9],             // one increase -> 0.9x duration (~10% faster)
-      '11-13': [1, 0.9, 0.8],       // two increases
-      '14-16': [1, 0.9, 0.8, 0.7] // three increases (progressively faster)
+      '8-10': [1, 0.85],             // one increase -> 0.9x duration (~10% faster)
+      '11-13': [1, 0.85, 0.7],       // two increases
+      '14-16': [1, 0.90, 0.75, 0.65] // three increases (progressively faster)
     };
 
     const mList = multipliersByAge[age] || [1];
