@@ -94,15 +94,17 @@ export async function seedOrganizers() {
 
       let created = 0
       if ((o1Email && o1Password) || shouldUseFallback) {
-        const email = (o1Email && o1Password) ? o1Email : ''
-        const password = (o1Email && o1Password) ? o1Password : ''
+        // Provide a safe non-empty fallback for automated test environments so
+        // model validation (required fields) does not reject the create call.
+        const email = (o1Email && o1Password) ? o1Email : 'organizer1@example.test'
+        const password = (o1Email && o1Password) ? o1Password : 'test-password'
         await Organizer.create({ email, password, name: 'Organizer' })
         console.log(`Created real organizer`)
         created++
       }
       if ((o2Email && o2Password) || shouldUseFallback) {
-        const email = (o2Email && o2Password) ? o2Email : ''
-        const password = (o2Email && o2Password) ? o2Password : ''
+        const email = (o2Email && o2Password) ? o2Email : 'organizer2@example.test'
+        const password = (o2Email && o2Password) ? o2Password : 'test-password'
         await Organizer.create({ email, password, name: 'Organizer' })
         console.log(`Created test organizer`)
         created++
