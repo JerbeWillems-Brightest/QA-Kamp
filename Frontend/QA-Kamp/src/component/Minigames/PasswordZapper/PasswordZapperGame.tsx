@@ -587,6 +587,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   const [zappedWeak, setZappedWeak] = useState(0);
   const [missedWeak, setMissedWeak] = useState(0);
   const [zappedStrong, setZappedStrong] = useState(0);
+  // track consecutive correct weak zaps since the last mistake (we only need the setter)
+  const [, setConsecutiveCorrects] = useState<number>(0);
   // temporary image overrides for specific password indices (idx -> src)
   const [imgOverrides, setImgOverrides] = useState<Record<number, string>>({});
   // lasers currently in-flight
@@ -780,7 +782,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     multiplierTweenRef.current = requestAnimationFrame(step);
   }, [applyFallMultiplierToAll, baseFallDuration]);
   // speedLevel tracks how many speed increments have been applied (0 = base, 1 = first increase, 2 = second increase)
-  const [speedLevel, setSpeedLevel] = useState<number>(0);
+  const [, setSpeedLevel] = useState<number>(0);
   const [paused, setPaused] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [showHint, setShowHint] = useState(false);
@@ -926,23 +928,41 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   }, [])
 
   // Toggle a body-level class so other UI (hint/pause/question, score, progress, ship)
-  // can be hidden via CSS while the start modal is visible.
+  // can be hidden via CSS while any modal/popups (start/help/hint/practice-intro/practice-end)
+  // are visible. Include `showPracticeEnd` so the practice-end popup also hides
+  // the top-level pause/hint/help buttons as requested.
   useEffect(() => {
     const cls = 'pz-modal-open';
-    // consider the practice-intro popup as a modal as well
-    if (!started || showHelp || showHint || showPracticeIntro) {
+    // consider the practice-intro and practice-end popups as modals as well
+    if (!started || showHelp || showHint || showPracticeIntro || showPracticeEnd) {
       document.body.classList.add(cls);
     } else {
       document.body.classList.remove(cls);
     }
     return () => { document.body.classList.remove(cls); };
-  }, [started, showHelp, showHint, showPracticeIntro]);
+  }, [started, showHelp, showHint, showPracticeIntro, showPracticeEnd]);
 
   // Pause handling: listen for global pause event and show pause modal
   useEffect(() => {
     const onPause = () => { try { setPaused(true) } catch { /* ignore */ } }
     const onHelp = () => { try { setShowHelp(true) } catch { /* ignore */ } }
-    const onHint = () => { try { setShowHint(true); setPaused(true); } catch { /* ignore */ } }
+    const onHint = () => {
+      try {
+        // When the hint is requested externally, ensure the global unlocked
+        // flag is set so other UI (MinigamePage) and tests observe the state.
+        try {
+          if (typeof window !== 'undefined') {
+            const w = window as unknown as Record<string, unknown>
+            w['__pz_hint_unlocked'] = true
+            try { sessionStorage.setItem('pz_hint_unlocked', '1') } catch { /* ignore */ }
+            window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
+          }
+        } catch { /* ignore */ }
+        hintAutoShownRef.current = true;
+        setShowHint(true);
+        setPaused(true);
+      } catch { /* ignore */ }
+    }
     window.addEventListener('minigame:pause', onPause as EventListener)
     window.addEventListener('minigame:question', onHelp as EventListener)
     window.addEventListener('minigame:hint', onHint as EventListener)
@@ -1429,60 +1449,22 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     } catch { /* ignore */ }
   }, [fallDuration]);
 
-  // Track consecutive correct weak zaps to increase speed, and mistakes to reset
-  const correctStreakRef = React.useRef(0);
-  const mistakeCountRef = React.useRef(0);
+  // Event-driven speed control:
+  // - Any mistake (zapping a strong password or missing a weak one) immediately
+  //   resets the speed level to 0 and clears the consecutive-correct counter.
+  // - Each correct weak zap increments `consecutiveCorrects`. When it reaches
+  //   3 (and not in practice mode) we increase the speedLevel by 1 (up to the
+  //   age-specific max) and reset `consecutiveCorrects` to 0. Further increases
+  //   require another 3 consecutive correct weak zaps.
+  // This approach ensures mistakes immediately drop speed and subsequent
+  // correct streaks restore it after 3 correct answers.
 
-  // When zappedWeak increases, update speed rules
-  useEffect(() => {
-    const age = effectiveAgeGroup;
-    // Do not change speed during practice rounds
-    if (practiceMode) return;
-    // thresholds by age group (handled via multipliers table below)
-    // Note: older '5 correct' thresholds removed. Speed increases are now
-    // driven by the generic rule (every 3 weak zaps -> +1 level) and the
-    // reset-on-mistakes (>=2 mistakes) applies to all age groups.
-
-    // increment streak
-    if (zappedWeak > 0) {
-      // compute streak by difference of correctStreakRef and zappedWeak isn't reliable after reload; instead we update on each change
-    }
-    // This effect runs whenever zappedWeak or zappedStrong/missedWeak change and recomputes speed level.
-    const mistakes = zappedStrong + missedWeak;
-    if (mistakes >= 2) {
-      // reset to base multiplier and speed level
-      if (speedLevel !== 0) {
-        setSpeedLevel(0);
-      }
-      // smoothly tween back to normal speed
-      try { tweenFallMultiplier(1, 200); } catch { /* ignore */ }
-      // reset counters
-      correctStreakRef.current = 0;
-      mistakeCountRef.current = mistakes;
-      return;
-    }
-
-    // determine new speed level based on zappedWeak count and age
-    // New rules: every 3 zapped weak passwords triggers one speed increase.
-    // Max increases per age: 8-10 => 1, 11-13 => 2, 14-16 => 3.
-    // Define multiplier table (index = level) where level 0 = base (1.0).
-    const multipliersByAge: Record<string, number[]> = {
-      '8-10': [1, 0.85],             // one increase -> 0.9x duration (~10% faster)
-      '11-13': [1, 0.85, 0.7],       // two increases
-      '14-16': [1, 0.90, 0.75, 0.65] // three increases (progressively faster)
-    };
-
-    const mList = multipliersByAge[age] || [1];
-    const maxLevel = Math.max(0, mList.length - 1);
-    // compute desired level from zappedWeak: 1 per each 3 zappedWeak
-    const desiredLevel = Math.min(maxLevel, Math.floor(zappedWeak / 3));
-    if (desiredLevel > speedLevel) {
-      // apply the multiplier for the desired level
-      const targetMult = mList[desiredLevel] ?? 1;
-      try { tweenFallMultiplier(targetMult, 200); } catch { /* ignore */ }
-      setSpeedLevel(desiredLevel);
-    }
-  }, [zappedWeak, zappedStrong, missedWeak, effectiveAgeGroup, baseFallDuration, speedLevel, applyFallMultiplierToAll, tweenFallMultiplier, practiceMode]);
+  // multipliers table used when increasing speed
+  const multipliersByAge: Record<string, number[]> = {
+    '8-10': [1, 0.85],
+    '11-13': [1, 0.85, 0.7],
+    '14-16': [1, 0.90, 0.75, 0.65]
+  };
 
   // End practice round after player zaps 3 weak passwords during practiceMode
   useEffect(() => {
@@ -1502,6 +1484,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       setPracticeMode(false);
       setShowPracticeEnd(false);
       setPaused(false);
+      try { setConsecutiveCorrects(0); } catch { /* ignore */ }
       // reset processed so progress reflects the real game run
       setProcessed(0);
       // clear practice score so points earned during the oefenronde do not count
@@ -1512,17 +1495,21 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       setZappedStrong(0);
       // keep started=true
       // clear transient hint-unlocked flag set during practice
-      try { if (typeof window !== 'undefined') { const w = window as unknown as Record<string, unknown>; w['__pz_hint_unlocked'] = false; window.dispatchEvent(new CustomEvent('minigame:hint-locked')); } } catch { /* ignore */ }
+      try { if (typeof window !== 'undefined') { const w = window as unknown as Record<string, unknown>; w['__pz_hint_unlocked'] = false; try { sessionStorage.removeItem('pz_hint_unlocked') } catch { /* ignore */ } window.dispatchEvent(new CustomEvent('minigame:hint-locked')); } } catch { /* ignore */ }
       try { if (typeof console !== 'undefined') console.log('[TEST-DEBUG] startRealGame: passwords.len=', passwords.length, 'lanes=', lanes) } catch { /* ignore */ }
     } catch { /* ignore */ }
   };
 
   const restartPractice = () => {
-    // Reload the page so the whole game resets to initial state.
+    // Perform an in-app reset (match pause popup's "Opnieuw beginnen" behavior)
     try {
-      if (typeof window !== 'undefined') {
-        window.location.reload();
-      }
+      // Close any paused state and reset game without a full page reload
+      setPaused(false);
+      resetGame();
+      // ensure practice-end modal is cleared and the practice intro is shown
+      try { setShowPracticeEnd(false); } catch { /* ignore */ }
+      try { setShowPracticeIntro(true); } catch { /* ignore */ }
+      try { setPracticeMode(true); } catch { /* ignore */ }
     } catch { /* ignore */ }
   };
 
@@ -1809,17 +1796,19 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     if (mistakes >= hintThreshold && !hintAutoShownRef.current) {
       // mark we've auto-shown the hint so we don't do it again
       hintAutoShownRef.current = true;
-      try {
-        setShowHint(true);
-        setPaused(true);
-      } catch { /* ignore */ }
       // set a transient global flag and notify other UI (MinigamePage) so its external hint button can be enabled
+      // do this BEFORE opening the modal to avoid races where the parent hasn't attached listeners yet
       try {
         if (typeof window !== 'undefined') {
           const w = window as unknown as Record<string, unknown>;
           w['__pz_hint_unlocked'] = true;
+          try { sessionStorage.setItem('pz_hint_unlocked', '1') } catch { /* ignore */ }
           window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'));
         }
+      } catch { /* ignore */ }
+      try {
+        setShowHint(true);
+        setPaused(true);
       } catch { /* ignore */ }
     }
   }, [zappedStrong, missedWeak, effectiveAgeGroup, practiceMode]);
@@ -1840,16 +1829,42 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       setScore((s) => Math.max(0, s + 2));
       // update zappedWeak and if we're in practice and reach threshold,
       // synchronously show the practice end modal so tests don't race with effects
-      setZappedWeak((n) => {
-        const next = n + 1;
+      setZappedWeak((n) => n + 1);
+      // increment consecutive corrects and possibly increase speed after 3 in a row
+      // Only track the consecutive-correct counter for the real (scoring) game.
+      // Practice runs use the `zappedWeak` counter and a separate effect to end
+      // practice, so we avoid touching the real-game streak here to prevent
+      // carry-over when practice finishes.
+      if (!practiceMode) {
+        setConsecutiveCorrects((prev) => {
+          const next = prev + 1;
+          try {
+            const mList = multipliersByAge[effectiveAgeGroup] || [1];
+            const maxLevel = Math.max(0, mList.length - 1);
+            if (next >= 3) {
+              // increase one speed level (requires 3 consecutive corrects)
+              setSpeedLevel((prevLevel) => {
+                const newLevel = Math.min(maxLevel, prevLevel + 1);
+                const targetMult = mList[newLevel] ?? 1;
+                try { tweenFallMultiplier(targetMult, 200); } catch { /* ignore */ }
+                return newLevel;
+              });
+              return 0;
+            }
+          } catch { /* ignore */ }
+          return next;
+        });
+      } else {
+        // In practice mode we rely on zappedWeak and the practice-end effect.
         try {
-          if (practiceMode && next >= 3 && !showPracticeEnd) {
+          if (!showPracticeEnd && (zappedWeak + 1) >= 3) {
+            // If this zap will bring zappedWeak to the threshold, end practice now
+            // (this matches previous behaviour but keeps real-game streak untouched).
             setPaused(true);
             setShowPracticeEnd(true);
           }
         } catch { /* ignore */ }
-        return next;
-      });
+      }
       setFeedback(randomFrom(goodFeedbackList));
       setFeedbackType('good');
       // play correct sound
@@ -1858,6 +1873,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       // Strong password zapped => -1 point
       setScore((s) => Math.max(0, s - 1));
       setZappedStrong((n) => n + 1);
+      // mistake: reset consecutive corrects and drop speed to base
+      try { setConsecutiveCorrects(0); } catch { /* ignore */ }
+      try { setSpeedLevel(0); } catch { /* ignore */ }
+      try { tweenFallMultiplier(1, 200); } catch { /* ignore */ }
       setFeedback(randomFrom(badFeedbackList));
       setFeedbackType('bad');
       // play wrong sound
@@ -1971,6 +1990,10 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       // Weak password missed (skipped) => -1 point
       setScore((s) => Math.max(0, s - 1));
       setMissedWeak((n) => n + 1);
+      // missing a weak password is a mistake: reset consecutive corrects and drop speed to base
+      try { setConsecutiveCorrects(0); } catch { /* ignore */ }
+      try { setSpeedLevel(0); } catch { /* ignore */ }
+      try { tweenFallMultiplier(1, 200); } catch { /* ignore */ }
       setFeedback(randomFrom(badFeedbackList));
       setFeedbackType('bad');
       // wrong/miss sfx
@@ -2041,7 +2064,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       try { setSpeedLevel(0); } catch { /* ignore */ }
       try { setFallMultiplier(1); } catch { /* ignore */ }
       try { setFallDuration(Math.max(0.2, baseFallDuration)); } catch { /* ignore */ }
-      try { correctStreakRef.current = 0; mistakeCountRef.current = 0; } catch { /* ignore */ }
+      try { setConsecutiveCorrects(0); } catch { /* ignore */ }
     setImgOverrides({});
     setLasers([]);
     setLanes(new Array(MAX_LANES).fill(null));
@@ -2057,6 +2080,18 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     catch {
         //ignore
     }
+    // Reset global/transient hint flags so the top-level hint button is
+    // disabled at the start of the new run. Also clear the auto-shown marker
+    // so the hint can auto-open again when mistakes reach the threshold.
+    try {
+      if (typeof window !== 'undefined') {
+        const w = window as unknown as Record<string, unknown>
+        try { w['__pz_hint_unlocked'] = false } catch { /* ignore */ }
+        try { sessionStorage.removeItem('pz_hint_unlocked') } catch { /* ignore */ }
+        try { window.dispatchEvent(new CustomEvent('minigame:hint-locked')) } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+    try { hintAutoShownRef.current = false } catch { /* ignore */ }
   };
 
   // Eindscherm
@@ -2174,6 +2209,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     } catch { /* ignore */ }
     setShowPracticeIntro(false);
     setPracticeMode(true);
+    try { setConsecutiveCorrects(0); } catch { /* ignore */ }
     // reset counters for practice run
     setProcessed(0);
     setScore(0);
@@ -2194,6 +2230,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       if (typeof window !== 'undefined') {
         const w = window as unknown as Record<string, unknown>;
         w['__pz_hint_unlocked'] = false;
+        try { sessionStorage.removeItem('pz_hint_unlocked') } catch { /* ignore */ }
         window.dispatchEvent(new CustomEvent('minigame:hint-locked'));
       }
     } catch { /* ignore */ }
@@ -2208,6 +2245,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     // close the practice intro and start the real (scoring) game
     setShowPracticeIntro(false);
     setPracticeMode(false);
+    try { setConsecutiveCorrects(0); } catch { /* ignore */ }
     // reset counters for a fresh real game
     setProcessed(0);
     setScore(0);
