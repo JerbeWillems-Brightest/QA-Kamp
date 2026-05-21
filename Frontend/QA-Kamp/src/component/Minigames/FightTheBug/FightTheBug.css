@@ -9,18 +9,16 @@
   min-height: calc(100vh - 110px);
   overflow: hidden;
   font-family: Arial, Helvetica, sans-serif;
-  /* wallpaper image as background; show entire image inside the framed area */
-  background-image: url('../../../assets/WallpaperBugCleanup.png');
-  /* make the image wider while keeping the same visible height inside the frame
-     width: 120% stretches horizontally; height: 100% preserves vertical size */
-  background-size: 100% 100%;
-  /* align image to the bottom so the lower part is visible */
-  background-position: center bottom;
+  /* wallpaper image as background - use the BugCleanup wallpaper so the image
+     aligns and sizes the same across minigames */
+  background-image: url('../../../assets/BugCleanupImages/WallpaperBugCleanup.png');
+  /* Ensure the wallpaper covers the framed area (may crop horizontally) and
+     align to bottom so important bottom details remain visible. This matches
+     the behavior used in BugCleanupGame. */
   background-repeat: no-repeat;
-  /* remove the blue tint overlay so the wallpaper displays with its original colors */
+  background-size: cover;
+  background-position: bottom center;
   background-color: transparent;
-  /* disable blend mode that caused a blue tint over the image */
-  background-blend-mode: normal;
   /* black frame around the game like other minigames */
   border: 10px solid #000;
   box-sizing: border-box;

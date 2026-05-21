@@ -2251,7 +2251,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
             <div className="pz-start-modal">
               <h2>Speluitleg - Password zapper</h2>
               <ul className="pz-start-bullets">
-                <li>Je ziet een ruimteschip op het scherm — dat ben jij!</li>
+                <li>Je ziet een ruimteschip op het scherm, dat ben jij!</li>
                 <li>Er vliegen kometen voorbij met wachtwoorden</li>
                 <li>Sommige wachtwoorden zijn slecht, zoals <b>{examples.weak}</b></li>
                   <li>Sommige zijn goed, zoals <b>{examples.strong}</b></li>

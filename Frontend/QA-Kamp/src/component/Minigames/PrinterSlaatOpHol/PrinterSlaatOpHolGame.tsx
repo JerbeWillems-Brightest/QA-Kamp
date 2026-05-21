@@ -1206,16 +1206,17 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                       0:  { title: 'Niet gelukt', subtitle: 'Probeer opnieuw en blijf gefocust!' }
                     }
                     if (stoppedByUser) {
-                      return (
-                        <>
-                          <h3>Spel gestopt, geen score</h3>
-                          <div className="pz-tips">
-                            <p>Score: 0 — Tijd: {formatMs(displayElapsedMs)} — Fouten: {mistakes}</p>
-                            {/* include explicit time paragraph for tests that extract the time from tips */}
-                            <p>Tijd: {formatMs(displayElapsedMs)}</p>
-                          </div>
-                        </>
-                      )
+                        return (
+                          <>
+                            <h3>Spel gestopt, geen score</h3>
+                            <div className="pz-tips">
+                              <ul className="pz-subtitle-list">
+                                <li>Score: 0</li>
+                              </ul>
+                              {/* include explicit time paragraph for tests that extract the time from tips */}
+                            </div>
+                          </>
+                        )
                     }
                     const key = Math.max(0, Math.min(100, Math.round(finalScore / 10) * 10))
                     const fb = map[key] || { title: 'Goed gedaan!', subtitle: '' }
@@ -1223,10 +1224,13 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                       <>
                         <h3>{fb.title}</h3>
                         <div className="pz-tips">
-                          {fb.subtitle && <p style={{ marginBottom: 8 }}>{fb.subtitle}</p>}
+                          {fb.subtitle && (
+                            <ul className="pz-subtitle-list" style={{ marginBottom: 8 }}>
+                              <li>{fb.subtitle}</li>
+                            </ul>
+                          )}
                           {/* always expose the final elapsed time in a separate paragraph so
                               tests can find it when the floating timer is not visible */}
-                          <p>Tijd: {formatMs(displayElapsedMs)}</p>
                         </div>
                       </>
                     )

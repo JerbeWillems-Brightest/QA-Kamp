@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
+ /* eslint-disable @typescript-eslint/no-explicit-any */
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import '@testing-library/jest-dom'
@@ -1234,17 +1234,47 @@ describe('PrinterSlaatOpHolGame', () => {
     expect(scoreElB).not.toBeNull()
     // Determine expected score from the visible timer so test isn't flaky
     const timerElB = document.querySelector('.pz-score.pz-timer') as HTMLElement | null
-    let secsB: number
+    let secsB: number = 0
     if (timerElB) {
       secsB = parseTime(timerElB.textContent || '00:00')
     } else {
-      // end-screen rendered; extract time from the tips paragraph ("Tijd: mm:ss")
-      const tipsPs = Array.from(document.querySelectorAll('.pz-tips p'))
-      const lastP = tipsPs.length ? tipsPs[tipsPs.length - 1] : null
-      expect(lastP).not.toBeNull()
-      const m = String(lastP!.textContent || '').match(/Tijd:\s*(\d{1,2}:\d{2})/)
-      expect(m).not.toBeNull()
-      secsB = parseTime(m ? m[1] : '00:00')
+      // end-screen rendered; extract time from the tips area. The UI may
+      // render the time inside a <p> or an <li>, so try several strategies
+      // in order of reliability and accept whichever first matches.
+      // 1) Try a direct text lookup for 'Tijd: mm:ss'
+      const direct = screen.queryByText(/Tijd:\s*\d{1,2}:\d{2}/)
+      if (direct) {
+        const m = String(direct.textContent || '').match(/Tijd:\s*(\d{1,2}:\d{2})/)
+        expect(m).not.toBeNull()
+        secsB = parseTime(m ? m[1] : '00:00')
+      } else {
+        // 2) Fallback: search any child node under .pz-tips for the pattern
+        const tipsEls = Array.from(document.querySelectorAll('.pz-tips *'))
+        let timeEl: Element | null = null
+        for (let i = tipsEls.length - 1; i >= 0; i--) {
+          const t = String(tipsEls[i].textContent || '')
+          if (/Tijd:\s*\d{1,2}:\d{2}/.test(t)) { timeEl = tipsEls[i]; break }
+        }
+        // If still not found, try other likely places (time card), then fail
+        if (!timeEl) {
+          const timeCard = document.querySelector('.pz-time-card__body')
+          if (timeCard && /\d{1,2}:\d{2}/.test(String(timeCard.textContent || ''))) {
+            const mm = String(timeCard.textContent || '').match(/(\d{1,2}:\d{2})/)
+            expect(mm).not.toBeNull()
+            secsB = parseTime(mm ? mm[1] : '00:00')
+            // continue with secsB populated
+          } else {
+            const tipsRoot = document.querySelector('.pz-tips')
+            const nearby = tipsRoot ? String(tipsRoot.textContent || '').slice(0, 400) : '(no .pz-tips found)'
+            throw new Error("Could not find time text in end-screen tips. Nearby: " + nearby)
+          }
+        }
+        if (timeEl) {
+          const m = String(timeEl.textContent || '').match(/Tijd:\s*(\d{1,2}:\d{2})/)
+          expect(m).not.toBeNull()
+          secsB = parseTime(m ? m[1] : '00:00')
+        }
+      }
     }
     const computeTimeScoreTest = (s: number) => {
       if (s <= 120) return 100
@@ -1253,7 +1283,7 @@ describe('PrinterSlaatOpHolGame', () => {
       const score = 90 - (bucketsAfter + 1) * 10
       return Math.max(0, Math.min(100, score))
     }
-    const expectedB = computeTimeScoreTest(secsB)
+    const expectedB = computeTimeScoreTest(secsB || 0)
     expect(Number(scoreElB?.textContent || '')).toBe(expectedB)
 
     // Case C: very long time results in 0 (simulate many wrong clicks)
@@ -1291,17 +1321,43 @@ describe('PrinterSlaatOpHolGame', () => {
     expect(scoreElC).not.toBeNull()
     // derive expected from visible timer so test follows actual runtime behavior
     const timerElC = document.querySelector('.pz-score.pz-timer') as HTMLElement | null
-    let secsC: number
+    let secsC: number = 0
     if (timerElC) secsC = parseTime(timerElC.textContent || '00:00')
     else {
-      const tipsPs = Array.from(document.querySelectorAll('.pz-tips p'))
-      const lastP = tipsPs.length ? tipsPs[tipsPs.length - 1] : null
-      expect(lastP).not.toBeNull()
-      const m = String(lastP!.textContent || '').match(/Tijd:\s*(\d{1,2}:\d{2})/)
-      expect(m).not.toBeNull()
-      secsC = parseTime(m ? m[1] : '00:00')
+      // Try direct text lookup first
+      const directC = screen.queryByText(/Tijd:\s*\d{1,2}:\d{2}/)
+      if (directC) {
+        const m = String(directC.textContent || '').match(/Tijd:\s*(\d{1,2}:\d{2})/)
+        expect(m).not.toBeNull()
+        secsC = parseTime(m ? m[1] : '00:00')
+      } else {
+        // Fallback to searching child nodes under .pz-tips
+        const tipsElsC = Array.from(document.querySelectorAll('.pz-tips *'))
+        let timeElC: Element | null = null
+        for (let i = tipsElsC.length - 1; i >= 0; i--) {
+          const t = String(tipsElsC[i].textContent || '')
+          if (/Tijd:\s*\d{1,2}:\d{2}/.test(t)) { timeElC = tipsElsC[i]; break }
+        }
+        if (!timeElC) {
+          const timeCardC = document.querySelector('.pz-time-card__body')
+          if (timeCardC && /\d{1,2}:\d{2}/.test(String(timeCardC.textContent || ''))) {
+            const mm = String(timeCardC.textContent || '').match(/(\d{1,2}:\d{2})/)
+            expect(mm).not.toBeNull()
+            secsC = parseTime(mm ? mm[1] : '00:00')
+          } else {
+            const tipsRoot = document.querySelector('.pz-tips')
+            const nearby = tipsRoot ? String(tipsRoot.textContent || '').slice(0, 400) : '(no .pz-tips found)'
+            throw new Error("Could not find time text in end-screen tips (C). Nearby: " + nearby)
+          }
+        }
+        if (timeElC) {
+          const m = String(timeElC.textContent || '').match(/Tijd:\s*(\d{1,2}:\d{2})/)
+          expect(m).not.toBeNull()
+          secsC = parseTime(m ? m[1] : '00:00')
+        }
+      }
     }
-    const expectedC = computeTimeScoreTest(secsC)
+    const expectedC = computeTimeScoreTest(secsC || 0)
     expect(Number(scoreElC?.textContent || '')).toBe(expectedC)
   })
 
