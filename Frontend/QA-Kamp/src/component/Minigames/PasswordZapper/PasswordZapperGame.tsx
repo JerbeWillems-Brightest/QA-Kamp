@@ -21,6 +21,7 @@ import correctSfxUrl from "../../../assets/sounds/Correct.mp3";
 import wrongSfxUrl from "../../../assets/sounds/Wrong.mp3";
 import explosionSfxUrl from "../../../assets/sounds/Explosion.mp3";
 import gameOverSfxUrl from "../../../assets/sounds/GameOver.mp3";
+import fireworkSfxUrl from "../../../assets/sounds/Fireworks.mp3";
 
 // Voorbeeld wachtwoorden per leeftijdsgroep
 const passwordSets = {
@@ -621,6 +622,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
   const sfxWrongRef = React.useRef<HTMLAudioElement | null>(null);
   const sfxExplosionRef = React.useRef<HTMLAudioElement | null>(null);
   const sfxGameOverRef = React.useRef<HTMLAudioElement | null>(null);
+  const sfxFireworkRef = React.useRef<HTMLAudioElement | null>(null);
+  // Track active cloned fireworks audio nodes so we can stop them on restart
+  const activeFireworksRef = React.useRef<HTMLAudioElement[]>([]);
 
   // helper to play a sound safely; clones audio to allow overlapping plays when necessary
   const playSound = useCallback((audioRef: React.RefObject<HTMLAudioElement | null> | null, url?: string) => {
@@ -635,6 +639,23 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       void toPlay.play().catch(() => { /* ignore autoplay errors */ });
     } catch { /* ignore */ }
   }, []);
+
+  // Stop and clear any active cloned fireworks audio nodes and reset base fireworks
+  function clearActiveFireworks() {
+    try {
+      // pause and reset cloned nodes
+      for (const a of activeFireworksRef.current.slice()) {
+        try { a.pause(); } catch { /* ignore */ }
+        try { a.currentTime = 0; } catch { /* ignore */ }
+      }
+      activeFireworksRef.current.length = 0;
+      // also reset the base fireworks audio if present
+      if (sfxFireworkRef.current) {
+        try { sfxFireworkRef.current.pause(); } catch { /* ignore */ }
+        try { sfxFireworkRef.current.currentTime = 0; } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
   // same size as .pz-laser in CSS (desktop default) - used to center the image
   const LASER_SIZE = 128;
   // lanes: indices of passwords currently visible in each lane
@@ -1013,6 +1034,12 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
         s.preload = 'auto';
         s.volume = 0.8;
         sfxGameOverRef.current = s;
+      }
+      if (!sfxFireworkRef.current) {
+        const s = new Audio(fireworkSfxUrl);
+        s.preload = 'auto';
+        s.volume = 0.85;
+        sfxFireworkRef.current = s;
       }
     } catch { void 0; }
     return () => {
@@ -1487,7 +1514,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       try { setConsecutiveCorrects(0); } catch { /* ignore */ }
       // reset processed so progress reflects the real game run
       setProcessed(0);
-      // clear practice score so points earned during the oefenronde do not count
+      // clear practice score so points earned tijdens de oefenronde do not count
       setScore(0);
       // ensure zappedWeak/missedWeak/zappedStrong counters are reset for fresh scoring
       setZappedWeak(0);
@@ -1620,6 +1647,31 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       }
       // play game over sound once
       try { playSound(sfxGameOverRef, gameOverSfxUrl); } catch { /* ignore */ }
+      // play a short fireworks SFX shortly after to match the visual fireworks
+      try {
+        window.setTimeout(() => {
+          try {
+            const base = sfxFireworkRef.current;
+            if (base) {
+              try {
+                const f = (base.cloneNode(true) as HTMLAudioElement);
+                activeFireworksRef.current.push(f);
+                const remove = () => {
+                  const idx = activeFireworksRef.current.indexOf(f);
+                  if (idx >= 0) activeFireworksRef.current.splice(idx, 1);
+                };
+                f.addEventListener('ended', remove);
+                f.addEventListener('pause', remove);
+                void f.play().catch(() => { /* autoplay blocked */ });
+              } catch {
+                try { base.currentTime = 0; void base.play(); } catch { /* ignore */ }
+              }
+            } else {
+              try { playSound(sfxFireworkRef, fireworkSfxUrl); } catch { /* ignore */ }
+            }
+          } catch { /* ignore */ }
+        }, 350);
+      } catch { /* ignore */ }
       const key = `pz_highscore_passwordzapper_${effectiveAgeGroup}`;
       const existingRaw = localStorage.getItem(key);
       const existing = existingRaw !== null ? parseInt(existingRaw, 10) : undefined;
@@ -2047,6 +2099,7 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
 
   // Helper to restart the game without reloading the page
   const resetGame = () => {
+    try { clearActiveFireworks(); } catch { /* ignore */ }
     // reset all relevant state to initial values and re-initialize passwords
     setScore(0);
     setFeedback(null);
@@ -2223,8 +2276,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
     nextToLoadRef.current = 0;
     // mark started so passwords initialize
     setStarted(true);
-    // Ensure the top-level hint button is locked/disabled during the practice
-    // round. We set a transient global flag and fire the same event the
+    // Ensure the top-level hint button is locked/disabled tijdens de practice
+    // ronde. We set a transient global flag and fire the same event the
     // MinigamePage listens for so external UI can disable the hint button.
     try {
       if (typeof window !== 'undefined') {
