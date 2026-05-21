@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import BeatenBugImg from '../../../assets/FightTheBug/BeatenBug.png'
 import WrongAnswerBugImg from '../../../assets/FightTheBug/WrongAwnserBug.png'
 import DefaultBugImg from '../../../assets/FightTheBug/DefaultBug.png'
@@ -667,6 +668,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   const [feedback, setFeedback] = useState<string | null>(null)
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
+  const [mounted, setMounted] = useState(false)
   const [floatingDelta, setFloatingDelta] = useState<{ target: 'player' | 'bug'; value: number } | null>(null)
   // ensure linter sees the variable as 'used' in environments where JSX usage
   // might not be detected by the ESLint rule; this is a harmless no-op read
@@ -721,6 +723,11 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       window.dispatchEvent(new CustomEvent('minigame:hint-locked'))
     } catch { /* ignore */ }
   }, [effectiveAge])
+
+  useEffect(() => {
+    setMounted(true)
+    return () => { setMounted(false) }
+  }, [])
 
   // Fireworks canvas: initialize when end screen is shown (reuse shared fireworks)
   React.useEffect(() => {
@@ -1219,8 +1226,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   return (
     <div id="ftb-root" className="ftb-root">
                     <div id="ftb-game-area" className="ftb-game-area">
-      {!showEnd && (
+          {!showEnd && (
         <div id="ftb-main">
+            {/* feedback banner is rendered via a portal to document.body (see bottom of this component) */}
           {isPractice && (
             // Use the shared .pz-score markup so the practice pill/timer matches other games
             <div className="pz-score-stack" aria-hidden>
@@ -1265,9 +1273,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           )}
 
           <div id="ftb-bug" className={`ftb-bug ${feedbackType ? (feedbackType === 'good' ? 'ftb-bug--good' : 'ftb-bug--bad') : ''}`} aria-hidden>
-            {/* Replace CSS-drawn bug with an image asset (defaultBug.png). */}
+            {/* Replace CSS-drawn bug with an image asset (defaultBug.png). Bug banner moved out
+                of the bug element to avoid clipping by parent overflow and stacking context
+                issues. The shared .pz-feedback class is used so visuals match other games. */}
             <img id="ftb-bug-image" className="ftb-bug__img" src={bugSprite} alt="Bug" />
-            {feedback && <div id="ftb-banner" className={`ftb-banner ${feedbackType === 'good' ? 'ftb-banner--good' : 'ftb-banner--bad'}`}>{feedback}</div>}
             {/* bug floating delta is rendered in the HUD area so it appears under de Energie Bug bar */}
           </div>
 
@@ -1532,12 +1541,44 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                     </div>
                   </div>
                 </div>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
-    </div>
+                  </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Render feedback banner as a portal to document.body so it is never clipped
+                      by positioned/overflowed parents and always appears above UI. */}
+                              {mounted && feedback && createPortal(
+                                <div
+                                  id="ftb-banner-portal"
+                                  className={`pz-feedback ${feedbackType === 'good' ? 'pz-feedback--good' : 'pz-feedback--bad'}`}
+                                  role="status"
+                                  aria-live="polite"
+                                                        style={{
+                                                          // inline styles ensure visibility even if compiled CSS overrides exist
+                                                          background: feedbackType === 'good'
+                                                            ? 'linear-gradient(180deg, #4caf50, #388e3c)'
+                                                            : 'linear-gradient(180deg, #f44336, #d32f2f)',
+                                                          color: '#fff',
+                                                          padding: '0.6rem 1rem',
+                                                          fontSize: '1.4rem',
+                                                          borderRadius: '999px',
+                                                          border: feedbackType === 'good' ? '3px solid rgba(255,255,255,0.08)' : '3px solid rgba(0,0,0,0.12)',
+                                                          boxShadow: feedbackType === 'good' ? '0 4px 12px rgba(0,0,0,0.35)' : '0 4px 12px rgba(0,0,0,0.45)',
+                                                          zIndex: 9999,
+                                                          position: 'fixed',
+                                                          left: '50%',
+                                                          // place the feedback slightly below the top chrome so it appears within the game area
+                                                          top: 'calc(var(--nav-height, 64px) + 48px)',
+                                                          transform: 'translateX(-50%)',
+                                                          whiteSpace: 'nowrap'
+                                                        }}
+                                >
+                                  {feedback}
+                                </div>,
+                                document.body
+                              )}
+                  </div>
+                </div>
   )
 }
 
