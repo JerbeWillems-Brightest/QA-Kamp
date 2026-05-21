@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import fireworksSound from '../../../assets/sounds/Fireworks.mp3'
+import fightTheBugMusic from '../../../assets/FightTheBug/FightTheBugMusic.mp3'
+import correctFightTheBug from '../../../assets/FightTheBug/CorrectFightTheBug.mp3'
+import wrongFightTheBug from '../../../assets/FightTheBug/WrongFightTheBug.mp3'
 import { createPortal } from 'react-dom'
 import BeatenBugImg from '../../../assets/FightTheBug/BeatenBug.png'
 import WrongAnswerBugImg from '../../../assets/FightTheBug/WrongAwnserBug.png'
@@ -678,6 +682,13 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   const checkingRef = useRef(false)
   const hintAutoShownRef = useRef(false)
   const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Fireworks audio element (base) and active cloned nodes for overlapping playback
+  const fireworksRef = useRef<HTMLAudioElement | null>(null)
+  const activeFireworksRef = useRef<HTMLAudioElement[]>([])
+  // Background & one-shot sound refs
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null)
+  const correctSoundRef = useRef<HTMLAudioElement | null>(null)
+  const wrongSoundRef = useRef<HTMLAudioElement | null>(null)
   const [bugSprite, setBugSprite] = useState<string>(DefaultBugImg)
   const damageTimerRef = useRef<number | null>(null)
 
@@ -728,6 +739,25 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setMounted(true)
     return () => { setMounted(false) }
   }, [])
+
+  // Helper behavior inlined where used to avoid linter unused-var warnings.
+
+  // Control background music playback based on game UI state
+  useEffect(() => {
+    const shouldPlay = running && !paused && !showIntro && !showPracticeStart && !showPracticeEnd && !showHelp && !showHint && !showEnd
+    const bg = bgMusicRef.current
+    if (!bg) return
+    try {
+      if (shouldPlay) {
+        // start (or resume) background music
+        const p = bg.play()
+        if (p && typeof p.then === 'function') p.catch(() => { /* ignore autoplay rejection */ })
+      } else {
+        try { bg.pause() } catch { /* ignore */ }
+        try { bg.currentTime = 0 } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }, [running, paused, showIntro, showPracticeStart, showPracticeEnd, showHelp, showHint, showEnd])
 
   // Fireworks canvas: initialize when end screen is shown (reuse shared fireworks)
   React.useEffect(() => {
@@ -921,6 +951,19 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     // beginning (clears transient in-memory state). This ensures behaviour
     // matches the user's expectation: a fresh start like a new load.
     try {
+      // stop any fireworks audio that might still be playing from the end screen
+      try {
+        for (const a of activeFireworksRef.current.slice()) {
+          try { a.pause() } catch { /* ignore */ }
+          try { a.currentTime = 0 } catch { /* ignore */ }
+        }
+        activeFireworksRef.current.length = 0
+        if (fireworksRef.current) {
+          try { fireworksRef.current.pause() } catch { /* ignore */ }
+          try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+      
       // Use location.reload() to reload current page. Wrap in try/catch to be safe in tests.
       window.location.reload()
     } catch {
@@ -928,6 +971,82 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       try { window.location.assign(window.location.href) } catch { /* ignore */ }
     }
   }, [])
+
+  // Initialize fireworks audio on mount and cleanup on unmount
+  useEffect(() => {
+    try {
+      const a = new Audio(fireworksSound)
+      a.preload = 'auto'
+      a.volume = 0.85
+      fireworksRef.current = a
+    } catch { fireworksRef.current = null }
+    // Initialize background music and short answer sounds
+    try {
+      const bg = new Audio(fightTheBugMusic)
+      bg.preload = 'auto'
+      bg.loop = true
+      bg.volume = 0.35
+      bgMusicRef.current = bg
+    } catch { bgMusicRef.current = null }
+    try {
+      const c = new Audio(correctFightTheBug)
+      c.preload = 'auto'
+      c.volume = 0.9
+      correctSoundRef.current = c
+    } catch { correctSoundRef.current = null }
+    try {
+      const w = new Audio(wrongFightTheBug)
+      w.preload = 'auto'
+      w.volume = 0.9
+      wrongSoundRef.current = w
+    } catch { wrongSoundRef.current = null }
+    
+    return () => {
+      try {
+        if (fireworksRef.current) {
+          fireworksRef.current.pause()
+          try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+        for (const a of activeFireworksRef.current.slice()) {
+          try { a.pause() } catch { /* ignore */ }
+          try { a.currentTime = 0 } catch { /* ignore */ }
+        }
+        activeFireworksRef.current.length = 0
+        // cleanup bg & one-shot base audio
+        try { if (bgMusicRef.current) { bgMusicRef.current.pause(); try { bgMusicRef.current.currentTime = 0 } catch { /* ignore */ } } } catch { /* ignore */ }
+        try { if (correctSoundRef.current) { correctSoundRef.current.pause(); try { correctSoundRef.current.currentTime = 0 } catch { /* ignore */ } } } catch { /* ignore */ }
+        try { if (wrongSoundRef.current) { wrongSoundRef.current.pause(); try { wrongSoundRef.current.currentTime = 0 } catch { /* ignore */ } } } catch { /* ignore */ }
+      } catch { /* ignore */ }
+      fireworksRef.current = null
+      bgMusicRef.current = null
+      correctSoundRef.current = null
+      wrongSoundRef.current = null
+      
+    }
+  }, [])
+
+  // Play fireworks sound when end screen appears (match other games)
+  useEffect(() => {
+    if (!showEnd) return
+    const base = fireworksRef.current
+    if (!base) return
+    try {
+      const f = (base.cloneNode(true) as HTMLAudioElement)
+      activeFireworksRef.current.push(f)
+      const remove = () => {
+        try {
+          const idx = activeFireworksRef.current.indexOf(f)
+          if (idx >= 0) activeFireworksRef.current.splice(idx, 1)
+        } catch { /* ignore */ }
+      }
+      f.addEventListener('ended', remove)
+      f.addEventListener('pause', remove)
+      const p = f.play()
+      if (p && typeof p.then === 'function') p.catch(() => { /* ignore play rejection */ })
+    } catch {
+      try { base.currentTime = 0; void base.play() } catch { /* ignore */ }
+    }
+  }, [showEnd])
 
   const startPractice = useCallback(() => {
     setShowIntro(false)
@@ -1083,6 +1202,22 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       setAnswerState('correct')
       setFeedback(randFrom(POSITIVE_FEEDBACK))
       setFeedbackType('good')
+      // play correct answer sound (clone to allow overlapping playback)
+      try {
+        const base = correctSoundRef.current
+        if (base) {
+          const clone = (base.cloneNode(true) as HTMLAudioElement)
+          clone.preload = 'auto'
+          const remove = () => {
+            try { clone.removeEventListener('ended', remove) } catch { /* ignore */ }
+            try { clone.removeEventListener('pause', remove) } catch { /* ignore */ }
+          }
+          clone.addEventListener('ended', remove)
+          clone.addEventListener('pause', remove)
+          const p = clone.play()
+          if (p && typeof p.then === 'function') p.catch(() => { /* ignore */ })
+        }
+      } catch { /* ignore */ }
       // show the delta as a positive number ("10 energie") — the color/context
       // already indicates this is a loss for the bug. Keep the subtraction logic
       // unchanged so energy is still decreased by 10.
@@ -1141,6 +1276,22 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setAnswerState('wrong')
     setFeedback(randFrom(NEGATIVE_FEEDBACK))
     setFeedbackType('bad')
+    // play wrong answer sound (clone to allow overlapping playback)
+    try {
+      const baseW = wrongSoundRef.current
+      if (baseW) {
+        const cloneW = (baseW.cloneNode(true) as HTMLAudioElement)
+        cloneW.preload = 'auto'
+        const removeW = () => {
+          try { cloneW.removeEventListener('ended', removeW) } catch { /* ignore */ }
+          try { cloneW.removeEventListener('pause', removeW) } catch { /* ignore */ }
+        }
+        cloneW.addEventListener('ended', removeW)
+        cloneW.addEventListener('pause', removeW)
+        const pW = cloneW.play()
+        if (pW && typeof pW.then === 'function') pW.catch(() => { /* ignore */ })
+      }
+    } catch { /* ignore */ }
     // show the delta as a positive number ("10 energie") for consistency
     // and remove the negative sign from the badge. Energy is still reduced.
     setFloatingDelta({ target: 'player', value: 10 })

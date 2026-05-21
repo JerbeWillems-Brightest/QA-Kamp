@@ -34,6 +34,11 @@ import TVIcon from '../../../assets/NietZoSlimmeThermostaatImages/OptieFotos/TVI
 import TekenenIcon from '../../../assets/NietZoSlimmeThermostaatImages/OptieFotos/TekenenIcon.svg'
 import ZingIcon from '../../../assets/NietZoSlimmeThermostaatImages/OptieFotos/ZingIcon.svg'
 import WaterIcon from '../../../assets/NietZoSlimmeThermostaatImages/OptieFotos/WaterIcon.svg'
+// audio assets for the game
+import bgMusic from '../../../assets/NietZoSlimmeThermostaatImages/NZSThermostaatMusic.mp3'
+import correctSound from '../../../assets/NietZoSlimmeThermostaatImages/correctNZSThermostaat.mp3'
+import wrongSound from '../../../assets/NietZoSlimmeThermostaatImages/wrongNZSThermostaat.mp3'
+import fireworksSound from '../../../assets/sounds/Fireworks.mp3'
 
 
 type AgeGroup = '8-10' | '11-13' | '14-16'
@@ -661,6 +666,13 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   const feedbackBadgeRef = useRef<HTMLDivElement | null>(null)
   // fireworks canvas ref (used to render celebratory fireworks on end screen)
   const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // audio refs
+  const bgAudioRef = useRef<HTMLAudioElement | null>(null)
+  const correctAudioRef = useRef<HTMLAudioElement | null>(null)
+  const wrongAudioRef = useRef<HTMLAudioElement | null>(null)
+  // base fireworks audio and active cloned instances (so we can stop them on restart)
+  const fireworksRef = useRef<HTMLAudioElement | null>(null)
+  const activeFireworksRef = useRef<HTMLAudioElement[]>([])
   // lock to prevent multiple rapid submissions for the same scenario
   const checkingRef = useRef(false)
   const wrongInRoundRef = useRef(0)
@@ -914,9 +926,10 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       const key = condLabel ? condLabel.toLowerCase().replace(/\s+/g, ' ') : ''
       const extra = extraMap[key] || ''
       return extra ? [main, extra] : [main]
-    } catch {
-      return HINT_BY_AGE[effectiveAge] || []
-    }
+      } catch (e) {
+          void e
+          return HINT_BY_AGE[effectiveAge] || []
+        }
   }, [currentScenario, effectiveAge])
 
   // ensure hint button is locked at start until mistakes threshold is reached
@@ -925,7 +938,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       const w = window as unknown as Record<string, unknown>
       w['__pz_hint_unlocked'] = false
       window.dispatchEvent(new CustomEvent('minigame:hint-locked'))
-    } catch { /* ignore */ }
+    } catch (e) { /* ignore */ void e }
   }, [effectiveAge])
 
   // body class while modals are open (matches other minigames)
@@ -938,10 +951,10 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       else document.body.classList.remove(clsModal)
       if (showEnd) document.body.classList.add(clsEnd)
       else document.body.classList.remove(clsEnd)
-    } catch { /* ignore */ }
+    } catch (e) { /* ignore */ void e }
     return () => {
-      try { document.body.classList.remove(clsModal) } catch { /* ignore */ }
-      try { document.body.classList.remove(clsEnd) } catch { /* ignore */ }
+      try { document.body.classList.remove(clsModal) } catch (e) { /* ignore */ void e }
+      try { document.body.classList.remove(clsEnd) } catch (e) { /* ignore */ void e }
     }
   }, [paused, showEnd, showHelp, showHint, showIntro, showPracticeStart, showPracticeEnd])
 
@@ -979,8 +992,9 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         let mod: unknown = null
         try {
           mod = await import('../PasswordZapper/passwordZapperFireworks')
-        } catch {
-          try { mod = await import('../PasswordZapper/passwordZapperFireworks.ts') } catch { /* ignore */ }
+        } catch (e) {
+          try { mod = await import('../PasswordZapper/passwordZapperFireworks.ts') } catch (e1) { /* ignore */ void e1 }
+          void e
         }
 
         if (!mod) return
@@ -988,12 +1002,114 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         if (typeof maybeInit.default === 'function') {
           cleanup = (maybeInit.default as (c: HTMLCanvasElement) => (() => void))(canvasEl)
         }
-      } catch {
+      } catch (e) {
         // ignore failures — fireworks are decorative
+        void e
       }
     })()
-    return () => { try { if (cleanup) cleanup() } catch { /* ignore */ } }
+    return () => { try { if (cleanup) cleanup() } catch (e) { /* ignore */ void e } }
   }, [showEnd])
+
+  // initialize audio elements once (skip in test env)
+  useEffect(() => {
+    if (isTestEnv) return
+    try {
+      bgAudioRef.current = new Audio(bgMusic)
+      bgAudioRef.current.loop = true
+      bgAudioRef.current.preload = 'auto'
+      bgAudioRef.current.volume = 0.55
+
+      correctAudioRef.current = new Audio(correctSound)
+      correctAudioRef.current.preload = 'auto'
+      correctAudioRef.current.volume = 0.9
+
+      wrongAudioRef.current = new Audio(wrongSound)
+      wrongAudioRef.current.preload = 'auto'
+      wrongAudioRef.current.volume = 0.9
+      // prepare base fireworks audio for end screen (clones will be played)
+      try {
+        const f = new Audio(fireworksSound)
+        f.preload = 'auto'
+        f.volume = 0.85
+        fireworksRef.current = f
+      } catch { fireworksRef.current = null }
+    } catch (e) {
+      /* ignore audio init errors */
+      void e
+    }
+
+    return () => {
+      try {
+        if (bgAudioRef.current) {
+          try { bgAudioRef.current.pause() } catch (e) { void e }
+          try { bgAudioRef.current.src = '' } catch (e) { void e }
+        }
+        if (correctAudioRef.current) {
+          try { correctAudioRef.current.pause() } catch (e) { void e }
+          try { correctAudioRef.current.src = '' } catch (e) { void e }
+        }
+        if (wrongAudioRef.current) {
+          try { wrongAudioRef.current.pause() } catch (e) { void e }
+          try { wrongAudioRef.current.src = '' } catch (e) { void e }
+        }
+        // stop/clear any fireworks audio
+        try {
+          for (const a of activeFireworksRef.current.slice()) {
+            try { a.pause() } catch { /* ignore */ }
+            try { a.currentTime = 0 } catch { /* ignore */ }
+          }
+          activeFireworksRef.current.length = 0
+          if (fireworksRef.current) {
+            try { fireworksRef.current.pause() } catch { /* ignore */ }
+            try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+            try { fireworksRef.current.src = '' } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      } catch { /* ignore cleanup errors */ }
+    }
+  }, [isTestEnv])
+
+  // Play fireworks sound when end screen appears (use clones so multiple
+  // overlapping plays are possible and we can stop them individually)
+  useEffect(() => {
+    if (!showEnd) return
+    const base = fireworksRef.current
+    if (!base) return
+    try {
+      const f = (base.cloneNode(true) as HTMLAudioElement)
+      activeFireworksRef.current.push(f)
+      const remove = () => {
+        try {
+          const idx = activeFireworksRef.current.indexOf(f)
+          if (idx >= 0) activeFireworksRef.current.splice(idx, 1)
+        } catch { /* ignore */ }
+      }
+      f.addEventListener('ended', remove)
+      f.addEventListener('pause', remove)
+      const p = f.play()
+      if (p && typeof p.then === 'function') p.catch(() => { /* ignore play rejection */ })
+    } catch {
+      try { base.currentTime = 0; void base.play() } catch { /* ignore */ }
+    }
+  }, [showEnd])
+
+  // play / pause background music depending on game running state
+  useEffect(() => {
+    const audio = bgAudioRef.current
+    if (!audio) return
+    // play only when the actual gameplay is running (not intro/practice modals)
+    if (running && !paused && !showIntro && !showPracticeStart && !showPracticeEnd && !showEnd) {
+      try {
+        const p = audio.play()
+        if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => {})
+      } catch (e) {
+        /* ignore play errors (autoplay blocked) */
+        void e
+      }
+    } else {
+      try { audio.pause() } catch (e) { void e }
+    }
+  }, [running, paused, showIntro, showPracticeStart, showPracticeEnd, showEnd])
 
   // listen to global controls (pause/help/hint)
   // Handlers are defined as stable callbacks so the effect only registers
@@ -1015,9 +1131,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     try {
       const w = window as unknown as Record<string, unknown>
       if (!w['__pz_hint_unlocked']) return
-    } catch {
-      return
-    }
+    } catch (e) { void e; return }
     setShowHint(true)
     setPaused(true)
   }, [showIntro, showPracticeStart, showPracticeEnd, showEnd])
@@ -1094,6 +1208,18 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   }
 
   const restartGame = () => {
+    // stop any fireworks audio that might still be playing from the end screen
+    try {
+      for (const a of activeFireworksRef.current.slice()) {
+        try { a.pause() } catch { /* ignore */ }
+        try { a.currentTime = 0 } catch { /* ignore */ }
+      }
+      activeFireworksRef.current.length = 0
+      if (fireworksRef.current) {
+        try { fireworksRef.current.pause() } catch { /* ignore */ }
+        try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
     setShowIntro(true)
     setShowPracticeStart(false)
     setShowPracticeEnd(false)
@@ -1286,6 +1412,14 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
 
     const correct = selectedOptionId === currentScenario.correctOptionId
     if (correct) {
+      // play correct sound
+      try {
+        if (!isTestEnv && correctAudioRef.current) {
+          try { correctAudioRef.current.currentTime = 0 } catch (e) { void e }
+          const p = correctAudioRef.current.play()
+          if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => {})
+        }
+      } catch { /* ignore audio errors */ }
       setAnswerState('correct')
       setFeedback(randFrom(POSITIVE_FEEDBACK))
       setFeedbackType('good')
@@ -1334,6 +1468,14 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         }, 700)
       }
     } else {
+      // play wrong sound
+      try {
+        if (!isTestEnv && wrongAudioRef.current) {
+          try { wrongAudioRef.current.currentTime = 0 } catch (e) { void e }
+          const p = wrongAudioRef.current.play()
+          if (p && typeof (p as Promise<void>).catch === 'function') (p as Promise<void>).catch(() => {})
+        }
+      } catch { /* ignore audio errors */ }
       setAnswerState('wrong')
       setFeedback(randFrom(NEGATIVE_FEEDBACK))
       setFeedbackType('bad')
@@ -1376,7 +1518,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     }
   }
 
-  
+
 
   // keep scenario updated if pool changes (age group)
   useEffect(() => {
@@ -1717,7 +1859,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         </div>
       )}
 
-      
+
 
       {showIntro && (
         <div id="nzs-start-overlay" className="pz-start-overlay">
