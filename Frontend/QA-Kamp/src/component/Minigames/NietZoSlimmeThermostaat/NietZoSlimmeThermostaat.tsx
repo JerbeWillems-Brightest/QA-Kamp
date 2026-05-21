@@ -1737,16 +1737,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         <div id="nzs-practice-start-overlay" className="pz-start-overlay">
           <div id="nzs-practice-start-modal" className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Even oefenen!</h2>
-            <p style={{ marginTop: 12, textAlign: 'left' }}>In de oefenronde tellen je punten nog niet mee.</p>
-            {effectiveAge === '8-10' && (
-              <p style={{ textAlign: 'left' }}>Sleep de blokken en maak een juiste zin (ALS ... EN ... DAN ...).</p>
-            )}
-            {effectiveAge === '11-13' && (
-              <p style={{ textAlign: 'left' }}>Sleep de blokken en maak een juiste zin (ALS ... EN ... DAN ...).</p>
-            )}
-            {effectiveAge === '14-16' && (
-              <p style={{ textAlign: 'left' }}>Sleep de blokken en maak een juiste regel (IF ... AND ... THEN ... ELSE ...).</p>
-            )}
+            <p style={{ marginTop: 12, textAlign: 'left' }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
               <button id="nzs-practice-play" className="pz-start-btn pz-start-btn--large" onClick={startPractice}>Spelen</button>
               <button id="nzs-practice-skip" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={startRealGame}>Oefenronde overslaan</button>

@@ -73,12 +73,6 @@ const INTRO_BY_AGE: Record<AgeGroup, string[]> = {
   ]
 }
 
-const PRACTICE_RULES: Record<AgeGroup, string[]> = {
-  '8-10': ['Even oefenen!', 'Kies bij elke vraag één antwoord.', 'Haal 3 juiste antwoorden om te starten.'],
-  '11-13': ['Even oefenen!', 'Kies bij elke vraag één antwoord.', 'Haal 3 juiste antwoorden om te starten.'],
-  '14-16': ['Even oefenen!', 'Soms krijg je ook een stukje (pseudo)code.', 'Haal 3 juiste antwoorden om te starten.']
-}
-
 function computePercent(correct: number, wrong: number) {
   const total = correct + wrong
   if (total <= 0) return 0
@@ -1366,10 +1360,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           <div id="ftb-practice-start-modal" className="pz-start-modal">
             <h2 id="ftb-practice-start-title">Even oefenen!</h2>
             <div id="ftb-practice-start-container" className="pz-start-container">
-              <p id="ftb-practice-start-desc" style={{ marginTop: 4, marginBottom: 10 }}>De Bug stelt vragen. Kies het juiste antwoord of voer de juiste actie uit.</p>
-              <ul id="ftb-practice-start-bullets" className="pz-start-bullets">
-                {PRACTICE_RULES[effectiveAge].slice(1).map((line, i) => <li key={line} id={`ftb-practice-rule-${i}`}>{line}</li>)}
-              </ul>
+              <p id="ftb-practice-start-desc" style={{ marginTop: 4, marginBottom: 10 }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <button id="ftb-play-practice" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: true }); startPractice() }} type="button">

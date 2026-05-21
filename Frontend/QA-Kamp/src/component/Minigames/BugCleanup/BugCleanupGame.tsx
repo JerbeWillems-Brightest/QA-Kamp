@@ -82,12 +82,7 @@ const HINT_BY_AGE: Record<AgeGroup, string[]> = {
   ]
 }
 
-// How many mistakes before showing the hint popup for each age group
-const MISTAKES_HINT_THRESHOLD: Record<AgeGroup, number> = {
-  '8-10': 1,
-  '11-13': 2,
-  '14-16': 3
-}
+// (No mistakes in this game) The hint is always available via the hint button.
 
 // Nieuwe lijst met positieve feedbackberichten. We kiezen er bij elke score één willekeurig uit.
 const POSITIVE_FEEDBACK = [
@@ -233,7 +228,14 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     lagFactorRef.current = cfg.startLag
     elapsedRef.current = 0
     shouldFinishRef.current = false
-    hintShownRef.current = false
+    // This game should always have the hint control available. Mark it as
+    // unlocked at start so the hint button is enabled immediately.
+    hintShownRef.current = true
+    try {
+      const w = window as unknown as Record<string, unknown>
+      w['__pz_hint_unlocked'] = true
+      try { window.dispatchEvent(new CustomEvent('minigame:hint-unlocked')) } catch { /* ignore */ }
+    } catch { /* ignore */ }
     lastFrameRef.current = null
   }, [cfg.startLag, cfg.visibleMax, effectiveAge])
 
@@ -428,29 +430,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return
     }
 
-    // miss: increment mistakes (no time/score penalty)
-    setMistakes((m) => {
-      const next = m + 1
-      // show/unlock hint once per run when reaching the per-age threshold
-      try {
-        const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
-        if (!hintShownRef.current && next >= threshold && !inPractice) {
-          hintShownRef.current = true
-          // pause and show the hint modal
-          setPaused(true)
-          setShowHint(true)
-          // set global transient flag so the top-level hint button becomes enabled
-          try {
-            const w = window as unknown as Record<string, unknown>
-            w['__pz_hint_unlocked'] = true
-            window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
-          } catch { /* ignore */ }
-        }
-      } catch {
-        void 0
-      }
-      return next
-    })
+    // Misses do not count in this game. Do not increment `mistakes` and do not
+    // auto-open or unlock the hint here; the hint is available via the hint
+    // button (unlocked by resetGameState on start).
   }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge, inPractice])
 
   // penalties/minpunten logic removed
@@ -945,8 +927,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         <div className="pz-start-overlay">
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Even oefenen!</h2>
-            <p style={{ marginTop: 12, textAlign: 'left' }}>Beweeg je muis of vinger en raak de bugs.</p>
-            <p style={{ textAlign: 'left' }}>Elke bug die je verwijdert maakt je cursor sneller</p>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={startPractice}>Spelen</button>
               <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={startRealGame}>Oefenronde Overslaan</button>
@@ -1000,7 +981,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         </div>
       )}
 
-      {paused && !showPracticeEnd && (
+      {paused && !showPracticeEnd && !showHint && !showHelp && !showIntro && !showPracticeStart && !showPracticeEnd && (
         <div className="pz-pause-overlay">
           <div className="pz-pause-modal">
             <h2>Pauze</h2>

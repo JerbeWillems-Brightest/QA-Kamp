@@ -1004,11 +1004,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         <div className="pz-start-overlay">
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Even oefenen!</h2>
-            <p style={{ marginTop: 12 }}>
-              {effectiveAge === '8-10'
-                ? 'Zoek de fout op het blad en klik erop!'
-                : 'Zoek de afwijking op het blad en klik erop!'}
-            </p>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => { void startPractice(); }}>Spelen</button>
               <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { try { setShowPracticeStart(false); resetGame(); } catch { /* ignore */ } }}>Oefenronde Overslaan</button>

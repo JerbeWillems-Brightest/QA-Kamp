@@ -2237,9 +2237,9 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
       <div className="pz-game">
         {showPracticeIntro ? (
           <div className="pz-start-overlay">
-            <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
-              <h2>Even oefenen!</h2>
-              <p>Zie je een komeet met een slecht wachtwoord? Tik erop om het weg te zappen! Laat de goede sterke wachtwoorden voorbijvliegen</p>
+              <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
+                  <h2>Even oefenen!</h2>
+                  <p>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
               <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
                 <button className="pz-start-btn pz-start-btn--large" onClick={() => { void startPractice(); }}>Spelen</button>
                 <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { void skipPracticeIntro(); }}>Oefenronde overslaan</button>
