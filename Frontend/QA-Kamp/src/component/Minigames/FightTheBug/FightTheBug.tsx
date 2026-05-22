@@ -316,7 +316,7 @@ function buildQuestionPool(age: AgeGroup): Question[] {
         options: [
           { id: 'a', label: 'Veilig' },
           { id: 'b', label: 'Beter' },
-          { id: 'c', label: 'gemakkelijk' },
+          { id: 'c', label: 'Gemakkelijk' },
           { id: 'd', label: 'Gevaarlijk' }
         ],
         correctOptionId: 'd',
