@@ -150,6 +150,19 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     }
   }
 
+  // Helper that returns any banner element used by the game. The game may
+  // render the banner inline (#ftb-banner), as a portal to document.body
+  // (#ftb-banner), or use legacy classes like .ftb-banner or .pz-feedback.
+  function getBanner(): HTMLElement | null {
+    return (
+      document.getElementById('ftb-banner') ||
+      document.querySelector('.ftb-banner') ||
+      document.querySelector('.pz-feedback') ||
+      document.getElementById('ftb-banner-portal') ||
+      null
+    ) as HTMLElement | null
+  }
+
   // TC09-TC11: Game screen top-level controls are present when rendered via MinigamePage
   it('TC09/TC10/TC11: game screen shows Hint, Pauze and Speluitleg buttons', async () => {
     // Render via MinigamePage so top-level controls are included
@@ -223,7 +236,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
 
     // Wait for the feedback banner to appear (#ftb-banner)
     await waitFor(() => {
-      const fb = document.querySelector('#ftb-banner')
+      const fb = getBanner()
       expect(fb).toBeTruthy()
     })
   })
@@ -349,16 +362,16 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
       fireEvent.click(toClick)
 
       // Wait for either feedback, energy change, or the end overlay
-      await waitFor(() => {
-        const banner = document.getElementById('ftb-banner')
-        const delta = document.getElementById('ftb-delta-bug')
-        const bugVal = document.getElementById('ftb-energy-bug-value')
-        const endBox = document.getElementById('ftb-end-box')
-        if (endBox) return true
-        if (bugVal && Number((bugVal.textContent || '').trim()) < prevEnergy) return true
-        if (banner || delta) return true
-        throw new Error('waiting for feedback or energy change')
-      }, { timeout: 2000 }).catch(() => { /* ignore and proceed to check */ })
+        await waitFor(() => {
+         const banner = getBanner()
+         const delta = document.getElementById('ftb-delta-bug')
+         const bugVal = document.getElementById('ftb-energy-bug-value')
+         const endBox = document.getElementById('ftb-end-box')
+         if (endBox) return true
+         if (bugVal && Number((bugVal.textContent || '').trim()) < prevEnergy) return true
+         if (banner || delta) return true
+         throw new Error('waiting for feedback or energy change')
+       }, { timeout: 2000 }).catch(() => { /* ignore and proceed to check */ })
 
       const endBoxNow = document.getElementById('ftb-end-box')
       if (endBoxNow) break
@@ -422,16 +435,16 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
       fireEvent.click(toClick)
 
       // Wait for feedback or for the bug energy to decrease
-      await waitFor(() => {
-        const banner = document.getElementById('ftb-banner')
-        const delta = document.getElementById('ftb-delta-bug')
-        const bugVal = document.getElementById('ftb-energy-bug-value')
-        const endBox = document.getElementById('ftb-end-box')
-        if (endBox) return true
-        if (bugVal && Number((bugVal.textContent || '').trim()) < prevBugEnergy) return true
-        if (banner || delta) return true
-        throw new Error('waiting for feedback or bug energy change')
-      }, { timeout: 3000 }).catch(() => { /* ignore and proceed */ })
+        await waitFor(() => {
+         const banner = getBanner()
+         const delta = document.getElementById('ftb-delta-bug')
+         const bugVal = document.getElementById('ftb-energy-bug-value')
+         const endBox = document.getElementById('ftb-end-box')
+         if (endBox) return true
+         if (bugVal && Number((bugVal.textContent || '').trim()) < prevBugEnergy) return true
+         if (banner || delta) return true
+         throw new Error('waiting for feedback or bug energy change')
+       }, { timeout: 3000 }).catch(() => { /* ignore and proceed */ })
 
       const endBoxNow = document.getElementById('ftb-end-box')
       if (endBoxNow) break
@@ -500,7 +513,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
       // the feedback banner (bad) or the floating delta for the player.
       try {
         await waitFor(() => {
-          const banner = document.getElementById('ftb-banner')
+          const banner = getBanner()
           const delta = document.getElementById('ftb-delta-player')
           if (banner || delta) return true
           throw new Error('waiting for feedback')
@@ -528,14 +541,14 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(clicked).toBeTruthy()
 
     // Feedback banner should show a bad class or the bug element reflect bad state
-    await waitFor(() => {
-      const banner = document.querySelector('#ftb-banner')
-      const bug = document.getElementById('ftb-bug')
-      const delta = document.getElementById('ftb-delta-player')
-      const hasBad = Boolean(banner && /pz-feedback--bad|ftb-banner--bad/i.test(banner.className || '')) || Boolean(bug && bug.className.includes('ftb-bug--bad'))
-      expect(hasBad).toBeTruthy()
-      expect(delta).toBeTruthy()
-    })
+      await waitFor(() => {
+       const banner = getBanner()
+       const bug = document.getElementById('ftb-bug')
+       const delta = document.getElementById('ftb-delta-player')
+       const hasBad = Boolean(banner && /pz-feedback--bad|ftb-banner--bad/i.test(banner.className || '')) || Boolean(bug && bug.className.includes('ftb-bug--bad'))
+       expect(hasBad).toBeTruthy()
+       expect(delta).toBeTruthy()
+     })
   })
 
   // TC40: bug energy cumulatively decreases after multiple correct answers

@@ -1,4 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import fireworksSound from '../../../assets/sounds/Fireworks.mp3'
+import fightTheBugMusic from '../../../assets/FightTheBug/FightTheBugMusic.mp3'
+import correctFightTheBug from '../../../assets/FightTheBug/CorrectFightTheBug.mp3'
+import wrongFightTheBug from '../../../assets/FightTheBug/WrongFightTheBug.mp3'
+import { createPortal } from 'react-dom'
 import BeatenBugImg from '../../../assets/FightTheBug/BeatenBug.png'
 import WrongAnswerBugImg from '../../../assets/FightTheBug/WrongAwnserBug.png'
 import DefaultBugImg from '../../../assets/FightTheBug/DefaultBug.png'
@@ -71,12 +76,6 @@ const INTRO_BY_AGE: Record<AgeGroup, string[]> = {
     'Juist = Bug -10 energie, fout = Jij -10 energie.',
     'Versla de Bug door 10 correcte antwoorden te geven.'
   ]
-}
-
-const PRACTICE_RULES: Record<AgeGroup, string[]> = {
-  '8-10': ['Even oefenen!', 'Kies bij elke vraag één antwoord.', 'Haal 3 juiste antwoorden om te starten.'],
-  '11-13': ['Even oefenen!', 'Kies bij elke vraag één antwoord.', 'Haal 3 juiste antwoorden om te starten.'],
-  '14-16': ['Even oefenen!', 'Soms krijg je ook een stukje (pseudo)code.', 'Haal 3 juiste antwoorden om te starten.']
 }
 
 function computePercent(correct: number, wrong: number) {
@@ -317,7 +316,7 @@ function buildQuestionPool(age: AgeGroup): Question[] {
         options: [
           { id: 'a', label: 'Veilig' },
           { id: 'b', label: 'Beter' },
-          { id: 'c', label: 'gemakkelijk' },
+          { id: 'c', label: 'Gemakkelijk' },
           { id: 'd', label: 'Gevaarlijk' }
         ],
         correctOptionId: 'd',
@@ -673,6 +672,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   const [feedback, setFeedback] = useState<string | null>(null)
   const [feedbackType, setFeedbackType] = useState<'good' | 'bad' | null>(null)
+  const [mounted, setMounted] = useState(false)
   const [floatingDelta, setFloatingDelta] = useState<{ target: 'player' | 'bug'; value: number } | null>(null)
   // ensure linter sees the variable as 'used' in environments where JSX usage
   // might not be detected by the ESLint rule; this is a harmless no-op read
@@ -682,6 +682,13 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   const checkingRef = useRef(false)
   const hintAutoShownRef = useRef(false)
   const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Fireworks audio element (base) and active cloned nodes for overlapping playback
+  const fireworksRef = useRef<HTMLAudioElement | null>(null)
+  const activeFireworksRef = useRef<HTMLAudioElement[]>([])
+  // Background & one-shot sound refs
+  const bgMusicRef = useRef<HTMLAudioElement | null>(null)
+  const correctSoundRef = useRef<HTMLAudioElement | null>(null)
+  const wrongSoundRef = useRef<HTMLAudioElement | null>(null)
   const [bugSprite, setBugSprite] = useState<string>(DefaultBugImg)
   const damageTimerRef = useRef<number | null>(null)
 
@@ -727,6 +734,30 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       window.dispatchEvent(new CustomEvent('minigame:hint-locked'))
     } catch { /* ignore */ }
   }, [effectiveAge])
+
+  useEffect(() => {
+    setMounted(true)
+    return () => { setMounted(false) }
+  }, [])
+
+  // Helper behavior inlined where used to avoid linter unused-var warnings.
+
+  // Control background music playback based on game UI state
+  useEffect(() => {
+    const shouldPlay = running && !paused && !showIntro && !showPracticeStart && !showPracticeEnd && !showHelp && !showHint && !showEnd
+    const bg = bgMusicRef.current
+    if (!bg) return
+    try {
+      if (shouldPlay) {
+        // start (or resume) background music
+        const p = bg.play()
+        if (p && typeof p.then === 'function') p.catch(() => { /* ignore autoplay rejection */ })
+      } else {
+        try { bg.pause() } catch { /* ignore */ }
+        try { bg.currentTime = 0 } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }, [running, paused, showIntro, showPracticeStart, showPracticeEnd, showHelp, showHint, showEnd])
 
   // Fireworks canvas: initialize when end screen is shown (reuse shared fireworks)
   React.useEffect(() => {
@@ -920,6 +951,19 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     // beginning (clears transient in-memory state). This ensures behaviour
     // matches the user's expectation: a fresh start like a new load.
     try {
+      // stop any fireworks audio that might still be playing from the end screen
+      try {
+        for (const a of activeFireworksRef.current.slice()) {
+          try { a.pause() } catch { /* ignore */ }
+          try { a.currentTime = 0 } catch { /* ignore */ }
+        }
+        activeFireworksRef.current.length = 0
+        if (fireworksRef.current) {
+          try { fireworksRef.current.pause() } catch { /* ignore */ }
+          try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+      } catch { /* ignore */ }
+      
       // Use location.reload() to reload current page. Wrap in try/catch to be safe in tests.
       window.location.reload()
     } catch {
@@ -927,6 +971,82 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       try { window.location.assign(window.location.href) } catch { /* ignore */ }
     }
   }, [])
+
+  // Initialize fireworks audio on mount and cleanup on unmount
+  useEffect(() => {
+    try {
+      const a = new Audio(fireworksSound)
+      a.preload = 'auto'
+      a.volume = 0.85
+      fireworksRef.current = a
+    } catch { fireworksRef.current = null }
+    // Initialize background music and short answer sounds
+    try {
+      const bg = new Audio(fightTheBugMusic)
+      bg.preload = 'auto'
+      bg.loop = true
+      bg.volume = 0.35
+      bgMusicRef.current = bg
+    } catch { bgMusicRef.current = null }
+    try {
+      const c = new Audio(correctFightTheBug)
+      c.preload = 'auto'
+      c.volume = 0.9
+      correctSoundRef.current = c
+    } catch { correctSoundRef.current = null }
+    try {
+      const w = new Audio(wrongFightTheBug)
+      w.preload = 'auto'
+      w.volume = 0.9
+      wrongSoundRef.current = w
+    } catch { wrongSoundRef.current = null }
+    
+    return () => {
+      try {
+        if (fireworksRef.current) {
+          fireworksRef.current.pause()
+          try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+        for (const a of activeFireworksRef.current.slice()) {
+          try { a.pause() } catch { /* ignore */ }
+          try { a.currentTime = 0 } catch { /* ignore */ }
+        }
+        activeFireworksRef.current.length = 0
+        // cleanup bg & one-shot base audio
+        try { if (bgMusicRef.current) { bgMusicRef.current.pause(); try { bgMusicRef.current.currentTime = 0 } catch { /* ignore */ } } } catch { /* ignore */ }
+        try { if (correctSoundRef.current) { correctSoundRef.current.pause(); try { correctSoundRef.current.currentTime = 0 } catch { /* ignore */ } } } catch { /* ignore */ }
+        try { if (wrongSoundRef.current) { wrongSoundRef.current.pause(); try { wrongSoundRef.current.currentTime = 0 } catch { /* ignore */ } } } catch { /* ignore */ }
+      } catch { /* ignore */ }
+      fireworksRef.current = null
+      bgMusicRef.current = null
+      correctSoundRef.current = null
+      wrongSoundRef.current = null
+      
+    }
+  }, [])
+
+  // Play fireworks sound when end screen appears (match other games)
+  useEffect(() => {
+    if (!showEnd) return
+    const base = fireworksRef.current
+    if (!base) return
+    try {
+      const f = (base.cloneNode(true) as HTMLAudioElement)
+      activeFireworksRef.current.push(f)
+      const remove = () => {
+        try {
+          const idx = activeFireworksRef.current.indexOf(f)
+          if (idx >= 0) activeFireworksRef.current.splice(idx, 1)
+        } catch { /* ignore */ }
+      }
+      f.addEventListener('ended', remove)
+      f.addEventListener('pause', remove)
+      const p = f.play()
+      if (p && typeof p.then === 'function') p.catch(() => { /* ignore play rejection */ })
+    } catch {
+      try { base.currentTime = 0; void base.play() } catch { /* ignore */ }
+    }
+  }, [showEnd])
 
   const startPractice = useCallback(() => {
     setShowIntro(false)
@@ -1082,6 +1202,22 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
       setAnswerState('correct')
       setFeedback(randFrom(POSITIVE_FEEDBACK))
       setFeedbackType('good')
+      // play correct answer sound (clone to allow overlapping playback)
+      try {
+        const base = correctSoundRef.current
+        if (base) {
+          const clone = (base.cloneNode(true) as HTMLAudioElement)
+          clone.preload = 'auto'
+          const remove = () => {
+            try { clone.removeEventListener('ended', remove) } catch { /* ignore */ }
+            try { clone.removeEventListener('pause', remove) } catch { /* ignore */ }
+          }
+          clone.addEventListener('ended', remove)
+          clone.addEventListener('pause', remove)
+          const p = clone.play()
+          if (p && typeof p.then === 'function') p.catch(() => { /* ignore */ })
+        }
+      } catch { /* ignore */ }
       // show the delta as a positive number ("10 energie") — the color/context
       // already indicates this is a loss for the bug. Keep the subtraction logic
       // unchanged so energy is still decreased by 10.
@@ -1140,6 +1276,22 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     setAnswerState('wrong')
     setFeedback(randFrom(NEGATIVE_FEEDBACK))
     setFeedbackType('bad')
+    // play wrong answer sound (clone to allow overlapping playback)
+    try {
+      const baseW = wrongSoundRef.current
+      if (baseW) {
+        const cloneW = (baseW.cloneNode(true) as HTMLAudioElement)
+        cloneW.preload = 'auto'
+        const removeW = () => {
+          try { cloneW.removeEventListener('ended', removeW) } catch { /* ignore */ }
+          try { cloneW.removeEventListener('pause', removeW) } catch { /* ignore */ }
+        }
+        cloneW.addEventListener('ended', removeW)
+        cloneW.addEventListener('pause', removeW)
+        const pW = cloneW.play()
+        if (pW && typeof pW.then === 'function') pW.catch(() => { /* ignore */ })
+      }
+    } catch { /* ignore */ }
     // show the delta as a positive number ("10 energie") for consistency
     // and remove the negative sign from the badge. Energy is still reduced.
     setFloatingDelta({ target: 'player', value: 10 })
@@ -1225,8 +1377,9 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
   return (
     <div id="ftb-root" className="ftb-root">
                     <div id="ftb-game-area" className="ftb-game-area">
-      {!showEnd && (
+          {!showEnd && (
         <div id="ftb-main">
+            {/* feedback banner is rendered via a portal to document.body (see bottom of this component) */}
           {isPractice && (
             // Use the shared .pz-score markup so the practice pill/timer matches other games
             <div className="pz-score-stack" aria-hidden>
@@ -1271,9 +1424,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           )}
 
           <div id="ftb-bug" className={`ftb-bug ${feedbackType ? (feedbackType === 'good' ? 'ftb-bug--good' : 'ftb-bug--bad') : ''}`} aria-hidden>
-            {/* Replace CSS-drawn bug with an image asset (defaultBug.png). */}
+            {/* Replace CSS-drawn bug with an image asset (defaultBug.png). Bug banner moved out
+                of the bug element to avoid clipping by parent overflow and stacking context
+                issues. The shared .pz-feedback class is used so visuals match other games. */}
             <img id="ftb-bug-image" className="ftb-bug__img" src={bugSprite} alt="Bug" />
-            {feedback && <div id="ftb-banner" className={`ftb-banner ${feedbackType === 'good' ? 'ftb-banner--good' : 'ftb-banner--bad'}`}>{feedback}</div>}
             {/* bug floating delta is rendered in the HUD area so it appears under de Energie Bug bar */}
           </div>
 
@@ -1366,10 +1520,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           <div id="ftb-practice-start-modal" className="pz-start-modal">
             <h2 id="ftb-practice-start-title">Even oefenen!</h2>
             <div id="ftb-practice-start-container" className="pz-start-container">
-              <p id="ftb-practice-start-desc" style={{ marginTop: 4, marginBottom: 10 }}>De Bug stelt vragen. Kies het juiste antwoord of voer de juiste actie uit.</p>
-              <ul id="ftb-practice-start-bullets" className="pz-start-bullets">
-                {PRACTICE_RULES[effectiveAge].slice(1).map((line, i) => <li key={line} id={`ftb-practice-rule-${i}`}>{line}</li>)}
-              </ul>
+              <p id="ftb-practice-start-desc" style={{ marginTop: 4, marginBottom: 10 }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <button id="ftb-play-practice" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: true }); startPractice() }} type="button">
@@ -1391,11 +1542,11 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
             <h2 id="ftb-practice-end-title">Het echte spel begint nu</h2>
             <div id="ftb-practice-end-container" className="pz-start-container">
               <p id="ftb-practice-end-desc" style={{ marginTop: 6, marginBottom: 10 }}>Je weet nu hoe het spel werkt. Succes!</p>
-              <div style={{ display: 'flex', gap: 0, justifyContent: 'center', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', marginTop: 12, alignItems: 'center' }}>
                 <button id="ftb-play-real" className="pz-start-btn pz-start-btn--large" onClick={() => { resetRun({ practice: false }); startRealGame() }} type="button">
                   Spelen
                 </button>
-                <button id="ftb-practice-again" className="pz-start-btn pz-start-btn--large" onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }} type="button">
+                <button id="ftb-practice-again" className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { setShowPracticeEnd(false); setShowPracticeStart(true) }} type="button">
                   Opnieuw oefenen
                 </button>
               </div>
@@ -1541,12 +1692,44 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
                     </div>
                   </div>
                 </div>
-            </div>
-          </div>
-        </div>
-      )}
-      </div>
-    </div>
+                  </div>
+                      </div>
+                    </div>
+                  )}
+                  {/* Render feedback banner as a portal to document.body so it is never clipped
+                      by positioned/overflowed parents and always appears above UI. */}
+                              {mounted && feedback && createPortal(
+                                <div
+                                  id="ftb-banner-portal"
+                                  className={`pz-feedback ${feedbackType === 'good' ? 'pz-feedback--good' : 'pz-feedback--bad'}`}
+                                  role="status"
+                                  aria-live="polite"
+                                                        style={{
+                                                          // inline styles ensure visibility even if compiled CSS overrides exist
+                                                          background: feedbackType === 'good'
+                                                            ? 'linear-gradient(180deg, #4caf50, #388e3c)'
+                                                            : 'linear-gradient(180deg, #f44336, #d32f2f)',
+                                                          color: '#fff',
+                                                          padding: '0.6rem 1rem',
+                                                          fontSize: '1.4rem',
+                                                          borderRadius: '999px',
+                                                          border: feedbackType === 'good' ? '3px solid rgba(255,255,255,0.08)' : '3px solid rgba(0,0,0,0.12)',
+                                                          boxShadow: feedbackType === 'good' ? '0 4px 12px rgba(0,0,0,0.35)' : '0 4px 12px rgba(0,0,0,0.45)',
+                                                          zIndex: 9999,
+                                                          position: 'fixed',
+                                                          left: '50%',
+                                                          // place the feedback slightly below the top chrome so it appears within the game area
+                                                          top: 'calc(var(--nav-height, 64px) + 48px)',
+                                                          transform: 'translateX(-50%)',
+                                                          whiteSpace: 'nowrap'
+                                                        }}
+                                >
+                                  {feedback}
+                                </div>,
+                                document.body
+                              )}
+                  </div>
+                </div>
   )
 }
 

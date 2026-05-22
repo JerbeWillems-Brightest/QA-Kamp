@@ -11,6 +11,9 @@ import bigRedOrangeBugSvg from '../../../assets/BugCleanupImages/BigRedOrangeBug
 import bigPurpleGreenBugSvg from '../../../assets/BugCleanupImages/BigPurpleGreenBug.svg'
 import wallpaperBugCleanup from '../../../assets/BugCleanupImages/WallpaperBugCleanup.png'
 import cursorSvg from '../../../assets/BugCleanupImages/Cursor.svg'
+import bgMusic from '../../../assets/BugCleanupImages/BackgroundMusic_Bugcleanup.mp3'
+import correctSound from '../../../assets/sounds/Correct.mp3'
+import fireworksSound from '../../../assets/sounds/Fireworks.mp3'
 
 type AgeGroup = '8-10' | '11-13' | '14-16'
 type BugVariant = 'red' | 'green' | 'purple' | 'orange' | 'big-red-orange' | 'big-purple-green'
@@ -82,12 +85,7 @@ const HINT_BY_AGE: Record<AgeGroup, string[]> = {
   ]
 }
 
-// How many mistakes before showing the hint popup for each age group
-const MISTAKES_HINT_THRESHOLD: Record<AgeGroup, number> = {
-  '8-10': 1,
-  '11-13': 2,
-  '14-16': 3
-}
+// (No mistakes in this game) The hint is always available via the hint button.
 
 // Nieuwe lijst met positieve feedbackberichten. We kiezen er bij elke score één willekeurig uit.
 const POSITIVE_FEEDBACK = [
@@ -180,7 +178,31 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   const [feedback, setFeedback] = useState<string | null>(null)
   const [bestTimeMs, setBestTimeMs] = useState<number | null>(null)
   const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
+  // Background music audio element
+  const musicRef = useRef<HTMLAudioElement | null>(null)
+  // Short 'correct' sound for removals/splits
+  const correctRef = useRef<HTMLAudioElement | null>(null)
+  // Fireworks sound to play on end screen
+  const fireworksRef = useRef<HTMLAudioElement | null>(null)
+  // Track active cloned fireworks audio nodes so we can stop them when restarting
+  const activeFireworksRef = useRef<HTMLAudioElement[]>([])
   const removingIdsRef = useRef<Set<number>>(new Set())
+
+  function clearActiveFireworks() {
+    try {
+      // pause and reset any cloned/active fireworks audio elements
+      for (const a of activeFireworksRef.current.slice()) {
+        try { a.pause() } catch { /* ignore */ }
+        try { a.currentTime = 0 } catch { /* ignore */ }
+      }
+      activeFireworksRef.current.length = 0
+      // also pause/reset the base fireworks audio if it's currently playing
+      if (fireworksRef.current) {
+        try { fireworksRef.current.pause() } catch { /* ignore */ }
+        try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
 
   const gameAreaRef = useRef<HTMLDivElement | null>(null)
   const mouseRef = useRef({ x: 100, y: 100 })
@@ -233,7 +255,14 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     lagFactorRef.current = cfg.startLag
     elapsedRef.current = 0
     shouldFinishRef.current = false
-    hintShownRef.current = false
+    // This game should always have the hint control available. Mark it as
+    // unlocked at start so the hint button is enabled immediately.
+    hintShownRef.current = true
+    try {
+      const w = window as unknown as Record<string, unknown>
+      w['__pz_hint_unlocked'] = true
+      try { window.dispatchEvent(new CustomEvent('minigame:hint-unlocked')) } catch { /* ignore */ }
+    } catch { /* ignore */ }
     lastFrameRef.current = null
   }, [cfg.startLag, cfg.visibleMax, effectiveAge])
 
@@ -243,6 +272,97 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     try { resetGameState() } catch { /* ignore */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Initialize background music element on mount and cleanup on unmount
+  useEffect(() => {
+    try {
+      const audio = new Audio(bgMusic)
+      audio.loop = true
+      audio.preload = 'auto'
+      // sensible default volume; can be adjusted later if desired
+      audio.volume = 0.45
+      musicRef.current = audio
+      // pre-create the short correct sound (not looped)
+      try {
+        const s = new Audio(correctSound)
+        s.preload = 'auto'
+        s.volume = 0.9
+        correctRef.current = s
+      } catch { correctRef.current = null }
+      // pre-create fireworks sound for end screen
+      try {
+        const f = new Audio(fireworksSound)
+        f.preload = 'auto'
+        f.volume = 0.85
+        fireworksRef.current = f
+      } catch { fireworksRef.current = null }
+    } catch {
+      musicRef.current = null
+    }
+    return () => {
+      try {
+        if (musicRef.current) {
+          musicRef.current.pause()
+          try { musicRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+        if (correctRef.current) {
+          try { correctRef.current.pause() } catch { /* ignore */ }
+          try { correctRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+        if (fireworksRef.current) {
+          try { fireworksRef.current.pause() } catch { /* ignore */ }
+          try { fireworksRef.current.currentTime = 0 } catch { /* ignore */ }
+        }
+        // do not call clearActiveFireworks here to avoid hook dependency issues;
+        // active clones (if any) are cleared when the player restarts via restartGame
+      } catch { /* ignore */ }
+      musicRef.current = null
+      correctRef.current = null
+      fireworksRef.current = null
+    }
+  }, [])
+
+  // Play fireworks sound when end screen appears (also when user stopped the game via pause->Stoppen)
+  useEffect(() => {
+    if (!showEnd) return
+    const base = fireworksRef.current
+    if (!base) return
+    try {
+      // clone to allow replay/overlap, though fireworks likely plays once
+      const f = (base.cloneNode(true) as HTMLAudioElement)
+      // keep track so we can stop it if the player restarts quickly
+      activeFireworksRef.current.push(f)
+      const remove = () => {
+        try {
+          const idx = activeFireworksRef.current.indexOf(f)
+          if (idx >= 0) activeFireworksRef.current.splice(idx, 1)
+        } catch { /* ignore */ }
+      }
+      f.addEventListener('ended', remove)
+      f.addEventListener('pause', remove)
+      const p = f.play()
+      if (p && typeof p.then === 'function') p.catch(() => { /* ignore play rejection */ })
+    } catch {
+      try { base.currentTime = 0; void base.play() } catch { /* ignore */ }
+    }
+    // no further cleanup; cloned node removes itself when ended/paused or when cleared
+  }, [showEnd])
+
+  // Play/pause background music based on game state. We try to play only
+  // when the user has started a round (running) and no modal/pause is active.
+  useEffect(() => {
+    const audio = musicRef.current
+    if (!audio) return
+    const modalOpen = showIntro || showHelp || showHint || paused || showPracticeStart || showPracticeEnd || showEnd
+    if (running && !modalOpen) {
+      // user interaction that started the game (startPractice/startRealGame)
+      // should allow playback; still catch any promise rejection.
+      try { void audio.play() } catch { /* ignore */ }
+    } else {
+      try { audio.pause() } catch { /* ignore */ }
+    }
+    // keep in sync when these states change
+  }, [running, paused, showIntro, showHelp, showHint, showPracticeStart, showPracticeEnd, showEnd])
 
   const openPracticeStart = useCallback(() => {
     // close intro and open the practice-start modal
@@ -360,6 +480,21 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return nextBugs
     })
 
+    // Play short 'correct' sound for removal/split (try to clone to allow overlap)
+    try {
+      const base = correctRef.current
+      if (base) {
+        try {
+          const c = (base.cloneNode(true) as HTMLAudioElement)
+          // Some browsers prevent immediate play without user gesture; ignore failures
+          void c.play()
+        } catch {
+          // fallback: try resetting and playing the base audio once
+          try { base.currentTime = 0; void base.play() } catch { /* ignore */ }
+        }
+      }
+    } catch { /* ignore audio errors */ }
+
     // If we're in a practice run, count removals but do not award points, lag or progress.
     if (inPractice) {
       setFeedback(randomFeedback())
@@ -428,29 +563,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
       return
     }
 
-    // miss: increment mistakes (no time/score penalty)
-    setMistakes((m) => {
-      const next = m + 1
-      // show/unlock hint once per run when reaching the per-age threshold
-      try {
-        const threshold = MISTAKES_HINT_THRESHOLD[effectiveAge]
-        if (!hintShownRef.current && next >= threshold && !inPractice) {
-          hintShownRef.current = true
-          // pause and show the hint modal
-          setPaused(true)
-          setShowHint(true)
-          // set global transient flag so the top-level hint button becomes enabled
-          try {
-            const w = window as unknown as Record<string, unknown>
-            w['__pz_hint_unlocked'] = true
-            window.dispatchEvent(new CustomEvent('minigame:hint-unlocked'))
-          } catch { /* ignore */ }
-        }
-      } catch {
-        void 0
-      }
-      return next
-    })
+    // Misses do not count in this game. Do not increment `mistakes` and do not
+    // auto-open or unlock the hint here; the hint is available via the hint
+    // button (unlocked by resetGameState on start).
   }, [bugs, paused, running, showEnd, showHelp, showHint, showIntro, effectiveAge, inPractice])
 
   // penalties/minpunten logic removed
@@ -666,6 +781,8 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   // startGame is replaced by startPractice/startRealGame flow
 
   const restartGame = () => {
+    // stop any fireworks audio that might still be playing from the end screen
+    try { clearActiveFireworks() } catch { /* ignore */ }
     resetGameState()
     setShowIntro(true)
     setShowEnd(false)
@@ -945,8 +1062,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         <div className="pz-start-overlay">
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Even oefenen!</h2>
-            <p style={{ marginTop: 12, textAlign: 'left' }}>Beweeg je muis of vinger en raak de bugs.</p>
-            <p style={{ textAlign: 'left' }}>Elke bug die je verwijdert maakt je cursor sneller</p>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={startPractice}>Spelen</button>
               <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={startRealGame}>Oefenronde Overslaan</button>
@@ -1000,7 +1116,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         </div>
       )}
 
-      {paused && !showPracticeEnd && (
+      {paused && !showPracticeEnd && !showHint && !showHelp && !showIntro && !showPracticeStart && !showPracticeEnd && (
         <div className="pz-pause-overlay">
           <div className="pz-pause-modal">
             <h2>Pauze</h2>

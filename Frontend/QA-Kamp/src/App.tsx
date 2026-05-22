@@ -21,16 +21,17 @@ function App() {
     // so create an inner component that renders the page contents.
     const InnerApp: React.FC = () => {
         const location = useLocation()
-        // hide footer for any route that includes '/minigame'
-        const hideFooter = location.pathname.includes('/minigame')
+        // Only show the footer on the login pages (root and organizer login)
+        const allowedFooterPaths = ['/', '/organizer-login']
+        const showFooter = allowedFooterPaths.includes(location.pathname)
 
         useEffect(() => {
             try {
-                if (hideFooter) document.body.classList.add('pz-no-footer')
+                if (!showFooter) document.body.classList.add('pz-no-footer')
                 else document.body.classList.remove('pz-no-footer')
             } catch { /* ignore */ }
             return () => { try { document.body.classList.remove('pz-no-footer') } catch { /* ignore */ } }
-        }, [hideFooter])
+        }, [showFooter])
 
         return (
             <div className="page">
@@ -51,8 +52,8 @@ function App() {
                   <Route path="/scoreboard" element={<Scoreboard />} />
                 </Routes>
 
-                {/* Footer (hidden on minigame routes) */}
-                {!hideFooter && (
+                {/* Footer (only shown on login pages) */}
+                {showFooter && (
                   <>
                     <footer className="footer">
                         <div className="footer-inner">

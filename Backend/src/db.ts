@@ -6,7 +6,7 @@ import { Organizer } from './models/Organizer'
 mongoose.set('autoCreate', false)
 mongoose.set('autoIndex', false)
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://QA-KampAdmin:BrightestQaKamp@qa-kamp.4vsjlqg.mongodb.net/?appName=qa-kamp'
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://EnvVarUser:EnvVarPass@qa-kamp.4vsjlqg.mongodb.net/?appName=qa-kamp'
 
 let cached: Promise<typeof mongoose> | null = null
 
@@ -17,7 +17,6 @@ export async function connectDB(): Promise<void> {
   if (!cached) {
 
     console.log('Connecting to MongoDB...', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'))
-      console.log(MONGO_URI)
     cached = mongoose.connect(MONGO_URI, {
       serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 15000,
@@ -95,17 +94,19 @@ export async function seedOrganizers() {
 
       let created = 0
       if ((o1Email && o1Password) || shouldUseFallback) {
-        const email = (o1Email && o1Password) ? o1Email : 'organizer@qa-kamp.be'
-        const password = (o1Email && o1Password) ? o1Password : 'Organizer123!'
+        // Provide a safe non-empty fallback for automated test environments so
+        // model validation (required fields) does not reject the create call.
+        const email = (o1Email && o1Password) ? o1Email : 'organizer1@example.test'
+        const password = (o1Email && o1Password) ? o1Password : 'test-password'
         await Organizer.create({ email, password, name: 'Organizer' })
-        console.log(`Created organizer: ${email}`)
+        console.log(`Created real organizer`)
         created++
       }
       if ((o2Email && o2Password) || shouldUseFallback) {
-        const email = (o2Email && o2Password) ? o2Email : 'organizer@test.be'
-        const password = (o2Email && o2Password) ? o2Password : 'Test123!'
+        const email = (o2Email && o2Password) ? o2Email : 'organizer2@example.test'
+        const password = (o2Email && o2Password) ? o2Password : 'test-password'
         await Organizer.create({ email, password, name: 'Organizer' })
-        console.log(`Created organizer: ${email}`)
+        console.log(`Created test organizer`)
         created++
       }
 

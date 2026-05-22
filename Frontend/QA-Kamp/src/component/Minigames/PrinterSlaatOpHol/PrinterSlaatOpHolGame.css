@@ -210,7 +210,8 @@
   left: 50%;
   transform: translateX(-50%);
   top: 18px;
-  font-size: 1.05rem;
+  /* Increased base size to match PasswordZapper */
+  font-size: 1.4rem;
   font-weight: 800;
   color: #fff;
   text-shadow: 1px 1px 4px #000a;
@@ -228,6 +229,8 @@
   background: linear-gradient(180deg, #4caf50, #388e3c);
   color: #fff;
   padding: 0.6rem 1rem;
+  /* increased font-size for clearer positive feedback */
+  font-size: 1.4rem;
   border-radius: 999px;
   border: 3px solid rgba(255,255,255,0.08);
   box-shadow: 0 4px 12px rgba(0,0,0,0.35);
@@ -236,9 +239,27 @@
   background: linear-gradient(180deg, #f44336, #d32f2f);
   color: #fff;
   padding: 0.6rem 1rem;
+  /* increased font-size for clearer negative feedback */
+  font-size: 1.4rem;
   border-radius: 999px;
   border: 3px solid rgba(0,0,0,0.12);
   box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+}
+
+/* Stronger override to ensure positive/negative feedback text is larger
+   even if other compiled CSS is loaded after this file. Use a more specific
+   selector and fall back to !important to guarantee visibility. */
+.pz-game .pz-feedback--good,
+.pz-game .pz-feedback--bad {
+  font-size: 2rem !important;
+}
+
+@media (max-width: 480px) {
+  /* keep feedback readable on small screens */
+  .pz-game .pz-feedback--good,
+  .pz-game .pz-feedback--bad {
+    font-size: 1.5rem !important;
+  }
 }
 
 /* time feedback sits under the timer; render as inline block below the timer */
@@ -331,5 +352,11 @@ body.pz-end-open .pz-controls {
 
 /* Ensure stats rows lay out correctly and center their contents */
 .pz-stats-row { display: flex; gap: 16px; margin-top: 18px; justify-content: center; align-items: center }
+
+
+
+/* Subtitle list for endscreen feedback: render subtitle as an li per request */
+.pz-subtitle-list { margin: 0 0 12px 0; padding-left: 20px; }
+.pz-subtitle-list li { font-size: 1.1rem; font-family: Arial, serif; margin: 0 0 0.5rem 0; }
 
 
