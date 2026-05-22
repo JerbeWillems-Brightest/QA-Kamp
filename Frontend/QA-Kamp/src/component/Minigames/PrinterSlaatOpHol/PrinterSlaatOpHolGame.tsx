@@ -347,7 +347,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     const cores = Object.keys(baseMap)
     const coresWithWrong = cores.filter(c => typeof wrongMap[c] === 'string')
 
-    // Prefer cores that haven't been used yet
+    // Prefer cores that haven't been used yet in THIS play.
     const unusedCores = coresWithWrong.filter(c => !usedCoresRef.current.has(c))
     let coreChoice: string | undefined
     if (unusedCores.length > 0) coreChoice = unusedCores[Math.floor(Math.random() * unusedCores.length)]
@@ -377,7 +377,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       nextItems.push({ id: i + 1, icon: iconUrl, x: (i % grid), y: Math.floor(i / grid), isOdd })
     }
 
-    // Mark the core as used for this playthrough
+    // Mark the core as used for this play so it won't be chosen again this play
     try { if (coreChoice) usedCoresRef.current.add(coreChoice) } catch { /* ignore */ }
 
     setItems(nextItems)
@@ -562,6 +562,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     setShouldFinishAfterTransition(false)
     // clear stopped flag on reset
     try { setStoppedByUser(false) } catch { /* ignore */ }
+    // no per-play history clearing here; keep per-play used cores lifecycle unchanged
     startRef.current = Date.now()
     // same logic as startGame: synchronous nextRound in tests, deferred in real runtime
     if (isTestEnv) nextRound()
