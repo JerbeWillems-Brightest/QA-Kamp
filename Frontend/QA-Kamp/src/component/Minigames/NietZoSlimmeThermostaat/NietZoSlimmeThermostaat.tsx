@@ -281,7 +281,8 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
       { id: 'eet', label: 'je eet', icon: EtenIcon },
       { id: 'buiten', label: 'je buiten speelt', icon: BuitenSpelenIcon },
       { id: 'tekent', label: 'je tekent', icon: TekenenIcon },
-      { id: 'zingt', label: 'je zingt', icon: ZingIcon }
+      { id: 'zingt', label: 'je zingt', icon: ZingIcon },
+        { id: 'thuis', label: 'je thuis bent', icon: HuisIcon }
     ]
 
     // Device scenarios are defined explicitly below.
@@ -292,21 +293,21 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
       // 2
       { id: 'd2', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de airco aan', options: [deviceOptions[1], deviceOptions[0], deviceOptions[6], deviceOptions[4]], correctOptionId: 'warm' },
       // 3
-      { id: 'd3', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de lamp aan', options: [deviceOptions[6], deviceOptions[2], deviceOptions[1], thermoOptions[0]], correctOptionId: 'dark' },
+      { id: 'd3', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de lamp aan', options: [deviceOptions[9], deviceOptions[2], deviceOptions[1], thermoOptions[0]], correctOptionId: 'dark' },
       // 4
       { id: 'd4', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de lamp uit', options: [deviceOptions[2], deviceOptions[6], deviceOptions[0], thermoOptions[0]], correctOptionId: 'light' },
       // 5
-      { id: 'd5', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de thermostaat lager', options: [deviceOptions[13], deviceOptions[0], deviceOptions[4], deviceOptions[6]], correctOptionId: 'bedtime' },
+      { id: 'd5', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de thermostaat lager', options: [deviceOptions[13], deviceOptions[0], deviceOptions[4], deviceOptions[8]], correctOptionId: 'bedtime' },
       // 6
-      { id: 'd6', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de thermostaat hoger', options: [deviceOptions[15], deviceOptions[27], deviceOptions[2], deviceOptions[4]], correctOptionId: 'water_excess' },
+      { id: 'd6', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de thermostaat hoger', options: [deviceOptions[0], deviceOptions[27], deviceOptions[2], deviceOptions[4]], correctOptionId: 'cold' },
       // 7
       { id: 'd7', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme deurbel af', options: [deviceOptions[4], thermoOptions[0], deviceOptions[1], deviceOptions[2]], correctOptionId: 'doorbell' },
       // 8
       { id: 'd8', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaan de gordijnen open', options: [deviceOptions[5], deviceOptions[6], deviceOptions[0], deviceOptions[8]], correctOptionId: 'sunrise' },
       // 9
-      { id: 'd9', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaan de gordijnen dicht', options: [deviceOptions[6], deviceOptions[7], deviceOptions[13], deviceOptions[31]], correctOptionId: 'dark' },
+      { id: 'd9', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaan de gordijnen dicht', options: [deviceOptions[6], deviceOptions[7], deviceOptions[14], deviceOptions[31]], correctOptionId: 'dark' },
       // 10
-      { id: 'd10', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme wekker af', options: [deviceOptions[7], deviceOptions[6], deviceOptions[1], thermoOptions[0]], correctOptionId: 'morning' },
+      { id: 'd10', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme wekker af', options: [deviceOptions[7], deviceOptions[8], deviceOptions[1], thermoOptions[0]], correctOptionId: 'morning' },
       // 11
       { id: 'd11', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme stekker uit', options: [deviceOptions[9], deviceOptions[0], deviceOptions[6], deviceOptions[5]], correctOptionId: 'device_not_used' },
       // 12
@@ -330,7 +331,7 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
       // 21
       { id: 'd21', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de vaatwasser uit', options: [deviceOptions[12], deviceOptions[0], deviceOptions[5], deviceOptions[4]], correctOptionId: 'program_done' },
       // 22
-      { id: 'd22', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme lamp zacht branden', options: [deviceOptions[13], deviceOptions[26], deviceOptions[1], deviceOptions[4]], correctOptionId: 'bedtime' },
+      { id: 'd22', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme lamp zacht branden', options: [deviceOptions[13], deviceOptions[25], deviceOptions[1], deviceOptions[4]], correctOptionId: 'bedtime' },
       // 23
       { id: 'd23', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de verwarming aan in de badkamer', options: [deviceOptions[14], deviceOptions[26], deviceOptions[2], deviceOptions[3]], correctOptionId: 'shower' },
       // 24
@@ -338,15 +339,15 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
       // 25
       { id: 'd25', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de rookmelder af', options: [deviceOptions[16], thermoOptions[0], deviceOptions[13], deviceOptions[2]], correctOptionId: 'smoke' },
       // 26
-      { id: 'd26', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme koelkast piepen', options: [deviceOptions[17], deviceOptions[6], deviceOptions[0], deviceOptions[4]], correctOptionId: 'fridge_open' },
+      { id: 'd26', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de slimme koelkast piepen', options: [deviceOptions[17], deviceOptions[6], deviceOptions[0], deviceOptions[3]], correctOptionId: 'fridge_open' },
       // 27
-      { id: 'd27', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de thermostaat op eco-stand', options: [deviceOptions[18], deviceOptions[20], deviceOptions[27], deviceOptions[6]], correctOptionId: 'everyone_away' },
+      { id: 'd27', leftKeyword: 'ALS', thenKeyword: 'DAN', fixedAction: 'gaat de thermostaat op eco-stand', options: [deviceOptions[18], deviceOptions[21], deviceOptions[27], deviceOptions[6]], correctOptionId: 'everyone_away' },
       // 28 (two-condition: blank before EN)
       { id: 'd28', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het is donker', thenKeyword: 'DAN', fixedAction: 'gaat de ganglamp aan', options: [deviceOptions[24], deviceOptions[13], deviceOptions[29], deviceOptions[31]], correctOptionId: 'you_enter' },
       // 29 (two-condition: blank before EN)
-      { id: 'd29', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het is koud', thenKeyword: 'DAN', fixedAction: 'gaat de verwarming aan', options: [ { id: 'thuis', label: 'je thuis bent' } as Block, deviceOptions[30], deviceOptions[10], deviceOptions[5] ], correctOptionId: 'thuis' },
+      { id: 'd29', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het is koud', thenKeyword: 'DAN', fixedAction: 'gaat de verwarming aan', options: [deviceOptions[33], deviceOptions[30], deviceOptions[10], deviceOptions[5] ], correctOptionId: 'thuis' },
       // 30 (two-condition: blank before EN)
-      { id: 'd30', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het is warm', thenKeyword: 'DAN', fixedAction: 'gaat de airco aan', options: [ { id: 'thuis', label: 'je thuis bent' } as Block, deviceOptions[20], deviceOptions[10], deviceOptions[15] ], correctOptionId: 'thuis' }
+      { id: 'd30', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het is warm', thenKeyword: 'DAN', fixedAction: 'gaat de airco aan', options: [ deviceOptions[33], deviceOptions[20], deviceOptions[10], deviceOptions[15] ], correctOptionId: 'thuis' }
     ]
 
     return [...thermostatScenarios, ...deviceScenarios]
@@ -423,7 +424,8 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
       movement: { id: 'movement', label: 'er beweging is' },
       you_enter: { id: 'you_enter', label: 'je binnenkomt' },
       nobody_home: { id: 'nobody_home', label: 'niemand thuis is' },
-      battery_low: { id: 'battery_low', label: 'de batterij bijna leeg is' }
+      battery_low: { id: 'battery_low', label: 'de batterij bijna leeg is' },
+      thuis: { id: 'thuis', label: 'je thuis bent' }
     }
 
     const deviceScenarios: Scenario[] = [
@@ -676,6 +678,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   // lock to prevent multiple rapid submissions for the same scenario
   const checkingRef = useRef(false)
   const wrongInRoundRef = useRef(0)
+  // track which scenarios we've shown in the current game to avoid repeats
+  const usedScenarioIdsRef = useRef<Set<string>>(new Set())
 
   useEffect(() => { scoreRef.current = score }, [score])
   useEffect(() => { correctRef.current = totalCorrect }, [totalCorrect])
@@ -1176,7 +1180,13 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     setPracticeCorrect(0)
     setSelectedOptionId(null)
     lastScenarioIdRef.current = undefined
-    setCurrentScenario(pickNextScenario(pool))
+    // reset used scenarios for a fresh practice run
+    try { usedScenarioIdsRef.current.clear() } catch { /* ignore */ }
+    {
+      const s = pickNextScenario(pool)
+      try { if (s && s.id) usedScenarioIdsRef.current.add(s.id) } catch { /* ignore */ }
+      setCurrentScenario(s)
+    }
     setPaused(false)
     setRunning(true)
   }
@@ -1197,7 +1207,13 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     setShowEnd(false)
     hintAutoShownRef.current = false
     lastScenarioIdRef.current = undefined
-    setCurrentScenario(pickNextScenario(pool))
+    // clear used list for a fresh real game
+    try { usedScenarioIdsRef.current.clear() } catch { /* ignore */ }
+    {
+      const s = pickNextScenario(pool)
+      try { if (s && s.id) usedScenarioIdsRef.current.add(s.id) } catch { /* ignore */ }
+      setCurrentScenario(s)
+    }
     try {
       const w = window as unknown as Record<string, unknown>
       w['__pz_hint_unlocked'] = false
@@ -1240,7 +1256,13 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     setSelectedOptionId(null)
     hintAutoShownRef.current = false
     lastScenarioIdRef.current = undefined
-    setCurrentScenario(pickNextScenario(pool))
+    // clear used list on full restart
+    try { usedScenarioIdsRef.current.clear() } catch { /* ignore */ }
+    {
+      const s = pickNextScenario(pool)
+      try { if (s && s.id) usedScenarioIdsRef.current.add(s.id) } catch { /* ignore */ }
+      setCurrentScenario(s)
+    }
     try {
       const w = window as unknown as Record<string, unknown>
       w['__pz_hint_unlocked'] = false
@@ -1390,7 +1412,24 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
   const canCheck = running && !paused && !showEnd && Boolean(selectedOptionId) && answerState === 'idle'
 
   const goNextScenario = () => {
-    const next = pickNextScenario(pool, currentScenario.id)
+    // choose a next scenario avoiding repeats until the pool is exhausted
+    let candidates = Array.isArray(pool) ? pool.slice() : []
+    // prefer unseen scenarios
+    let unseen = candidates.filter((s) => !usedScenarioIdsRef.current.has(s.id))
+    // if we've shown all scenarios already, reset the used set
+    if (unseen.length === 0) {
+      try { usedScenarioIdsRef.current.clear() } catch { /* ignore */ }
+      unseen = candidates.slice()
+    }
+    if (unseen.length > 0) candidates = unseen
+    // try to avoid immediate repeats when possible
+    if (candidates.length > 1) {
+      const alt = candidates.filter((s) => s.id !== currentScenario.id)
+      if (alt.length > 0) candidates = alt
+    }
+    const next = candidates.length > 0 ? candidates[Math.floor(Math.random() * candidates.length)] : pickNextScenario(pool, currentScenario.id)
+    // mark as used
+    try { if (next && next.id) usedScenarioIdsRef.current.add(next.id) } catch { /* ignore */ }
     lastScenarioIdRef.current = currentScenario.id
     // reset per-round wrong counter and lock hint for the new round
     wrongInRoundRef.current = 0
@@ -1522,7 +1561,11 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
 
   // keep scenario updated if pool changes (age group)
   useEffect(() => {
-    setCurrentScenario(pickNextScenario(pool, lastScenarioIdRef.current))
+    // pool changed (age switched) — reset used set and pick a fresh scenario
+    try { usedScenarioIdsRef.current.clear() } catch { /* ignore */ }
+    const s = pickNextScenario(pool, lastScenarioIdRef.current)
+    try { if (s && s.id) usedScenarioIdsRef.current.add(s.id) } catch { /* ignore */ }
+    setCurrentScenario(s)
     setSelectedOptionId(null)
   }, [pool])
 
