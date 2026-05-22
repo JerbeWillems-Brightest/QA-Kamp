@@ -16,6 +16,96 @@ body{
     box-sizing: border-box;
 }
 
+/* podium styles for top 3 */
+.podium{
+  display:grid;
+  /* flexible columns: center pillar slightly larger for emphasis */
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+  align-items: end;
+  margin: 20px 0;
+}
+.pillar{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:flex-end;
+  position:relative; /* needed so .pillar-number can be centered absolutely */
+  padding:12px;
+  border-radius:10px;
+  background: linear-gradient(180deg, #ffffff 0%, #f7f7f7 100%);
+  box-shadow: 0 4px 10px rgba(0,0,0,0.06);
+}
+.pillar-number{
+  font-size:40px;
+  font-weight:800;
+  color:#444;
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  z-index:2;
+}
+.pillar-name{
+  margin-bottom:8px;
+  font-weight:700;
+  color:#111;
+  text-align:center;
+  padding:0 8px;
+  font-size:40px;
+}
+.pillar-score{
+  margin-top:6px;
+  font-size:20px;
+  font-weight:900;
+  color:#fff;
+  padding:6px 12px;
+  border-radius:8px;
+}
+.pillar-wrapper{ display:flex; flex-direction:column; align-items:center; }
+/* pillar 1: gold (prominent)
+   pillar 2: darker gray
+   pillar 3: darker bronze/amber */
+.pillar-1{ height:500px; background: linear-gradient(180deg,#ffd700 0%, #ffed8f 100%); color:#111; width:75% }
+.pillar-2{ height:400px; background: linear-gradient(180deg,#999999 0%, #eeeeee 100%); color:#fff; width:75% }
+.pillar-3{ height:400px; background: linear-gradient(180deg,#b45f06 0%, #f9cb9c 100%); color:#fff; width:75% }
+/* unified score badge styling for contrast on colored pillars */
+.pillar .pillar-score{ background: rgba(0,0,0,0.6); color: #fff }
+
+/* positioneer score en 'punten' hoger op de pilaar */
+.pillar{ position: relative; }
+.pillar .pillar-score{
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 110px; /* schuif omhoog; pas waarde aan indien gewenst */
+  margin-top: 0;
+  z-index: 3;
+}
+.pillar .pillar-punten{
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 78px; /* iets onder de score; pas aan */
+  color: #000; /* changed to black as requested */
+  font-weight: 900;
+  font-size: 1.25rem; /* verhoogd lettertype */
+  z-index: 3;
+}
+.pillar-1 .pillar-score { bottom: 140px; }
+.pillar-1 .pillar-punten { bottom: 108px; }
+.pillar-2 .pillar-score,
+.pillar-3 .pillar-score { bottom: 96px; }
+.pillar-2 .pillar-punten,
+.pillar-3 .pillar-punten { bottom: 64px; }
+
+@media (max-width: 640px) {
+  .pillar .pillar-score { bottom: 48px; font-size: 1.05rem; }
+  .pillar .pillar-punten { bottom: 18px; font-size: 1.05rem; }
+  .pillar-1 .pillar-score { bottom: 68px; }
+  .pillar-1 .pillar-punten { bottom: 38px; }
+}
+
 .back{
     text-decoration:none;
     color:#555;
@@ -55,7 +145,7 @@ h1{ margin-top:10px }
     text-align: center; /* center the header label for the score column */
 }
 
-/* top 3 */
+/* top 3 - fallback styles for older rendering */
 .gold1{ background:#f1c40f; color:white; font-weight:bold }
 .silver{ background:#bfbfbf; color:white; font-weight:bold }
 .gold3{ background:#f5b041; color:white; font-weight:bold }
@@ -75,6 +165,9 @@ h1{ margin-top:10px }
 @media (max-width: 640px) {
   .container { width: 100%; margin: 12px; }
   .table-header, .row { grid-template-columns: 1fr 2fr 1fr; }
+  .podium{ grid-template-columns: 1fr 1fr 1fr; gap:8px }
+  .pillar-1{ height:200px; width:90% }
+  .pillar-2,.pillar-3{ height:160px; width:80% }
 }
 `
 document.head.insertAdjacentHTML('beforeend', `<style>${embeddedCss}</style>`)
@@ -236,13 +329,17 @@ export default function Scoreboard() {
         /* ignore */
       }
     }
+    // typed shape for the custom event detail used by pz_score_update
+    type PzScoreUpdateDetail = { sessionId?: string; playerNumber?: string; score?: number } | null
+
     const onCustom = (ev: Event) => {
       try {
         // custom events (pz_score_update) dispatched by games to notify same-tab listeners
         // fast path: apply optimistic update from event.detail, then refresh
         try {
-          const ce = ev as CustomEvent
-          const det = (ce && (ce as any).detail) ? (ce as any).detail : null
+          // cast to CustomEvent with a typed detail instead of using `any`
+          const ce = ev as CustomEvent<PzScoreUpdateDetail>
+          const det = ce?.detail ?? null
           applyOptimistic(det)
         } catch { /* ignore */ }
         void refreshFromPlayers().catch(() => {})
@@ -279,26 +376,75 @@ export default function Scoreboard() {
               <div style={{ padding: 20, border: '1px dashed #ddd', borderRadius: 8 }}>Er is nog geen scorebord beschikbaar</div>
             ) : (
               <>
-                <div className="table-header">
-                  <span>Plaats</span>
-                  <span>Naam</span>
-                  <span>Score</span>
+                {/* Podium for top 3 */}
+                <div className="podium" aria-hidden={items.length === 0}>
+                  {/** left: #2 */}
+                  {(() => {
+                    const p = items[1]
+                    return (
+                      <div className="pillar-wrapper">
+                        <div className="pillar-name">{p ? p.name : '—'}</div>
+                        <div className={`pillar pillar-2`}>
+                          <div className="pillar-number">#2</div>
+                          <div className="pillar-score">{p ? p.score ?? 0 : '—'}</div>
+                          <div className="pillar-punten">punten</div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/** center: #1 */}
+                  {(() => {
+                    const p = items[0]
+                    return (
+                      <div className="pillar-wrapper">
+                        <div className="pillar-name">{p ? p.name : '—'}</div>
+                        <div className={`pillar pillar-1`}>
+                          <div className="pillar-number">#1</div>
+                          <div className="pillar-score">{p ? p.score ?? 0 : '—'}</div>
+                          <div className="pillar-punten">punten</div>
+                        </div>
+                      </div>
+                    )
+                  })()}
+
+                  {/** right: #3 */}
+                  {(() => {
+                    const p = items[2]
+                    return (
+                      <div className="pillar-wrapper">
+                        <div className="pillar-name">{p ? p.name : '—'}</div>
+                        <div className={`pillar pillar-3`}>
+                          <div className="pillar-number">#3</div>
+                          <div className="pillar-score">{p ? p.score ?? 0 : '—'}</div>
+                          <div className="pillar-punten">punten</div>
+                        </div>
+                      </div>
+                    )
+                  })()}
                 </div>
 
-                {items.map((p, i) => {
-                  const idx = i + 1
-                  let cls = 'row normal'
-                  if (idx === 1) cls = 'row gold1'
-                  else if (idx === 2) cls = 'row silver'
-                  else if (idx === 3) cls = 'row gold3'
-                  return (
-                    <div key={p.playerNumber || i} className={cls}>
-                      <span>{idx}</span>
-                      <span>{p.name}</span>
-                      <span className={idx > 3 ? 'badge' : ''}>{p.score ?? 0}</span>
+                {/* Remaining ranks (4+) shown as list with header */}
+                {items.length > 3 && (
+                  <>
+                    <div className="table-header">
+                      <span>Plaats</span>
+                      <span>Naam</span>
+                      <span>Score</span>
                     </div>
-                  )
-                })}
+                    {items.slice(3).map((p, i) => {
+                      const idx = i + 4
+                      const cls = 'row normal'
+                      return (
+                        <div key={(p && p.playerNumber) || idx} className={cls}>
+                          <span>{idx}</span>
+                          <span>{p.name}</span>
+                          <span className="badge">{p.score ?? 0}</span>
+                        </div>
+                      )
+                    })}
+                  </>
+                )}
               </>
             )}
           </div>
