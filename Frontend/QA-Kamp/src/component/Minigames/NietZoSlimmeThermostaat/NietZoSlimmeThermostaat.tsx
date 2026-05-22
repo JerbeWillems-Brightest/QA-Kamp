@@ -575,7 +575,7 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
     { id: 's4', leftKeyword: 'IF', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedLeft: 'RobotVacuumBatteryLow', blankAction: true, fixedElse: 'continueCleaning()', options: [ { id: 'returnToDock', label: 'returnToDock()' }, { id: 'turnLampOn', label: 'turnLampOn()' }, { id: 'startHeating', label: 'startHeating()' }, { id: 'openCurtains', label: 'openCurtains()' } ], correctOptionId: 'returnToDock' },
 
     // 5 IF DoorbellPressed AND NobodyHome THEN ___ ELSE openDoor()
-    { id: 's5', leftKeyword: 'IF', andKeyword: 'AND', fixedLeft: 'DoorbellPressed', fixedRight: 'NobodyHome', thenKeyword: 'THEN', blankAction: true, fixedElse: 'openDoor()', options: [ { id: 'sendNotification', label: 'sendNotification()' }, { id: 'turnLampOff', label: 'turnLampOff()' }, { id: 'closeCurtains', label: 'closeCurtains()' }, { id: 'startHeating', label: 'startHeating()' } ], correctOptionId: 'sendNotification' },
+    { id: 's5', leftKeyword: 'IF', andKeyword: 'AND', fixedLeft: 'DoorbellPressed', fixedRight: 'NobodyHome', thenKeyword: 'THEN', blankAction: true, elseKeyword: 'ELSE', fixedElse: 'openDoor()', options: [ { id: 'sendNotification', label: 'sendNotification()' }, { id: 'turnLampOff', label: 'turnLampOff()' }, { id: 'closeCurtains', label: 'closeCurtains()' }, { id: 'startHeating', label: 'startHeating()' } ], correctOptionId: 'sendNotification' },
 
     // 6 IF MotionDetected THEN ___ ELSE doNothing()
     { id: 's6', leftKeyword: 'IF', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedLeft: 'MotionDetected', blankAction: true, fixedElse: 'doNothing()', options: [ { id: 'startCameraRecording', label: 'startCameraRecording()' }, { id: 'turnLampOff', label: 'turnLampOff()' }, { id: 'openCurtains', label: 'openCurtains()' }, { id: 'stopHeating', label: 'stopHeating()' } ], correctOptionId: 'startCameraRecording' },
@@ -587,7 +587,7 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
     { id: 's8', leftKeyword: 'IF', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedLeft: 'WashingDone', blankAction: true, fixedElse: 'continueWashing()', options: [ { id: 'sendNotification', label: 'sendNotification()' }, { id: 'turnLampOn', label: 'turnLampOn()' }, { id: 'startHeating', label: 'startHeating()' }, { id: 'lockDoor', label: 'lockDoor()' } ], correctOptionId: 'sendNotification' },
 
     // 9 IF RainDetected AND WindowOpen THEN ___ ELSE doNothing()
-    { id: 's9', leftKeyword: 'IF', andKeyword: 'AND', fixedLeft: 'RainDetected', fixedRight: 'WindowOpen', thenKeyword: 'THEN', blankAction: true, fixedElse: 'doNothing()', options: [ { id: 'sendWarning', label: 'sendWarning()' }, { id: 'turnLampOff', label: 'turnLampOff()' }, { id: 'startAirco', label: 'startAirco()' }, { id: 'playMusic', label: 'playMusic()' } ], correctOptionId: 'sendWarning' },
+    { id: 's9', leftKeyword: 'IF', andKeyword: 'AND', fixedLeft: 'RainDetected', fixedRight: 'WindowOpen', thenKeyword: 'THEN', blankAction: true, elseKeyword: 'ELSE', fixedElse: 'doNothing()', options: [ { id: 'sendWarning', label: 'sendWarning()' }, { id: 'turnLampOff', label: 'turnLampOff()' }, { id: 'startAirco', label: 'startAirco()' }, { id: 'playMusic', label: 'playMusic()' } ], correctOptionId: 'sendWarning' },
 
     // 10 IF IsNight AND NobodyHome THEN ___
     { id: 's10', leftKeyword: 'IF', andKeyword: 'AND', fixedLeft: 'IsNight', fixedRight: 'NobodyHome', thenKeyword: 'THEN', blankAction: true, options: [ { id: 'activateSecurityMode', label: 'activateSecurityMode()' }, { id: 'startHeating', label: 'startHeating()' }, { id: 'openCurtains', label: 'openCurtains()' }, { id: 'turnAircoOn', label: 'turnAircoOn()' } ], correctOptionId: 'activateSecurityMode' },
@@ -1058,7 +1058,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         }
         // stop/clear any fireworks audio
         try {
-          for (const a of activeFireworksRef.current.slice()) {
+          const clones = (activeFireworksRef.current || []).slice()
+          for (const a of clones) {
             try { a.pause() } catch { /* ignore */ }
             try { a.currentTime = 0 } catch { /* ignore */ }
           }
@@ -1569,20 +1570,10 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     setSelectedOptionId(null)
   }, [pool])
 
-  // Determine if the current scenario should render an AND-token / two
-  // condition layout. This is explicit and defensive: treat the scenario as
-  // two-condition when the scenario declares an `andKeyword`, has a
-  // `blankPosition` (indicating a separate blank for the second condition),
-  // or when both `fixedLeft` and `fixedRight` are present. This avoids
-  // accidentally showing the AND-token when the scenario is really a
-  // single-condition with the word "en" inside `fixedLeft` text.
-  const isTwoCondition = Boolean(
-    currentScenario && (
-      currentScenario.andKeyword ||
-      currentScenario.blankPosition ||
-      (currentScenario.fixedLeft && currentScenario.fixedRight)
-    )
-  )
+  // We intentionally always render only one dropzone per scenario. Whether
+  // that dropzone is for a condition (placed after the left keyword) or an
+  // action (after THEN) is determined later during rendering based on
+  // `currentScenario.blankAction`.
 
   // When rendering two-condition layouts we want the AND/EN token to be a
   // separate token. Developers sometimes accidentally include the word
@@ -1603,8 +1594,8 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
     }
   }
 
-  const sanitizedLeft = isTwoCondition ? sanitizeBoundaryEn(currentScenario.fixedLeft, 'left') : currentScenario.fixedLeft
-  const sanitizedRight = isTwoCondition ? sanitizeBoundaryEn(currentScenario.fixedRight, 'right') : currentScenario.fixedRight
+  const sanitizedLeft = sanitizeBoundaryEn(currentScenario.fixedLeft, 'left')
+  const sanitizedRight = sanitizeBoundaryEn(currentScenario.fixedRight, 'right')
 
   // Show clickable office scene first (like PrinterSlaatOpHol). Return early
   // so the office intro appears before the regular start modal / tutorial.
@@ -1769,34 +1760,11 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
             <div className="nzs-sentence" aria-label="Zin">
               <div className="nzs-token nzs-token--kw">{currentScenario.leftKeyword}</div>
 
-              {/* Single-condition scenario (no AND): show blank (dropzone) immediately after ALS, then the fixed text */}
-              {!isTwoCondition && (
-                <>
-                  <div
-                    id="nzs-dropzone"
-                    className={`nzs-dropzone ${answerState === 'correct' ? 'nzs-dropzone--correct' : answerState === 'wrong' ? 'nzs-dropzone--wrong' : ''}`}
-                    onDrop={onDropZoneDrop}
-                    onDragOver={onDropZoneDragOver}
-                    aria-label="Lege plek"
-                  >
-                    {selectedBlock ? (
-                      <div id={`nzs-selected-${selectedBlock.id}`} className={`nzs-block nzs-block--selected ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}>
-                        {renderIcon(selectedBlock.icon, `nzs-selected-${selectedBlock.id}`)}
-                        <span id={`nzs-selected-${selectedBlock.id}-label`} className="nzs-block__label">{selectedBlock.label}</span>
-                      </div>
-                    ) : (
-                      <div id="nzs-dropzone-placeholder" className="nzs-dropzone__placeholder" />
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Two-condition scenario with AND: support blank before or after AND */}
-              {isTwoCondition && (
-                <>
-                  {currentScenario.blankPosition === 'before' ? (
+              {/* Render condition dropzone while respecting AND/blankPosition when applicable */}
+              {!currentScenario.blankAction ? (
+                currentScenario.andKeyword ? (
+                  currentScenario.blankPosition === 'before' ? (
                     <>
-                      {/* dropzone before AND */}
                       <div
                         id="nzs-dropzone"
                         className={`nzs-dropzone ${answerState === 'correct' ? 'nzs-dropzone--correct' : answerState === 'wrong' ? 'nzs-dropzone--wrong' : ''}`}
@@ -1814,15 +1782,14 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
                         )}
                       </div>
 
+                      {currentScenario.fixedLeft ? <div className="nzs-fixed">{sanitizedLeft}</div> : null}
                       <div className="nzs-token nzs-token--kw">{currentScenario.andKeyword ?? 'EN'}</div>
-                      <div className="nzs-fixed">{sanitizedRight}</div>
+                      {currentScenario.fixedRight ? <div className="nzs-fixed">{sanitizedRight}</div> : null}
                     </>
                   ) : (
                     <>
-                      {/* blank after AND: show fixedLeft, AND, then dropzone */}
-                      <div className="nzs-fixed">{sanitizedLeft}</div>
+                      {currentScenario.fixedLeft ? <div className="nzs-fixed">{sanitizedLeft}</div> : null}
                       <div className="nzs-token nzs-token--kw">{currentScenario.andKeyword ?? 'EN'}</div>
-
                       <div
                         id="nzs-dropzone"
                         className={`nzs-dropzone ${answerState === 'correct' ? 'nzs-dropzone--correct' : answerState === 'wrong' ? 'nzs-dropzone--wrong' : ''}`}
@@ -1839,12 +1806,45 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
                           <div id="nzs-dropzone-placeholder" className="nzs-dropzone__placeholder" />
                         )}
                       </div>
+                      {currentScenario.fixedRight ? <div className="nzs-fixed">{sanitizedRight}</div> : null}
                     </>
-                  )}
+                  )
+                ) : (
+                  // no AND: simple condition dropzone after leftKeyword
+                  <>
+                    <div
+                      id="nzs-dropzone"
+                      className={`nzs-dropzone ${answerState === 'correct' ? 'nzs-dropzone--correct' : answerState === 'wrong' ? 'nzs-dropzone--wrong' : ''}`}
+                      onDrop={onDropZoneDrop}
+                      onDragOver={onDropZoneDragOver}
+                      aria-label="Lege plek"
+                    >
+                      {selectedBlock ? (
+                        <div id={`nzs-selected-${selectedBlock.id}`} className={`nzs-block nzs-block--selected ${effectiveAge === '14-16' ? 'nzs-block--code' : ''}`}>
+                          {renderIcon(selectedBlock.icon, `nzs-selected-${selectedBlock.id}`)}
+                          <span id={`nzs-selected-${selectedBlock.id}-label`} className="nzs-block__label">{selectedBlock.label}</span>
+                        </div>
+                      ) : (
+                        <div id="nzs-dropzone-placeholder" className="nzs-dropzone__placeholder" />
+                      )}
+                    </div>
+
+                    {currentScenario.fixedLeft ? <div className="nzs-fixed">{sanitizedLeft}</div> : null}
+                    {currentScenario.fixedRight ? <div className="nzs-fixed">{sanitizedRight}</div> : null}
+                  </>
+                )
+              ) : (
+                // blankAction === true -> action is chosen after THEN; render left/and/right now
+                <>
+                  {currentScenario.fixedLeft ? <div className="nzs-fixed">{sanitizedLeft}</div> : null}
+                  {(currentScenario.andKeyword || (currentScenario.fixedLeft && currentScenario.fixedRight)) ? <div className="nzs-token nzs-token--kw">{currentScenario.andKeyword ?? 'EN'}</div> : null}
+                  {currentScenario.fixedRight ? <div className="nzs-fixed">{sanitizedRight}</div> : null}
                 </>
               )}
 
               <div className="nzs-token nzs-token--kw">{currentScenario.thenKeyword}</div>
+
+              {/* Action dropzone (for blankAction scenarios) or fixed action text */}
               {currentScenario.blankAction ? (
                 <div
                   id="nzs-dropzone"
@@ -1865,9 +1865,11 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
               ) : (
                 <div className={`nzs-action ${effectiveAge === '14-16' ? 'nzs-action--code' : ''}`}>{currentScenario.fixedAction}</div>
               )}
-              {currentScenario.elseKeyword && (
+
+              {/* Show ELSE if explicit elseKeyword present or a fixedElse is provided (fallback) */}
+              {(currentScenario.elseKeyword || currentScenario.fixedElse) && (
                 <>
-                  <div className="nzs-token nzs-token--kw">{currentScenario.elseKeyword}</div>
+                  <div className="nzs-token nzs-token--kw">{currentScenario.elseKeyword ?? 'ELSE'}</div>
                   <div className={`nzs-action ${effectiveAge === '14-16' ? 'nzs-action--code' : ''}`}>{currentScenario.fixedElse}</div>
                 </>
               )}
