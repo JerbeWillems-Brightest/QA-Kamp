@@ -6,16 +6,16 @@ import { fetchPlayersForSession, fetchLeaderboard, fetchOnlinePlayers } from '..
 import { useState } from 'react'
 // import images so the bundler (Vite) resolves their URLs
 import KRAAK_IMG from '../../../assets/NonExistingGame.png'
-import PASS_IMG from '../../../assets/PasswordZapper.png'
-import BUG_IMG from '../../../assets/BugCleanup.png'
+import PASS_IMG from '../../../assets/PasswordZapperImage.png'
+import BUG_IMG from '../../../assets/BugCleanupImage.png'
 import GETAL_IMG from '../../../assets/NonExistingGame.png'
 import REACTIE_IMG from '../../../assets/NonExistingGame.png'
 import WHACK_IMG from '../../../assets/NonExistingGame.png'
-import PRINTER_SLAAT_IMG from '../../../assets/PrinterSlaatOpHol.png'
+import PRINTER_SLAAT_IMG from '../../../assets/PrinterSlaatOpHolImage.png'
 import PRINTER_KRAKEN_IMG from '../../../assets/NonExistingGame.png'
 import HERSTART_IMG from '../../../assets/NonExistingGame.png'
-import THERMOSTAAT_IMG from '../../../assets/SlimmeThermostaat.png'
-import FIGHT_IMG from '../../../assets/FightTheBug.png'
+import THERMOSTAAT_IMG from '../../../assets/NietZoSlimmeThermostaatImage.png'
+import FIGHT_IMG from '../../../assets/FightTheBugImage.png'
 import MinigamePopup from './MinigamePopup'
 
 // embedded CSS so the component is self-contained
