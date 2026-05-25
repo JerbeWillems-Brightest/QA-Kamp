@@ -646,14 +646,28 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   }, [finishGame, paused, removeBugByHover, running, showEnd])
 
   useEffect(() => {
-    const onMove = (ev: MouseEvent) => {
+    // Prefer Pointer Events for unified mouse/touch/stylus support and
+    // fall back to mousemove for test environments that dispatch MouseEvent.
+    function onPointerMove(ev: PointerEvent) {
       const rect = gameAreaRef.current?.getBoundingClientRect()
       if (!rect) return
       mouseRef.current.x = ev.clientX - rect.left
       mouseRef.current.y = ev.clientY - rect.top
     }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
+    // attach to the game area when possible so coordinates are relative to it
+    const el = gameAreaRef.current ?? window
+    try {
+      el.addEventListener?.('pointermove', onPointerMove)
+    } catch { /* ignore */ }
+
+    // keep mousemove fallback for tests/environments that emit MouseEvent
+    const onMouseMove = (ev: MouseEvent) => onPointerMove(ev as unknown as PointerEvent)
+    window.addEventListener('mousemove', onMouseMove)
+
+    return () => {
+      try { el.removeEventListener?.('pointermove', onPointerMove) } catch { /* ignore */ }
+      window.removeEventListener('mousemove', onMouseMove)
+    }
   }, [])
 
   // Do NOT unlock the global hint on mount. The hint must be locked at the
@@ -1025,6 +1039,16 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         className="game-area bc-area"
         ref={gameAreaRef}
         onClick={handleAreaClick}
+        onPointerDown={(e) => {
+          try {
+            const rect = gameAreaRef.current?.getBoundingClientRect()
+            if (!rect) return
+            // synthesize a MouseEvent-like object so existing handler can be reused
+            const ev = { clientX: (e as PointerEvent).clientX, clientY: (e as PointerEvent).clientY } as unknown as React.MouseEvent<HTMLDivElement>
+            handleAreaClick(ev)
+          } catch { /* ignore */ }
+        }}
+        onTouchStart={(e) => { try { e.preventDefault() } catch { /* ignore */ } }}
         // use a CSS background so we can reliably apply `background-size: contain` and align to bottom
         style={{ backgroundImage: `url(${wallpaperBugCleanup})` }}
       >
