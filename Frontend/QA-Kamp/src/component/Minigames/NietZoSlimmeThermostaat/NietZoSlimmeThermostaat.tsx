@@ -380,19 +380,19 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
       // 5 ALS ___ EN het regent DAN zet de lamp aan (blank before EN)
       { id: 't5', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het regent', thenKeyword: 'DAN', fixedAction: 'zet de lamp aan', options: [baseOptions.rain, baseOptions.night, baseOptions.cold, baseOptions.warm, baseOptions.day], correctOptionId: 'night' },
       // 6 ALS het nacht is EN ___ DAN zet de lamp aan (blank after EN)
-      { id: 't6', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het nacht is', thenKeyword: 'DAN', fixedAction: 'zet de lamp aan', options: [baseOptions.rain, baseOptions.cold, baseOptions.warm, baseOptions.day], correctOptionId: 'rain' },
+      { id: 't6', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het nacht is', thenKeyword: 'DAN', fixedAction: 'pak de paraplu mee', options: [baseOptions.rain, baseOptions.cold, baseOptions.warm, baseOptions.day], correctOptionId: 'rain' },
       // 7 ALS ___ EN het regent DAN zet de verwarming aan (blank before EN)
       { id: 't7', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het regent', thenKeyword: 'DAN', fixedAction: 'zet de verwarming aan', options: [baseOptions.rain, baseOptions.night, baseOptions.cold, baseOptions.warm, baseOptions.day], correctOptionId: 'cold' },
       // 8 ALS het koud is EN ___ DAN zet de verwarming aan (blank after EN)
-      { id: 't8', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het koud is', thenKeyword: 'DAN', fixedAction: 'zet de verwarming aan', options: [baseOptions.rain, baseOptions.night, baseOptions.warm, baseOptions.day], correctOptionId: 'night' },
+      { id: 't8', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het koud is', thenKeyword: 'DAN', fixedAction: 'is het donker', options: [baseOptions.rain, baseOptions.night, baseOptions.warm, baseOptions.day], correctOptionId: 'night' },
       // 9 ALS ___ EN het dag is DAN zet de verwarming uit (blank before EN)
       { id: 't9', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'before', fixedRight: 'het dag is', thenKeyword: 'DAN', fixedAction: 'zet de verwarming uit', options: [baseOptions.rain, baseOptions.night, baseOptions.cold, baseOptions.warm, baseOptions.day], correctOptionId: 'warm' },
       // 10 ALS het warm is EN ___ DAN zet de verwarming uit (blank after EN)
-      { id: 't10', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het warm is', thenKeyword: 'DAN', fixedAction: 'zet de verwarming uit', options: [baseOptions.rain, baseOptions.night, baseOptions.cold, baseOptions.day], correctOptionId: 'day' },
+      { id: 't10', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het warm is', thenKeyword: 'DAN', fixedAction: 'zie je de zon', options: [baseOptions.rain, baseOptions.night, baseOptions.cold, baseOptions.day], correctOptionId: 'day' },
       // 11 ALS het nacht is EN ___ DAN zet de verwarming aan (blank after EN)
       { id: 't11', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het nacht is', thenKeyword: 'DAN', fixedAction: 'zet de verwarming aan', options: [baseOptions.rain, baseOptions.cold, baseOptions.warm, baseOptions.day], correctOptionId: 'cold' },
       // 12 ALS het koud is EN ___ DAN zet de verwarming aan (blank after EN)
-      { id: 't12', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het koud is', thenKeyword: 'DAN', fixedAction: 'zet de verwarming aan', options: [baseOptions.rain, baseOptions.night, baseOptions.warm, baseOptions.day], correctOptionId: 'rain' },
+      { id: 't12', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het koud is', thenKeyword: 'DAN', fixedAction: 'is het nat', options: [baseOptions.rain, baseOptions.night, baseOptions.warm, baseOptions.day], correctOptionId: 'rain' },
       // 13 ALS het regent EN ___ DAN zet de lamp uit (blank after EN)
       { id: 't13', leftKeyword: 'ALS', andKeyword: 'EN', blankPosition: 'after', fixedLeft: 'het regent', thenKeyword: 'DAN', fixedAction: 'zet de lamp uit', options: [baseOptions.day, baseOptions.night, baseOptions.cold, baseOptions.warm], correctOptionId: 'day' },
       // 14 ALS het regent EN ___ DAN zet de verwarming uit (blank after EN)
@@ -840,7 +840,10 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
       // Per-scenario hint overrides: some scenarios should show a specific
       // hint regardless of which option labels are present. This makes the
       // hint behaviour depend on the scenario id instead of the chosen answer.
-      const scenarioHints: Record<string, string[]> = {
+      // We keep a default set (used for 8-10 and general device hints) but
+      // allow a specialized set for 11-13 so the hints for that age group can
+      // differ without changing the 8-10 wording.
+      const defaultScenarioHints: Record<string, string[]> = {
         // t1: ALS ___ DAN zet de lamp aan
         't1': ["'s Nachts is het donker buiten."],
         // t2: ALS ___ DAN zet de lamp uit
@@ -904,14 +907,107 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         'd30': ['Koelen is handig als er mensen thuis zijn.']
       }
 
-      // If a per-scenario hint exists, prefer it. This ensures the hint is
-      // specific to the scenario (not the option label).
-      if (s && s.id && scenarioHints[s.id]) {
-        return scenarioHints[s.id]
+      // Hints specifically for 11-13 (override t1..t18 for that age group).
+      const hintsFor11: Record<string, string[]> = {
+        // Thermostat-specific hints for 11-13
+        't1': ['Wanneer is het donker in huis?'],
+        't2': ['Wanneer is een lamp overbodig?'],
+        't3': ['Wanneer wil je extra warmte?'],
+        't4': ['Extra warmte is niet altijd nodig.'],
+        't5': ['Regen alleen maakt het niet donker genoeg.'],
+        't6': ['Wat maakt een donkere situatie nog somberder?'],
+        't7': ['Wanneer zet je best de verwarming aan?'],
+        't8': ['Wanneer is het sneller koud?'],
+        't9': ['Wanneer is er geen verwarming nodig?'],
+        't10': ['Wanneer kan je de verwarming uit zetten?'],
+        't11': ['Welke combinatie vraagt extra warmte?'],
+        't12': ['Wat maakt de koude erger?'],
+        't13': ['Wat zorgt nog steeds voor genoeg licht?'],
+        't14': ['Niet elke regenachtige dag is koud.'],
+        't15': ['Wanneer is extra warmte overbodig?'],
+        't16': ['Wanneer zet je de verwarming aan?'],
+        't17': ['Temperatuur bepaalt geen verlichting.'],
+        't18': ['Wat zorgt ervoor dat je genoeg ziet?'],
+
+        // Smart-device hints for 11-13 (d1..d25)
+        'd1': ['Wanneer gaat de airco het beste aan?'],
+        'd2': ['Wanneer gaat de deurbel af?'],
+        'd3': ['Je wilt natuurlijk licht.'],
+        'd4': ['Wanneer is het gezellig om de gordijnen dicht te doen?'],
+        'd5': ['Dit helpt stroom besparen.'],
+        'd6': ['Waarom zou je de ventilator aan zetten?'],
+        'd7': ['Hoe wordt de slimme speaker geactiveerd?'],
+        'd8': ['Wanneer kan de robotstofzuiger overal stofzuigen?'],
+        'd9': ['Wanneer moet de stofzuiger stoppen?'],
+        'd10': ['Wat kan de camera detecteren?'],
+        'd11': ['Wat kan de sensor van het licht activeren?'],
+        'd12': ['Wanneer verliest het huis veel warmte?'],
+        'd13': ['Wanneer geeft een wasmachine een melding?'],
+        'd14': ['Wanneer kan de vaatwasser uit gaan?'],
+        'd15': ['Van fel licht kom je niet tot rust.'],
+        'd16': ['Wanneer is er rook?'],
+        'd17': ['Wanneer kan de binnenkant van een koelkast warm worden?'],
+        'd18': ['Wanneer kan je energie besparen?'],
+        'd19': ['Je moet kunnen zien waar je loopt.'],
+        'd20': ['Wanneer is het beste moment om de verwarming op te zetten?'],
+        'd21': ['Wanneer kan de airco best koelen?'],
+        'd22': ['Wanneer detecteert de lichtsensor iets?'],
+        'd23': ['Hij moet eerst opladen.'],
+        'd24': ['Dit voorkomt energieverspilling.'],
+        'd25': ['Anders verwarm je voor niets.']
+      }
+
+      // Prefer a per-scenario hint. Use the 11-13 specialized set when the
+      // player is in that age group; otherwise fall back to the default set.
+      if (s && s.id) {
+        if (effectiveAge === '11-13' && hintsFor11[s.id]) {
+          return hintsFor11[s.id]
+        }
+        // Hints specifically for 14-16 (override code-like output when present)
+        const hintsFor14: Record<string, string[]> = {
+          'c1': ['Wanneer is een lamp meestal nodig?'],
+          'c2': ['De verwarming reageert op temperatuur.'],
+          'c3': ['Een airco koelt af.'],
+          'c4': ['’s Nachts kan het kouder worden in huis.'],
+          'c5': ['Verwarmen is minder nodig wanneer er niemand thuis is.'],
+          'c6': ['Warmte is niet nodig wanneer het al warm is.'],
+          'c7': ['Frisse lucht kan helpen om af te koelen.'],
+          'c8': ['Wat doe je als het koud is?'],
+          'c9': ['Wat doe je als het al warm is?'],
+          'c10': ['Koude nachten vragen extra warmte.'],
+          'c11': ['Warmte verliezen is verspilling.'],
+          'c12': ['Koelen zonder mensen is nutteloos.'],
+          'c13': ['Veiligheid staat altijd voorop.'],
+          // s1-s15 smart-device hints for 14-16
+          's1': ['Slimme verlichting reageert vaak op beweging én donkerte.'],
+          's2': ['Energie besparen wanneer niemand thuis is.'],
+          's3': ['Wat moet er gebeuren bij beweging in het donker?'],
+          's4': ['Robotstofzuigers laden zichzelf op.'],
+          's5': ['Slimme systemen sturen meldingen naar je gsm.'],
+          's6': ['Slimme camera’s reageren op beweging.'],
+          's7': ['Er gebeurt iets dat beter snel opgemerkt wordt.'],
+          's8': ['Slimme toestellen sturen meldingen wanneer ze klaar zijn.'],
+          's9': ['Regen binnen laten is geen goed idee.'],
+          's10': ['Slimme huizen schakelen automatisch beveiliging in.'],
+          's11': ['Dit toestel maakt de lucht properder.'],
+          's12': ['Dit voorkomt waterschade.'],
+          's13': ['Natuurlijk licht helpt wakker worden.'],
+          's14': ['Slimme huizen besparen automatisch energie.'],
+          's15': ['De kamer moet afgekoeld worden.']
+        }
+
+        if (effectiveAge === '14-16' && hintsFor14[s.id]) {
+          return hintsFor14[s.id]
+        }
+
+        if (defaultScenarioHints[s.id]) {
+          return defaultScenarioHints[s.id]
+        }
       }
 
       if (effectiveAge === '14-16') {
-        // for older kids show code-like hint with THEN/ELSE
+        // for older kids show code-like hint with THEN/ELSE (fallback when no
+        // explicit per-scenario hint is supplied)
         const lines: string[] = []
         const left = s.leftKeyword || 'IF'
         const cond = condLabel || s.correctOptionId || ''
