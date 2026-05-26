@@ -2538,6 +2538,8 @@ const PasswordZapperGame: React.FC<Props> = ({ ageGroup, initialPasswords, netwo
                         tabIndex={0}
                         data-idx={idx}
                         onClick={() => shootLaserTo(idx)}
+                        onPointerDown={(e) => { try { e.preventDefault(); shootLaserTo(idx); } catch { /* ignore */ } }}
+                        onTouchStart={(e) => { try { e.preventDefault(); } catch { /* ignore */ } }}
                         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shootLaserTo(idx); } }}
                 // rotation speed is set via lane CSS variables
               />
