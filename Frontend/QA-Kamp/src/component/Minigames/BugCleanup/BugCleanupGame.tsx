@@ -648,25 +648,31 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   useEffect(() => {
     // Prefer Pointer Events for unified mouse/touch/stylus support and
     // fall back to mousemove for test environments that dispatch MouseEvent.
-    function onPointerMove(ev: PointerEvent) {
+    // Use a generic Event signature at the listener boundary so it matches
+    // the typed addEventListener/removeEventListener and narrow at runtime.
+    function onPointerMove(ev: Event) {
+      const pev = ev as PointerEvent
       const rect = gameAreaRef.current?.getBoundingClientRect()
       if (!rect) return
-      mouseRef.current.x = ev.clientX - rect.left
-      mouseRef.current.y = ev.clientY - rect.top
+      // guard in case this wasn't actually a PointerEvent
+      if (typeof pev.clientX !== 'number' || typeof pev.clientY !== 'number') return
+      mouseRef.current.x = pev.clientX - rect.left
+      mouseRef.current.y = pev.clientY - rect.top
     }
+
     // attach to the game area when possible so coordinates are relative to it
-    const el = gameAreaRef.current ?? window
+    const el = (gameAreaRef.current ?? window) as EventTarget
     try {
-      el.addEventListener?.('pointermove', onPointerMove)
+      el.addEventListener?.('pointermove', onPointerMove as EventListener)
     } catch { /* ignore */ }
 
     // keep mousemove fallback for tests/environments that emit MouseEvent
-    const onMouseMove = (ev: MouseEvent) => onPointerMove(ev as unknown as PointerEvent)
-    window.addEventListener('mousemove', onMouseMove)
+    const onMouseMove = (ev: MouseEvent) => onPointerMove(ev as unknown as Event)
+    window.addEventListener('mousemove', onMouseMove as EventListener)
 
     return () => {
-      try { el.removeEventListener?.('pointermove', onPointerMove) } catch { /* ignore */ }
-      window.removeEventListener('mousemove', onMouseMove)
+      try { el.removeEventListener?.('pointermove', onPointerMove as EventListener) } catch { /* ignore */ }
+      window.removeEventListener('mousemove', onMouseMove as EventListener)
     }
   }, [])
 
@@ -1035,19 +1041,19 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
         </div>
       )}
 
-      <div
-        className="game-area bc-area"
-        ref={gameAreaRef}
-        onClick={handleAreaClick}
-        onPointerDown={(e) => {
-          try {
-            const rect = gameAreaRef.current?.getBoundingClientRect()
-            if (!rect) return
-            // synthesize a MouseEvent-like object so existing handler can be reused
-            const ev = { clientX: (e as PointerEvent).clientX, clientY: (e as PointerEvent).clientY } as unknown as React.MouseEvent<HTMLDivElement>
-            handleAreaClick(ev)
-          } catch { /* ignore */ }
-        }}
+        <div
+          className="game-area bc-area"
+          ref={gameAreaRef}
+          onClick={handleAreaClick}
+          onPointerDown={(e: React.PointerEvent<HTMLDivElement>) => {
+            try {
+              const rect = gameAreaRef.current?.getBoundingClientRect()
+              if (!rect) return
+              // React.PointerEvent already exposes clientX/clientY — use them directly.
+              const ev = { clientX: e.clientX, clientY: e.clientY } as unknown as React.MouseEvent<HTMLDivElement>
+              handleAreaClick(ev)
+            } catch { /* ignore */ }
+          }}
         onTouchStart={(e) => { try { e.preventDefault() } catch { /* ignore */ } }}
         // use a CSS background so we can reliably apply `background-size: contain` and align to bottom
         style={{ backgroundImage: `url(${wallpaperBugCleanup})` }}
