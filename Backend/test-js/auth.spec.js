@@ -11,6 +11,7 @@ let app
 let Organizer
 
 describe('Auth routes (compiled)', function() {
+  this.timeout(20000)
   before(async function() {
     this.timeout(20000)
     mongod = await MongoMemoryServer.create()

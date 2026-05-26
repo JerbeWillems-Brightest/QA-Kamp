@@ -6,7 +6,7 @@ import { Organizer } from './models/Organizer'
 mongoose.set('autoCreate', false)
 mongoose.set('autoIndex', false)
 
-const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://QA-KampAdmin:BrightestQaKamp@qa-kamp.4vsjlqg.mongodb.net/?appName=qa-kamp'
+const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://EnvVarUser:EnvVarPass@qa-kamp.4vsjlqg.mongodb.net/?appName=qa-kamp'
 
 let cached: Promise<typeof mongoose> | null = null
 
@@ -17,7 +17,6 @@ export async function connectDB(): Promise<void> {
   if (!cached) {
 
     console.log('Connecting to MongoDB...', MONGO_URI.replace(/\/\/.*@/, '//<credentials>@'))
-      console.log(MONGO_URI)
     cached = mongoose.connect(MONGO_URI, {
       serverSelectionTimeoutMS: 15000,
       connectTimeoutMS: 15000,
@@ -76,29 +75,38 @@ export async function seedOrganizers() {
       const o2Email = process.env.ORGANIZER2_EMAIL
       const o2Password = process.env.ORGANIZER2_PASSWORD
 
-      // If no env vars provided, allow fallback for test/CI/local environments so unit tests can seed
-      const runningInTestOrCi = (process.env.NODE_ENV === 'test') || (process.env.CI === 'true') || (process.env.GITHUB_ACTIONS === 'true')
+      // If no env vars provided, allow fallback for test/local environments so unit tests can seed.
+      // Historically CI/GITHUB_ACTIONS were also considered, but that could cause unexpected seeding
+      // when NODE_ENV is 'production' while CI flags are present in the outer environment. Only
+      // allow CI-driven fallback when NODE_ENV is not explicitly 'production'. This keeps the
+      // behaviour deterministic for tests which set NODE_ENV to 'production' to simulate a
+      // non-test remote environment.
+      // (runningInTestOrCi was previously used; logic below explicitly checks NODE_ENV and CI flags)
       const mongoUri = process.env.MONGO_URI || ''
       const runningOnLocalMongo = /127\.0\.0\.1|localhost/.test(mongoUri)
 
-      const shouldUseFallback = !o1Email && !o2Email && (runningInTestOrCi || runningOnLocalMongo)
+      // Only allow CI/GITHUB_ACTIONS to enable fallback when NODE_ENV is not 'production'.
+      const ciAllowed = (process.env.CI === 'true' || process.env.GITHUB_ACTIONS === 'true') && process.env.NODE_ENV !== 'production'
+      const shouldUseFallback = !o1Email && !o2Email && ((process.env.NODE_ENV === 'test') || runningOnLocalMongo || ciAllowed)
       if (shouldUseFallback) {
         console.log('No ORGANIZER env vars found — using test fallback credentials for seeding (test/CI/local)')
       }
 
       let created = 0
       if ((o1Email && o1Password) || shouldUseFallback) {
-        const email = (o1Email && o1Password) ? o1Email : 'organizer@qa-kamp.be'
-        const password = (o1Email && o1Password) ? o1Password : 'Organizer123!'
+        // Provide a safe non-empty fallback for automated test environments so
+        // model validation (required fields) does not reject the create call.
+        const email = (o1Email && o1Password) ? o1Email : 'organizer1@example.test'
+        const password = (o1Email && o1Password) ? o1Password : 'test-password'
         await Organizer.create({ email, password, name: 'Organizer' })
-        console.log(`Created organizer: ${email}`)
+        console.log(`Created real organizer`)
         created++
       }
       if ((o2Email && o2Password) || shouldUseFallback) {
-        const email = (o2Email && o2Password) ? o2Email : 'organizer@test.be'
-        const password = (o2Email && o2Password) ? o2Password : 'Test123!'
+        const email = (o2Email && o2Password) ? o2Email : 'organizer2@example.test'
+        const password = (o2Email && o2Password) ? o2Password : 'test-password'
         await Organizer.create({ email, password, name: 'Organizer' })
-        console.log(`Created organizer: ${email}`)
+        console.log(`Created test organizer`)
         created++
       }
 

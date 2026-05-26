@@ -5,6 +5,13 @@ import printerBg from '../../../assets/PrinterBackground.png'
 import officeBackgroundPng from '../../../assets/iconsPrinterSlaatOpHol/OfficeBackground.png'
 import officePrinterSvg from '../../../assets/iconsPrinterSlaatOpHol/Printer.svg'
 import officeComputerSvg from '../../../assets/iconsPrinterSlaatOpHol/Computer.svg'
+// Audio assets for this minigame
+import musicUrl from '../../../assets/iconsPrinterSlaatOpHol/PrinterSlaatOpHol_music.mp3'
+import correctSfxUrl from '../../../assets/iconsPrinterSlaatOpHol/CorrectPrinterSlaatOpHol.mp3'
+import wrongSfxUrl from '../../../assets/iconsPrinterSlaatOpHol/WrongPrinterSlaatOpHol.mp3'
+import fireworkSfxUrl from '../../../assets/sounds/Fireworks.mp3'
+// reference to satisfy "declared but never read" checks in some TS configs
+void fireworkSfxUrl
 
 // debug: resolve the background URL reliably. Prefer the imported value but fall back to import.meta.url
 let resolvedBgUrl: string | undefined = undefined
@@ -119,6 +126,16 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const fwCanvasRef = useRef<HTMLCanvasElement | null>(null)
   // track used 'cores' (logical icon groups) during the current playthrough; cleared on end
   const usedCoresRef = useRef<Set<string>>(new Set())
+  // audio refs
+  const musicRef = useRef<HTMLAudioElement | null>(null)
+  const correctRef = useRef<HTMLAudioElement | null>(null)
+  const wrongRef = useRef<HTMLAudioElement | null>(null)
+  const sfxFireworkRef = useRef<HTMLAudioElement | null>(null)
+  // track active cloned fireworks so they can be stopped when restarting
+  const activeFireworksRef = useRef<HTMLAudioElement[]>([])
+  // read once to avoid TS 'declared but never read' in strict projects
+  void sfxFireworkRef
+  void activeFireworksRef
 
   // When end screen is shown, clear the used cores so a new playthrough can reuse icons
   useEffect(() => {
@@ -137,6 +154,22 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
   const formatMs = useCallback((ms: number) => { const s = Math.floor(ms/1000); return `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}` }, [])
 
   const randomFrom = useCallback((arr: string[]) => arr[Math.floor(Math.random() * arr.length)], [])
+
+  // helper to safely play a short sound effect (clones base element to allow overlap)
+  const playSound = useCallback((audioRef: React.RefObject<HTMLAudioElement | null> | null, url?: string) => {
+    try {
+      if (!audioRef) return
+      const base = (audioRef as React.RefObject<HTMLAudioElement | null>).current ?? (url ? new Audio(url) : null)
+      if (!base) return
+      try {
+        const clone = base.cloneNode(true) as HTMLAudioElement
+        clone.volume = base.volume ?? 1
+        void clone.play().catch(() => { /* ignore autoplay errors */ })
+      } catch {
+        try { base.currentTime = 0; void base.play().catch(() => { /* ignore */ }) } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }, [])
 
   // Compute final time-based score (0-100) according to user story.
   // 0:00–2:00 => 100, 2:00–2:30 => 90, then every 30s after 2:30 -10 until 0.
@@ -314,7 +347,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     const cores = Object.keys(baseMap)
     const coresWithWrong = cores.filter(c => typeof wrongMap[c] === 'string')
 
-    // Prefer cores that haven't been used yet
+    // Prefer cores that haven't been used yet in THIS play.
     const unusedCores = coresWithWrong.filter(c => !usedCoresRef.current.has(c))
     let coreChoice: string | undefined
     if (unusedCores.length > 0) coreChoice = unusedCores[Math.floor(Math.random() * unusedCores.length)]
@@ -344,7 +377,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       nextItems.push({ id: i + 1, icon: iconUrl, x: (i % grid), y: Math.floor(i / grid), isOdd })
     }
 
-    // Mark the core as used for this playthrough
+    // Mark the core as used for this play so it won't be chosen again this play
     try { if (coreChoice) usedCoresRef.current.add(coreChoice) } catch { /* ignore */ }
 
     setItems(nextItems)
@@ -423,7 +456,68 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     // prepare first practice sheet
     if (isTestEnv) nextRound()
     else setTimeout(() => nextRound(), 0)
+    // Attempt to start background music on user gesture (may be blocked by autoplay)
+    try {
+      const bg = musicRef.current
+      if (bg) {
+        try { bg.currentTime = 0 } catch { /* ignore */ }
+        void bg.play().catch(() => { /* autoplay blocked */ })
+      }
+    } catch { /* ignore */ }
   }, [nextRound, isTestEnv])
+
+  // Stop and clear any active cloned fireworks audio nodes and reset base fireworks
+  function clearActiveFireworks() {
+    try {
+      for (const a of activeFireworksRef.current.slice()) {
+        try { a.pause() } catch { /* ignore */ }
+        try { a.currentTime = 0 } catch { /* ignore */ }
+      }
+      activeFireworksRef.current.length = 0
+      if (sfxFireworkRef.current) {
+        try { sfxFireworkRef.current.pause() } catch { /* ignore */ }
+        try { sfxFireworkRef.current.currentTime = 0 } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Initialize and preload audio elements on mount
+  useEffect(() => {
+    try {
+      if (!musicRef.current) {
+        const m = new Audio(musicUrl)
+        m.loop = true
+        m.preload = 'auto'
+        m.volume = 0.18
+        musicRef.current = m
+      }
+      if (!correctRef.current) {
+        const s = new Audio(correctSfxUrl)
+        s.preload = 'auto'
+        s.volume = 0.9
+        correctRef.current = s
+      }
+      if (!wrongRef.current) {
+        const s2 = new Audio(wrongSfxUrl)
+        s2.preload = 'auto'
+        s2.volume = 0.9
+        wrongRef.current = s2
+      }
+      if (!sfxFireworkRef.current) {
+        const f = new Audio(fireworkSfxUrl)
+        f.preload = 'auto'
+        f.volume = 0.85
+        sfxFireworkRef.current = f
+      }
+    } catch { /* ignore */ }
+    return () => {
+      try { if (musicRef.current) { musicRef.current.pause(); musicRef.current.currentTime = 0 } } catch { /* ignore */ }
+      try { if (correctRef.current) { correctRef.current.pause(); correctRef.current.currentTime = 0 } } catch { /* ignore */ }
+      try { if (wrongRef.current) { wrongRef.current.pause(); wrongRef.current.currentTime = 0 } } catch { /* ignore */ }
+      try { if (sfxFireworkRef.current) { sfxFireworkRef.current.pause(); sfxFireworkRef.current.currentTime = 0 } } catch { /* ignore */ }
+      musicRef.current = null; correctRef.current = null; wrongRef.current = null; sfxFireworkRef.current = null
+    }
+  }, [])
 
   const finish = useCallback(() => {
     setRunning(false)
@@ -437,7 +531,27 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     } catch { /* ignore */ }
   }, [onEnd, computeTimeScore, elapsedMs, mistakes])
 
+  // Pause/resume background music depending on game/modal state
+  useEffect(() => {
+    const bg = musicRef.current
+    if (!bg) return
+    try {
+      // Do not play music while any modal or hint/help is open or when paused
+      const modalOpen = showIntro || showTutorial || showHint || showHelp || showPracticeStart || showPracticeEnd || showOfficeIntro
+      // Play music during practice rounds as well
+      if ((running || isPractice) && !paused && !modalOpen && !showEnd) {
+        void bg.play().catch(() => { /* autoplay blocked */ })
+      } else {
+        try { bg.pause() } catch { /* ignore */ }
+        // when the end screen shows pause and reset to avoid lingering music
+        if (showEnd) try { bg.currentTime = 0 } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }, [running, isPractice, paused, showHint, showHelp, showPracticeStart, showPracticeEnd, showIntro, showTutorial, showOfficeIntro, showEnd])
+
   const resetGame = useCallback(() => {
+    try { if (musicRef.current) { musicRef.current.pause(); musicRef.current.currentTime = 0 } } catch { /* ignore */ }
+    try { clearActiveFireworks() } catch { /* ignore */ }
     // reset counters and start over
     setShowEnd(false)
     setRound(0)
@@ -448,10 +562,19 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
     setShouldFinishAfterTransition(false)
     // clear stopped flag on reset
     try { setStoppedByUser(false) } catch { /* ignore */ }
+    // no per-play history clearing here; keep per-play used cores lifecycle unchanged
     startRef.current = Date.now()
     // same logic as startGame: synchronous nextRound in tests, deferred in real runtime
     if (isTestEnv) nextRound()
     else setTimeout(() => nextRound(), 0)
+    // Try to start background music when resetting/starting the game (user gesture)
+    try {
+      const bg = musicRef.current
+      if (bg) {
+        try { bg.currentTime = 0 } catch { /* ignore */ }
+        void bg.play().catch(() => { /* autoplay blocked */ })
+      }
+    } catch { /* ignore */ }
   }, [nextRound, isTestEnv])
   // Note: nextRound and isTestEnv included in dependencies above where appropriate
 
@@ -476,6 +599,8 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       setFeedback(randomFrom(GOOD_FEEDBACK_LIST))
       setFeedbackType('good')
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      // play correct sound
+      try { playSound(correctRef, correctSfxUrl) } catch { /* ignore */ }
       // If in practice mode, increment practiceCorrect and finish practice when
       // three correct answers have been found. Practice should not update
       // mistakes or elapsed time.
@@ -516,6 +641,8 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         } catch { /* ignore */ }
       }
       setTimeout(() => { try { setFeedback(null); setFeedbackType(null) } catch { /* ignore */ } }, 1200)
+      // play wrong sound
+      try { playSound(wrongRef, wrongSfxUrl) } catch { /* ignore */ }
       // clear the time feedback after the same duration
       setTimeout(() => { try { setTimeFeedback(null); setTimeFeedbackType(null) } catch { /* ignore */ } }, 1200)
       // remove red background together with the textual feedback so the cell returns to white
@@ -529,7 +656,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         } catch { /* ignore */ }
       }, 1200)
     }
-  }, [running, round, isTransitioning, randomFrom, elapsedMs, isPractice])
+  }, [running, round, isTransitioning, randomFrom, elapsedMs, isPractice, playSound])
 
   // called when the top sheet finished flying out
   const handleSheetAnimationEnd = useCallback((e?: React.AnimationEvent<HTMLDivElement>) => {
@@ -577,6 +704,26 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
       } catch { /* ignore */ }
     })()
     return () => { try { if (cleanup) cleanup() } catch { /* ignore */ } }
+  }, [showEnd])
+
+  // Play fireworks audio clones when end screen appears
+  useEffect(() => {
+    if (!showEnd) return
+    const base = sfxFireworkRef.current
+    if (!base) return
+    try {
+      const f = (base.cloneNode(true) as HTMLAudioElement)
+      activeFireworksRef.current.push(f)
+      const remove = () => {
+        const idx = activeFireworksRef.current.indexOf(f)
+        if (idx >= 0) activeFireworksRef.current.splice(idx, 1)
+      }
+      f.addEventListener('ended', remove)
+      f.addEventListener('pause', remove)
+      void f.play().catch(() => { /* autoplay blocked */ })
+    } catch {
+      try { base.currentTime = 0; void base.play().catch(() => { /* ignore */ }) } catch { /* ignore */ }
+    }
   }, [showEnd])
 
   // Load persisted highscore for this minigame on mount
@@ -1004,11 +1151,7 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
         <div className="pz-start-overlay">
           <div className="pz-start-modal" onClick={(e) => e.stopPropagation()}>
             <h2>Even oefenen!</h2>
-            <p style={{ marginTop: 12 }}>
-              {effectiveAge === '8-10'
-                ? 'Zoek de fout op het blad en klik erop!'
-                : 'Zoek de afwijking op het blad en klik erop!'}
-            </p>
+            <p style={{ marginTop: 12, textAlign: 'left' }}>De oefenronde start nu. Je score telt tijdens het oefenen nog niet mee.</p>
             <div style={{ display: 'flex', flexDirection: 'column', marginTop: 18, alignItems: 'center' }}>
               <button className="pz-start-btn pz-start-btn--large" onClick={() => { void startPractice(); }}>Spelen</button>
               <button className="pz-start-btn pz-start-btn--large" style={{ marginTop: 12 }} onClick={() => { try { setShowPracticeStart(false); resetGame(); } catch { /* ignore */ } }}>Oefenronde Overslaan</button>
@@ -1210,16 +1353,17 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                       0:  { title: 'Niet gelukt', subtitle: 'Probeer opnieuw en blijf gefocust!' }
                     }
                     if (stoppedByUser) {
-                      return (
-                        <>
-                          <h3>Spel gestopt, geen score</h3>
-                          <div className="pz-tips">
-                            <p>Score: 0 — Tijd: {formatMs(displayElapsedMs)} — Fouten: {mistakes}</p>
-                            {/* include explicit time paragraph for tests that extract the time from tips */}
-                            <p>Tijd: {formatMs(displayElapsedMs)}</p>
-                          </div>
-                        </>
-                      )
+                        return (
+                          <>
+                            <h3>Spel gestopt, geen score</h3>
+                            <div className="pz-tips">
+                              <ul className="pz-subtitle-list">
+                                <li>Score: 0</li>
+                              </ul>
+                              {/* include explicit time paragraph for tests that extract the time from tips */}
+                            </div>
+                          </>
+                        )
                     }
                     const key = Math.max(0, Math.min(100, Math.round(finalScore / 10) * 10))
                     const fb = map[key] || { title: 'Goed gedaan!', subtitle: '' }
@@ -1227,18 +1371,21 @@ export default function PrinterSlaatOpHolGame({ ageGroup, onEnd, networkKey }: P
                       <>
                         <h3>{fb.title}</h3>
                         <div className="pz-tips">
-                          {fb.subtitle && <p style={{ marginBottom: 8 }}>{fb.subtitle}</p>}
+                          {fb.subtitle && (
+                            <ul className="pz-subtitle-list" style={{ marginBottom: 8 }}>
+                              <li>{fb.subtitle}</li>
+                            </ul>
+                          )}
                           {/* always expose the final elapsed time in a separate paragraph so
                               tests can find it when the floating timer is not visible */}
-                          <p>Tijd: {formatMs(displayElapsedMs)}</p>
                         </div>
                       </>
                     )
                   })()
                 }
-                <div className="pz-end-actions">
-                  <button id="btnPlayAgain" className="pz-play-again" onClick={() => { try { window.location.reload(); } catch { resetGame(); } }}>Opnieuw spelen</button>
-                </div>
+                  <div className="pz-end-actions">
+                   <button id="btnPlayAgain" className="pz-play-again" onClick={() => { try { clearActiveFireworks() } catch { /* ignore */ } try { window.location.reload(); } catch { resetGame(); } }}>Opnieuw spelen</button>
+                 </div>
               </div>
             </div>
           </div>
