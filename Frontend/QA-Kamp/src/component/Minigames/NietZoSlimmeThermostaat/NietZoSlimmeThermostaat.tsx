@@ -498,37 +498,37 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
   return [
     // 1 IF ___ THEN turnLampOn() ELSE turnLampOff()  (condition)
     { id: 'c1', leftKeyword: 'IF', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnLampOn()', fixedElse: 'turnLampOff()', options: [
-      { id: 'IsRaining', label: 'IsRaining' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsDay', label: 'IsDay' }, { id: 'IsCold', label: 'IsCold' }, { id: 'IsHot', label: 'IsHot' }
+      { id: 'IsRaining', label: 'IsRaining()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsDay', label: 'IsDay()' }, { id: 'IsCold', label: 'IsCold()' }, { id: 'IsHot', label: 'IsHot()' }
     ], correctOptionId: 'IsNight' },
 
     // 2 IF ___ THEN turnHeatingOn() ELSE turnHeatingOff() (condition)
     { id: 'c2', leftKeyword: 'IF', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnHeatingOn()', fixedElse: 'turnHeatingOff()', options: [
-      { id: 'IsHot', label: 'IsHot' }, { id: 'IsCold', label: 'IsCold' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsRaining', label: 'IsRaining' }, { id: 'IsDay', label: 'IsDay' }
+      { id: 'IsHot', label: 'IsHot()' }, { id: 'IsCold', label: 'IsCold()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsRaining', label: 'IsRaining()' }, { id: 'IsDay', label: 'IsDay()' }
     ], correctOptionId: 'IsCold' },
 
     // 3 IF ___ THEN turnAircoOn() ELSE turnAircoOff() (condition)
     { id: 'c3', leftKeyword: 'IF', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnAircoOn()', fixedElse: 'turnAircoOff()', options: [
-      { id: 'IsCold', label: 'IsCold' }, { id: 'IsHot', label: 'IsHot' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsRaining', label: 'IsRaining' }, { id: 'IsDay', label: 'IsDay' }
+      { id: 'IsCold', label: 'IsCold()' }, { id: 'IsHot', label: 'IsHot()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsRaining', label: 'IsRaining()' }, { id: 'IsDay', label: 'IsDay()' }
     ], correctOptionId: 'IsHot' },
 
     // 4 IF IsNight AND ___ THEN turnHeatingOn() ELSE turnHeatingOff() (condition)
     { id: 'c4', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'IsNight', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnHeatingOn()', fixedElse: 'turnHeatingOff()', options: [
-      { id: 'IsRaining', label: 'IsRaining' }, { id: 'IsHot', label: 'IsHot' }, { id: 'IsDay', label: 'IsDay' }, { id: 'IsCold', label: 'IsCold' }
+      { id: 'IsRaining', label: 'IsRaining()' }, { id: 'IsHot', label: 'IsHot()' }, { id: 'IsDay', label: 'IsDay()' }, { id: 'IsCold', label: 'IsCold()' }
     ], correctOptionId: 'IsCold' },
 
     // 5 IF IsCold AND ___ THEN turnHeatingOff() ELSE turnHeatingOn() (condition)
     { id: 'c5', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'IsCold', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnHeatingOff()', fixedElse: 'turnHeatingOn()', options: [
-      { id: 'NobodyHome', label: 'NobodyHome' }, { id: 'IsDay', label: 'IsDay' }, { id: 'IsHot', label: 'IsHot' }, { id: 'IsRaining', label: 'IsRaining' }
+      { id: 'NobodyHome', label: 'NobodyHome()' }, { id: 'IsDay', label: 'IsDay()' }, { id: 'IsHot', label: 'IsHot()' }, { id: 'IsRaining', label: 'IsRaining()' }
     ], correctOptionId: 'NobodyHome' },
 
     // 6 IF IsDay AND ___ THEN turnHeatingOff() ELSE turnHeatingOn() (condition)
     { id: 'c6', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'IsDay', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnHeatingOff()', fixedElse: 'turnHeatingOn()', options: [
-      { id: 'IsRaining', label: 'IsRaining' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsCold', label: 'IsCold' }, { id: 'IsHot', label: 'IsHot' }
+      { id: 'IsRaining', label: 'IsRaining()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsCold', label: 'IsCold()' }, { id: 'IsHot', label: 'IsHot()' }
     ], correctOptionId: 'IsHot' },
 
     // 7 IF IsHot AND ___ THEN turnAircoOn() ELSE turnAircoOff() (condition)
     { id: 'c7', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'IsHot', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnAircoOn()', fixedElse: 'turnAircoOff()', options: [
-      { id: 'WindowsClosed', label: 'WindowsClosed' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsCold', label: 'IsCold' }, { id: 'IsRaining', label: 'IsRaining' }
+      { id: 'WindowsClosed', label: 'WindowsClosed()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsCold', label: 'IsCold()' }, { id: 'IsRaining', label: 'IsRaining()' }
     ], correctOptionId: 'WindowsClosed' },
 
     // 8 IF IsCold AND IsRaining THEN ___  (action)
@@ -548,7 +548,7 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
 
     // 11 IF WindowOpen AND ___ THEN sendWarning() ELSE doNothing() (condition)
     { id: 'c11', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'WindowOpen', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'sendWarning()', fixedElse: 'doNothing()', options: [
-      { id: 'HeatingOn', label: 'HeatingOn' }, { id: 'LampOn', label: 'LampOn' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsRaining', label: 'IsRaining' }
+      { id: 'HeatingOn', label: 'HeatingOn()' }, { id: 'LampOn', label: 'LampOn()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsRaining', label: 'IsRaining()' }
     ], correctOptionId: 'HeatingOn' },
 
     // 12 IF IsHot AND NobodyHome THEN ___  (action)
@@ -563,10 +563,10 @@ function buildScenarioPool(age: AgeGroup): Scenario[] {
 
     // 14-16 other smart-device scenarios (code-like, some require action selection)
     // 1 IF MotionDetected AND ___ THEN turnLampOn() ELSE turnLampOff()
-    { id: 's1', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'MotionDetected', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnLampOn()', fixedElse: 'turnLampOff()', options: [ { id: 'IsNight', label: 'IsNight' }, { id: 'IsDay', label: 'IsDay' }, { id: 'IsCold', label: 'IsCold' }, { id: 'IsHot', label: 'IsHot' } ], correctOptionId: 'IsNight' },
+    { id: 's1', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'MotionDetected', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnLampOn()', fixedElse: 'turnLampOff()', options: [ { id: 'IsNight', label: 'IsNight()' }, { id: 'IsDay', label: 'IsDay()' }, { id: 'IsCold', label: 'IsCold()' }, { id: 'IsHot', label: 'IsHot()' } ], correctOptionId: 'IsNight' },
 
     // 2 IF NobodyHome AND ___ THEN turnHeatingOff() ELSE turnHeatingOn()
-    { id: 's2', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'NobodyHome', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnHeatingOff()', fixedElse: 'turnHeatingOn()', options: [ { id: 'IsDay', label: 'IsDay' }, { id: 'IsNight', label: 'IsNight' }, { id: 'IsCold', label: 'IsCold' }, { id: 'IsRaining', label: 'IsRaining' } ], correctOptionId: 'IsDay' },
+    { id: 's2', leftKeyword: 'IF', andKeyword: 'AND', blankPosition: 'after', fixedLeft: 'NobodyHome', thenKeyword: 'THEN', elseKeyword: 'ELSE', fixedAction: 'turnHeatingOff()', fixedElse: 'turnHeatingOn()', options: [ { id: 'IsDay', label: 'IsDay()' }, { id: 'IsNight', label: 'IsNight()' }, { id: 'IsCold', label: 'IsCold()' }, { id: 'IsRaining', label: 'IsRaining()' } ], correctOptionId: 'IsDay' },
 
     // 3 IF IsNight AND MotionDetected THEN ___
     { id: 's3', leftKeyword: 'IF', andKeyword: 'AND', fixedLeft: 'IsNight', fixedRight: 'MotionDetected', thenKeyword: 'THEN', blankAction: true, options: [ { id: 'turnLampOn', label: 'turnLampOn()' }, { id: 'turnHeatingOn', label: 'turnHeatingOn()' }, { id: 'turnAircoOn', label: 'turnAircoOn()' }, { id: 'turnCameraOff', label: 'turnCameraOff()' } ], correctOptionId: 'turnLampOn' },
@@ -1985,6 +1985,24 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
                     onDragStart={(ev) => onDragStart(ev, opt.id)}
                     role="button"
                     aria-label={opt.label}
+                    tabIndex={0}
+                    onClick={() => {
+                      if (!running || paused || showEnd) return
+                      try { setSelectedOptionId(opt.id) } catch { /* ignore */ }
+                    }}
+                    onTouchStart={() => {
+                      // touch fallback for iPad / touch devices where HTML5 drag/drop
+                      // is not reliably supported — treat a tap as selecting the block
+                      if (!running || paused || showEnd) return
+                      try { setSelectedOptionId(opt.id) } catch { /* ignore */ }
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        if (!running || paused || showEnd) return
+                        try { setSelectedOptionId(opt.id) } catch { /* ignore */ }
+                      }
+                    }}
                   >
                     {renderIcon(opt.icon, `nzs-option-${opt.id}-${suffix}`)}
                     <span id={`nzs-option-${opt.id}-${suffix}-label`} className="nzs-block__label">{opt.label}</span>
