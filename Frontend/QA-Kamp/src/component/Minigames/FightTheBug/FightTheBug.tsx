@@ -11,6 +11,54 @@ import TakingDamageBugImg from '../../../assets/FightTheBug/TakingDamageBug.png'
 import './FightTheBug.css'
 import '../PasswordZapper/PasswordZapperGame.css'
 
+// Highscore helper (inlined so this file is self-contained like other games)
+const API_BASE = (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE : undefined) || '/api'
+
+type HighscorePayload = { game: string; player: string; score: number; [k: string]: unknown }
+const PENDING_KEY = 'pz_pending_highscores'
+
+async function sendHighscore(game: string, player: string, score: number, extra: Record<string, unknown> = {}) {
+  const payload: HighscorePayload = { game, player, score, ...extra }
+  try {
+    const res = await fetch(`${API_BASE}/highscores`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Highscore POST failed: ${res.status} ${text}`)
+    }
+    return await res.json()
+  } catch (err) {
+    try {
+      const cur = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as Array<Record<string, unknown>>
+      cur.push({ payload, ts: Date.now() })
+      localStorage.setItem(PENDING_KEY, JSON.stringify(cur))
+    } catch { /* ignore */ }
+    throw err
+  }
+}
+
+async function retryPendingHighscores(): Promise<void> {
+  try {
+    const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as Array<{ payload: HighscorePayload }>
+    if (!pending || pending.length === 0) return
+    const remaining: Array<typeof pending[0]> = []
+    for (const item of pending) {
+      try {
+        await sendHighscore(item.payload.game, item.payload.player, item.payload.score, Object.assign({}, item.payload))
+      } catch {
+        remaining.push(item)
+      }
+    }
+    localStorage.setItem(PENDING_KEY, JSON.stringify(remaining))
+  } catch {
+    // ignore
+  }
+}
+
 type AgeGroup = '8-10' | '11-13' | '14-16'
 type EndResults = { score: number; timeMs: number; mistakes: number }
 
@@ -737,6 +785,8 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
 
   useEffect(() => {
     setMounted(true)
+    // try to flush any pending highscores that were queued earlier
+    try { void retryPendingHighscores() } catch { /* ignore */ }
     return () => { setMounted(false) }
   }, [])
 
@@ -1128,6 +1178,12 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     try { if (damageTimerRef.current) { window.clearTimeout(damageTimerRef.current); damageTimerRef.current = null } } catch { /* ignore */ }
     try { setBugSprite(DefaultBugImg) } catch { /* ignore */ }
     try { if (onEnd) onEnd({ score: finalScore, timeMs: 0, mistakes: totalWrong }) } catch { /* ignore */ }
+
+    // best-effort send highscore (non-blocking). If network fails it's queued.
+    try {
+      const player = (sessionStorage.getItem('playerName') || sessionStorage.getItem('player') || 'Anon') as string
+      void sendHighscore('fight-the-bug', player, finalScore, { ageGroup: effectiveAge, mistakes: totalWrong }).catch(() => { /* queued */ })
+    } catch { /* ignore */ }
   }, [highScore, localHighKey, onEnd, totalWrong, playerEnergy])
 
   useEffect(() => {
