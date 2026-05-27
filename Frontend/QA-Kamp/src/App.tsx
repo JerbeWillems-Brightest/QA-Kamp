@@ -33,6 +33,48 @@ function App() {
             return () => { try { document.body.classList.remove('pz-no-footer') } catch { /* ignore */ } }
         }, [showFooter])
 
+        // Detect iPad-like devices and force a landscape-style UI when the
+        // device is held in portrait. This toggles `pz-force-landscape` on the
+        // body so the CSS rotation workaround takes effect.
+        useEffect(() => {
+            function isIPadLike() {
+                try {
+                    const ua = navigator.userAgent || ''
+                    if (/iPad/.test(ua)) return true
+                    // iPadOS may present as MacIntel but have touchpoints
+                    if (navigator.platform === 'MacIntel' && ((navigator as Navigator & { maxTouchPoints?: number }).maxTouchPoints || 0) > 1) return true
+                } catch { /* ignore */ }
+                return false
+            }
+
+            function updateLandscapeLock() {
+                try {
+                    const wantForce = isIPadLike() && window.matchMedia && window.matchMedia('(orientation: portrait)').matches
+                    const haveForce = document.body.classList.contains('pz-force-landscape')
+                    // Only change the class and notify other listeners when the
+                    // forced-landscape state actually changes. This prevents
+                    // dispatching a "resize" that would re-trigger this same
+                    // handler and cause an infinite recursion.
+                    if (wantForce && !haveForce) {
+                        document.body.classList.add('pz-force-landscape')
+                        window.dispatchEvent(new Event('resize'))
+                    } else if (!wantForce && haveForce) {
+                        document.body.classList.remove('pz-force-landscape')
+                        window.dispatchEvent(new Event('resize'))
+                    }
+                } catch { /* ignore */ }
+            }
+
+            updateLandscapeLock()
+            window.addEventListener('orientationchange', updateLandscapeLock)
+            window.addEventListener('resize', updateLandscapeLock)
+            return () => {
+                window.removeEventListener('orientationchange', updateLandscapeLock)
+                window.removeEventListener('resize', updateLandscapeLock)
+                try { document.body.classList.remove('pz-force-landscape') } catch { /* ignore */ }
+            }
+        }, [])
+
         return (
             <div className="page">
                 {/* Navbar */}
