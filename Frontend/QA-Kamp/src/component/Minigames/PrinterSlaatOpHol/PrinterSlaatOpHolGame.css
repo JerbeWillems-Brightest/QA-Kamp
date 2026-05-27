@@ -5,12 +5,12 @@
 .printer-office-intro {
   position: absolute;
   inset: 10px;
-  /* ensure the image fills the available width, scale height automatically
-     and align the image to the top so the visible crop moves upward */
+  /* Align with the thermostat game: default to stretching the background to
+     the available box (100% 100%) and position toward the top so important
+     UI overlays render on top of the image consistently across desktop. */
   background-size: 100% 100%;
   background-position: center top;
   background-repeat: no-repeat;
-  /* keep the black frame/container the same size; let the image scale inside it */
   height: 100%;
   overflow: hidden;
 }
@@ -124,11 +124,105 @@
    Apply this class to any element that receives an inline background-image
    via the component so size/position/repeat are consistent across states. */
 .printer-root .game-bg {
-  background-size: cover;
-  background-position: center center;
+  /* Match thermostat: prefer stretching the wallpaper to fully fill the
+     container by default (100% 100%) so desktop and iPad show the same crop.
+     Specific breakpoints can switch to `cover` when a crop is preferred. */
+  background-size: 100% 100%;
+  background-position: center top;
   background-repeat: no-repeat;
   /* fallback while image loads */
   background-color: #000;
+}
+
+/* Ensure the background and game-area fill narrow viewports (under 1024px)
+   and prefer bottom-right alignment on portrait so lower-right content is visible. */
+@media (max-width: 1024px) {
+  /* reduce the outer frame so the playable area has more room on small devices */
+  .printer-root { border-width: 6px !important }
+  .printer-root.pz-layout { padding: 6px !important; display: grid !important; grid-template-columns: 1fr !important }
+  .printer-root .game-area { inset: 6px !important }
+  .printer-root .game-content { padding: 8px !important; max-height: calc(100% - 16px) }
+  /* Ensure the sheet stack can expand to use available width */
+  .printer-root .sheet-stack { width: 100% !important; margin: 6px auto }
+
+  /* Make the root and background elements span the full viewport width so
+     the wallpaper always fills horizontally (prevents the black strip on the
+     right). Height is calculated from viewport minus app chrome variables.) */
+  .printer-root,
+  .printer-root .game-area,
+  .printer-root .bg-blur,
+  .printer-root .game-bg {
+    width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 12px) !important;
+    min-height: 320px !important; /* reasonable minimum for very small devices */
+    box-sizing: border-box !important;
+  }
+
+  /* Match thermostat: on narrow screens prefer `cover` only when necessary for
+     good cropping — otherwise the stretched 100% 100% base keeps consistent
+     layout between desktop and tablet. Here we keep center-top alignment. */
+  .printer-root .game-bg,
+  .printer-office-intro {
+    background-size: 100% 100% !important;
+    background-position: center top !important;
+    background-repeat: no-repeat !important;
+  }
+
+  /* Ensure blur overlay covers the full area when present */
+  .printer-root .bg-blur.is-blurred,
+  .printer-root .bg-blur.no-blur {
+    width: 100% !important;
+    height: 100% !important;
+    inset: 0 !important;
+  }
+}
+
+/* Very small portrait/tablet tweaks (match BugCleanup behaviour) */
+@media (min-width: 640px) and (max-width: 820px) and (orientation: portrait) {
+  .printer-root.pz-layout { padding: 6px !important; border-width: 6px !important }
+  .printer-root .game-area, .printer-root .game-bg { height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 12px) !important }
+  .printer-root .game-bg { background-position: bottom right !important; background-size: cover !important }
+}
+
+/* Strong portrait-specific rules: ensure portrait (standing) fills both width and height
+   and that the background keeps the important right/bottom area visible. This complements
+   the generic max-width rules and handles devices that report portrait orientation. */
+@media (orientation: portrait) and (max-width: 1024px) {
+  .printer-root { max-height: none !important; border-width: 6px !important; padding: 6px !important }
+  .printer-root.pz-layout { display: grid !important; grid-template-columns: 1fr !important }
+
+  /* Force full viewport width and calculated height in portrait so the wallpaper
+     expands horizontally and vertically to the available area. */
+  .printer-root,
+  .printer-root .game-area,
+  .printer-root .bg-blur,
+  .printer-root .game-bg,
+  .printer-office-intro {
+    width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 12px) !important;
+    min-height: 360px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  /* Use cover to preserve aspect ratio and keep the lower-right area visible */
+  .printer-root .game-bg,
+  .printer-office-intro {
+    background-size: cover !important;
+    background-position: bottom right !important;
+    background-repeat: no-repeat !important;
+  }
+
+  .printer-root .bg-blur.is-blurred,
+  .printer-root .bg-blur.no-blur {
+    width: 100% !important;
+    height: 100% !important;
+    inset: 0 !important;
+  }
 }
 
 /* Game content and modals sit above the blur */
@@ -210,7 +304,8 @@
   left: 50%;
   transform: translateX(-50%);
   top: 18px;
-  font-size: 1.05rem;
+  /* Increased base size to match PasswordZapper */
+  font-size: 1.4rem;
   font-weight: 800;
   color: #fff;
   text-shadow: 1px 1px 4px #000a;
@@ -228,6 +323,8 @@
   background: linear-gradient(180deg, #4caf50, #388e3c);
   color: #fff;
   padding: 0.6rem 1rem;
+  /* increased font-size for clearer positive feedback */
+  font-size: 1.4rem;
   border-radius: 999px;
   border: 3px solid rgba(255,255,255,0.08);
   box-shadow: 0 4px 12px rgba(0,0,0,0.35);
@@ -236,9 +333,27 @@
   background: linear-gradient(180deg, #f44336, #d32f2f);
   color: #fff;
   padding: 0.6rem 1rem;
+  /* increased font-size for clearer negative feedback */
+  font-size: 1.4rem;
   border-radius: 999px;
   border: 3px solid rgba(0,0,0,0.12);
   box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+}
+
+/* Stronger override to ensure positive/negative feedback text is larger
+   even if other compiled CSS is loaded after this file. Use a more specific
+   selector and fall back to !important to guarantee visibility. */
+.pz-game .pz-feedback--good,
+.pz-game .pz-feedback--bad {
+  font-size: 2rem !important;
+}
+
+@media (max-width: 480px) {
+  /* keep feedback readable on small screens */
+  .pz-game .pz-feedback--good,
+  .pz-game .pz-feedback--bad {
+    font-size: 1.5rem !important;
+  }
 }
 
 /* time feedback sits under the timer; render as inline block below the timer */
@@ -331,5 +446,11 @@ body.pz-end-open .pz-controls {
 
 /* Ensure stats rows lay out correctly and center their contents */
 .pz-stats-row { display: flex; gap: 16px; margin-top: 18px; justify-content: center; align-items: center }
+
+
+
+/* Subtitle list for endscreen feedback: render subtitle as an li per request */
+.pz-subtitle-list { margin: 0 0 12px 0; padding-left: 20px; }
+.pz-subtitle-list li { font-size: 1.1rem; font-family: Arial, serif; margin: 0 0 0.5rem 0; }
 
 

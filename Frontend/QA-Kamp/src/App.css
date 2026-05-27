@@ -656,3 +656,128 @@ body, #root { word-break: break-word; overflow-wrap: break-word; }
   align-items: flex-start !important; /* keep stacked items aligned to the left */
 }
 
+/* Tablet specific layout and touch adjustments (iPad) */
+@media (min-width: 768px) and (max-width: 1024px) {
+  /* Provide a two-column layout for minigames: game area + sidebar */
+  .pz-layout {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    grid-template-rows: 1fr;
+    gap: 12px;
+    align-items: stretch;
+    position: fixed !important;
+    top: var(--nav-height);
+    left: 0;
+    right: 0;
+    bottom: var(--bottombar-height);
+    padding: 12px;
+    box-sizing: border-box;
+    background: transparent;
+    border: none;
+  }
+
+  /* Left column: the game area should fill available space */
+  .pz-layout > .game-area, .pz-layout .bc-area {
+    position: relative !important;
+    inset: auto !important;
+    width: 100% !important;
+    height: 100% !important;
+    box-sizing: border-box;
+    border-radius: 8px;
+    overflow: hidden;
+  }
+
+  /* Right column: sidebar for score/controls */
+  .pz-layout .pz-sidebar {
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    overflow: auto;
+    background: #fff;
+    border-radius: 8px;
+    border: 6px solid #000;
+  }
+
+  /* Move absolute scores/progress into sidebar visually (they become static in grid).
+     Exclude BugCleanup (bugcleanup-root) so that minigame-specific positioning can
+     remain controlled by its own styles. */
+  /* Exclude BugCleanup and Printer minigames from the global sidebar relocation
+     so those games can manage their own in-layout controls and backgrounds. */
+  .pz-layout:not(.bugcleanup-root):not(.printer-root) .pz-score-stack,
+  .pz-layout:not(.bugcleanup-root):not(.printer-root) .pz-score,
+  .pz-layout:not(.bugcleanup-root):not(.printer-root) .bc-progress {
+    position: static !important;
+    top: auto !important;
+    left: auto !important;
+    transform: none !important;
+    margin: 6px 0 !important;
+  }
+
+  /* Increase touch targets */
+  .pz-btn, button, .bc-cta, .pz-start-btn, .pz-play-again {
+    min-height: 48px;
+    padding: 12px 18px;
+    touch-action: manipulation;
+  }
+
+  /* Ensure interactive game elements accept pointer events on touch devices */
+  .bc-bug, .bc-lag-cursor, .pz-ship, .pz-asteroid, .pz-asteroid img, .pz-comet {
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevent page scroll while interacting with the game area */
+  .bc-area, .game-area, .pz-game, .pz-asteroid {
+    touch-action: none;
+    -ms-touch-action: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* Make fireworks canvas look nicer on tablet */
+  .pz-fireworks-canvas { border-radius: 6px; }
+}
+
+/* Force-landscape helper: rotate the UI visually when an iPad is held portrait
+   so the app remains in landscape layout. This is a visual workaround; it
+   requires JavaScript to toggle `pz-force-landscape` on the body. */
+.pz-force-landscape {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  /* rotate entire page so portrait device shows landscape UI */
+  transform: rotate(-90deg);
+  transform-origin: top left;
+  /* after rotation the layout coordinates swap; ensure the element covers viewport */
+  width: 100vh; /* viewport height becomes visual width */
+  height: 100vw;
+  z-index: 2000;
+}
+
+.pz-force-landscape > .page {
+  width: 100%;
+  height: 100%;
+}
+
+/* Tablet/iPad tweaks: ensure game layout and canvas fill the available area */
+@media (min-width: 600px) and (max-width: 1100px) {
+  .pz-layout {
+    max-width: 100%;
+    padding: 12px;
+    box-sizing: border-box;
+  }
+  .pz-layout > .game-area,
+  .pz-layout .game-area,
+  .pz-layout .bc-area {
+    width: 100% !important;
+    height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 24px) !important;
+    box-sizing: border-box;
+  }
+  .pz-fireworks-canvas {
+    width: 100% !important;
+    height: 100% !important;
+    display: block;
+  }
+}
+

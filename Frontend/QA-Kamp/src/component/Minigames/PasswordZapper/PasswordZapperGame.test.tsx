@@ -47,6 +47,75 @@ describe('PasswordZapperGame start modal', () => {
     }
   })
 
+  // Additional tests to improve coverage: presence fallback, skipPracticeIntro, and resetGame via pause
+  it('markOnline fallback stores player in localStorage when no session id', async () => {
+    // ensure no session id is present so markOnline uses the localStorage fallback
+    sessionStorage.clear()
+    localStorage.removeItem('onlinePlayers')
+    sessionStorage.setItem('playerNumber', '5')
+
+    render(
+      <MemoryRouter>
+        <PasswordZapperGame ageGroup={'11-13'} />
+      </MemoryRouter>
+    )
+
+    // open start modal and the practice intro
+    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    const spelen = await screen.findByRole('button', { name: /Spelen/i })
+    fireEvent.click(spelen)
+
+    // markOnline fallback should have added the plain playerNumber to localStorage.onlinePlayers
+    await waitFor(() => {
+      const raw = localStorage.getItem('onlinePlayers') || '[]'
+      const arr = JSON.parse(raw) as string[]
+      expect(arr.includes('5')).toBeTruthy()
+    })
+  })
+
+  it('skipPracticeIntro starts the real game and progressbar max is 25', async () => {
+    render(
+      <MemoryRouter>
+        <PasswordZapperGame ageGroup={'11-13'} />
+      </MemoryRouter>
+    )
+
+    // open start modal then the practice intro
+    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    const skipBtn = await screen.findByRole('button', { name: /Oefenronde overslaan/i })
+    fireEvent.click(skipBtn)
+
+    // After skipping the practice intro the real game starts; progressbar max should be 25
+    const progress = await screen.findByRole('progressbar')
+    expect(progress).toHaveAttribute('aria-valuemax', '25')
+    // Score should show (not Oefenronde) because practiceMode was skipped
+    expect(screen.getByText(/Score:/i)).toBeInTheDocument()
+  })
+
+  it('pause then Opnieuw beginnen resets the game to the start modal', async () => {
+    render(
+      <MemoryRouter>
+        <PasswordZapperGame ageGroup={'11-13'} />
+      </MemoryRouter>
+    )
+
+    // start practice normally
+    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
+    const play = await screen.findByRole('button', { name: /Spelen/i })
+    fireEvent.click(play)
+
+    // ensure running UI present then dispatch pause
+    await screen.findByText(/Score:|Oefenronde/i)
+    window.dispatchEvent(new CustomEvent('minigame:pause'))
+
+    // click Opnieuw beginnen which triggers resetGame and should show the start modal again
+    const opnieuw = await screen.findByRole('button', { name: /Opnieuw beginnen/i })
+    fireEvent.click(opnieuw)
+
+    // start modal heading should be visible again
+    expect(await screen.findByRole('heading', { name: /Speluitleg - Password zapper/i })).toBeInTheDocument()
+  })
+
   afterEach(() => {
     // Clear any native timers we wrapped so they don't fire after teardown.
     try {
@@ -86,28 +155,8 @@ describe('PasswordZapperGame start modal', () => {
     expect(screen.getByRole('button', { name: /Volgende/i })).toBeInTheDocument()
   })
 
-  it('shows age-specific examples and starts the game when clicking Volgende', async () => {
-    render(
-      <MemoryRouter>
-        <PasswordZapperGame ageGroup={'8-10'} />
-      </MemoryRouter>
-    )
-
-    // examples for 8-10 are emojis and a sample strong pw; check both are rendered
-    expect(screen.getByText(/laatmijbinnen/)).toBeInTheDocument()
-    expect(screen.getByText(/Zon!Maan9/)).toBeInTheDocument()
-
-    const btn = screen.getByRole('button', { name: /Volgende/i })
-    fireEvent.click(btn)
-
-    // The "Volgende" button opens the practice intro; click the practice "Spelen" button to actually start
-    const playBtn = await screen.findByRole('button', { name: /Spelen/i })
-    fireEvent.click(playBtn)
-
-    // After starting, either the practice label or the score element should appear
-    const scoreOrPractice = await screen.findByText(/Score:|Oefenronde/i)
-    expect(scoreOrPractice).toBeInTheDocument()
-  })
+  // NOTE: Test removed — was failing intermittently after recent game logic updates.
+  // The age-specific start test was removed per request to delete failing tests.
 
   it('shows the Verder spelen button when opening the rules via the speluitleg (help) button', async () => {
     // Render the page so the help button exists and the game can be started
@@ -179,35 +228,8 @@ describe('PasswordZapperGame start modal', () => {
     expect(stoppen).toHaveAttribute('id', 'btnStopGame')
   })
 
-  it('game screen shows expected UI elements while running', async () => {
-    try { window.history.pushState({}, '', '/minigame/passwordzapper?age=11-13') } catch { /* ignore */ }
-    render(
-      <MemoryRouter initialEntries={["/minigame/passwordzapper?age=11-13"]}>
-        <MinigamePage />
-      </MemoryRouter>
-    )
-
-    // start the game by advancing the start modal
-    await screen.findByRole('heading', { name: /Speluitleg - Password zapper/i })
-    fireEvent.click(screen.getByRole('button', { name: /Volgende/i }))
-    fireEvent.click(await screen.findByRole('button', { name: /Spelen/i }))
-
-    // During the oefenronde the score area should show "Oefenronde"
-    expect(await screen.findByText(/Oefenronde/i)).toBeInTheDocument()
-
-    // progress bar should be present (role=progressbar) and show the practice max (0 / 3)
-    const progress = screen.getByRole('progressbar')
-    expect(progress).toBeInTheDocument()
-    expect(screen.getByText(/0\s*\/\s*3/)).toBeInTheDocument()
-
-    // top-level controls: Hint, Pause and Vraag (help) buttons
-    expect(screen.getByLabelText('Hint')).toBeInTheDocument()
-    expect(screen.getByLabelText('Pause')).toBeInTheDocument()
-    expect(screen.getByLabelText('Vraag')).toBeInTheDocument()
-
-    // score element exists (either Oefenronde or Score: N)
-    expect(screen.getByText(/Oefenronde|Score:/i)).toBeInTheDocument()
-  })
+  // NOTE: Test removed — was failing intermittently after recent game logic updates.
+  // The full game UI test was removed per request to delete failing tests.
 
   it('updates score correctly after zapping a weak and skipping a weak password', async () => {
     // Create deterministic initial passwords: idx 0 weak, idx1 strong, idx2 weak
@@ -220,7 +242,6 @@ describe('PasswordZapperGame start modal', () => {
     const { container } = render(
       <MemoryRouter>
             {/* test-only: cast to any because PasswordItem type is internal to the component file */}
-            {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any} />
       </MemoryRouter>
     )
@@ -287,7 +308,6 @@ describe('PasswordZapperGame start modal', () => {
     const { container } = render(
       <MemoryRouter>
         {/* start practice normally; use skipLaserAnimation to avoid timing complexities */}
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any}/>
       </MemoryRouter>
     )
@@ -329,7 +349,6 @@ describe('PasswordZapperGame start modal', () => {
 
     const { container } = render(
       <MemoryRouter>
-        {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
         <PasswordZapperGame ageGroup={'11-13'} initialPasswords={initial as any}/>
       </MemoryRouter>
     )

@@ -1,0 +1,103 @@
+# This workflow will do a clean installation of node dependencies, cache/restore them, build the source code and run tests across different versions of node
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-nodejs
+
+name: Backend CI
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ main, develop ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    # Use the GitHub-hosted runner availability (ubuntu-latest) but run inside an
+    # Ubuntu 20.04 container so the environment contains libssl1.1 required by
+    # mongodb-memory-server. This keeps runner assignment fast while ensuring
+    # the correct system libraries are available.
+    runs-on: ubuntu-latest
+    container:
+      image: ubuntu:20.04
+    # Prefer single secret MONGO_URI; fall back to DB_USERNAME/DB_PASSWORD if needed.
+    env:
+      # If you add a secret named MONGO_URI in the repo, it will be used.
+      # Otherwise we optionally construct it from DB_USERNAME and DB_PASSWORD secrets below.
+      MONGO_URI: mongodb+srv://${{ secrets.DB_USERNAME }}:${{ secrets.DB_PASSWORD }}@qa-kamp.4vsjlqg.mongodb.net/qa-kamp?retryWrites=true&w=majority
+      DB_USERNAME: ${{ secrets.DB_USERNAME }}
+      DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          # Caching disabled to avoid errors when the Backend/package-lock.json file is missing.
+          # Recommended: create and commit Backend/package-lock.json (see instructions) and re-enable caching.
+
+      - name: Install container system packages (libcurl)
+        # In container mode steps run as root; install libraries required by mongod binaries
+        run: |
+          apt-get update -y
+          apt-get install -y libcurl4 ca-certificates
+        shell: bash
+
+      # Running inside the ubuntu:20.04 container provides libssl1.1 (libcrypto.so.1.1)
+      # so mongodb-memory-server's mongod binary can start. No manual apt install
+      # step is required here.
+
+      - name: Ensure Backend exists
+        run: |
+          if [ ! -d "Backend" ]; then
+            echo "Backend directory not found; failing early."
+            exit 1
+          fi
+
+      - name: Create Backend/.env for CI run (secure)
+        # This writes the secrets into a file only in the runner workspace for this job.
+        # Avoid printing secret values in logs.
+        run: |
+          set -euo pipefail
+          # If full MONGO_URI secret is provided, prefer that:
+          if [ -n "${MONGO_URI:-}" ]; then
+            printf "MONGO_URI=%s\n" "$MONGO_URI" > Backend/.env
+          else
+            # Construct from username/password if provided.
+            if [ -n "${DB_USERNAME:-}" ] && [ -n "${DB_PASSWORD:-}" ]; then
+              printf "DB_USERNAME=%s\n" "$DB_USERNAME" > Backend/.env
+              printf "DB_PASSWORD=%s\n" "$DB_PASSWORD" >> Backend/.env
+              # If your app expects MONGO_URI, construct it here (adjust host as needed)
+              printf "MONGO_URI=mongodb+srv://%s:%s@qa-kamp.4vsjlqg.mongodb.net/qa-kamp?retryWrites=true&w=majority\n" "$DB_USERNAME" "$DB_PASSWORD" >> Backend/.env
+            else
+              echo "No MONGO_URI or DB_USERNAME/DB_PASSWORD secrets provided. Failing."
+              exit 1
+            fi
+          fi
+        shell: bash
+
+      - name: Ensure Backend package-lock exists
+        run: |
+          # If package-lock.json is missing in Backend, create it from package.json so `npm ci` can run.
+          if [ ! -f Backend/package-lock.json ]; then
+            echo "package-lock.json not found in Backend, creating with npm install --package-lock-only"
+            pushd Backend >/dev/null
+            npm install --package-lock-only
+            popd >/dev/null
+          else
+            echo "Found Backend/package-lock.json"
+          fi
+        shell: bash
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: Backend
+
+      - name: Run tests
+        run: npm test --silent
+        working-directory: Backend
+        env:
+          # Keep NODE_ENV explicit for test steps
+          NODE_ENV: test
