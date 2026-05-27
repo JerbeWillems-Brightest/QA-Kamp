@@ -199,7 +199,7 @@ function buildQuestionPool(age: AgeGroup): Question[] {
       },
       {
         id: 'q2',
-        prompt: 'Wat gebeurt als iemand je wachtwoord kent?',
+        prompt: 'Wat gebeurt er als iemand je wachtwoord kent?',
         options: [
           { id: 'a', label: 'Je account wordt automatisch geblokkeerd' },
           { id: 'b', label: 'Ze kunnen je account gebruiken' },

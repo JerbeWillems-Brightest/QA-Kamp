@@ -1129,15 +1129,14 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
         let rect = canvasEl.getBoundingClientRect()
         let tries = 0
         while ((rect.width === 0 || rect.height === 0) && tries < 8) {
-          // small delay
           await new Promise((r) => setTimeout(r, 50))
           rect = canvasEl.getBoundingClientRect()
           tries += 1
         }
-        if (rect.width === 0 || rect.height === 0) {
-          // give up gracefully if canvas still has no size
-          return
-        }
+        if (rect.width === 0 || rect.height === 0) return
+
+        // ensure pixel dimensions match layout before init
+        try { canvasEl.width = Math.round(rect.width); canvasEl.height = Math.round(rect.height) } catch { /* ignore */ }
 
         // Try importing the fireworks module (primary and .ts fallback) and
         // initialize if it exports a default function.

@@ -4,6 +4,40 @@
   overflow: hidden;
 }
 
+/* Ensure BugCleanup uses the full width on all narrow viewports (under 1024px)
+   so the wallpaper fills the entire visible game area instead of only half. */
+@media (max-width: 1024px) {
+  .bugcleanup-root.pz-layout {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    border-width: 6px !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Ensure the game area fills the single column */
+  .bugcleanup-root.pz-layout > .game-area,
+  .bugcleanup-root.pz-layout .game-area,
+  .bugcleanup-root.pz-layout .bc-area {
+    width: 100% !important;
+    height: calc(100vh - var(--nav-height) - var(--bottombar-height)) !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  /* Make wallpaper cover the whole game-area (fills width AND height)
+     so there are no black strips on narrower viewports. Use cover so the
+     image always fills the box; important to override other rules. */
+  .bugcleanup-root.pz-layout .bc-area {
+    background-size: cover !important;
+    background-position: center center !important;
+    background-repeat: no-repeat !important;
+    min-height: 100% !important;
+  }
+}
+
 .bc-area {
   position: absolute;
   /* allow the background wallpaper to reach the full area of the game
@@ -526,5 +560,75 @@ body.pz-end-open .bc-lag-cursor {
 @media (max-width: 480px) {
   .pz-best-top__label { font-size: 1.1rem; }
   .pz-best-top__time { font-size: 1.6rem; }
+}
+
+
+/* iPad Mini / small-tablet specific fixes for BugCleanup
+   Ensure the game-area fills the viewport on small tablets and keep
+   the progress bar pinned bottom-left for this minigame only.
+   Scoped to .bugcleanup-root so other minigames are unaffected. */
+@media (min-width: 640px) and (max-width: 820px) and (orientation: portrait) {
+  /* Force progress to be positioned inside the game-area bottom-left */
+  .bugcleanup-root .bc-progress,
+  .bugcleanup-root .bc-progress.bc-progress--local {
+    position: absolute !important;
+    left: 18px !important;
+    bottom: 18px !important;
+    width: 285px !important;
+    margin: 0 !important;
+    z-index: 980 !important;
+  }
+
+  /* Keep the score/timer pill top-left */
+  .bugcleanup-root .pz-score-stack,
+  .bugcleanup-root .pz-score {
+    position: absolute !important;
+    top: 30px !important;
+    left: 30px !important;
+    transform: none !important;
+    align-items: flex-start !important;
+    z-index: 990 !important;
+  }
+
+  /* Reduce the outer border on small tablets so the inner game doesn't get clipped */
+  .bugcleanup-root {
+    border-width: 6px !important;
+    box-sizing: border-box;
+  }
+
+  /* Reduce padding added by the .pz-layout tablet rules so the game fits */
+  .bugcleanup-root.pz-layout {
+    padding: 6px !important;
+  }
+
+  /* Ensure the game-area fills available space and doesn't overflow */
+  .bugcleanup-root.pz-layout > .game-area,
+  .bugcleanup-root.pz-layout .game-area,
+  .bugcleanup-root.pz-layout .bc-area {
+    width: 100% !important;
+    height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 12px) !important;
+    box-sizing: border-box;
+    overflow: hidden !important;
+  }
+
+  /* Make the wallpaper expand to the full width so no black strip appears */
+  .bugcleanup-root.pz-layout .bc-area {
+    background-size: 100% auto !important; /* fit full width, preserve aspect ratio */
+    background-position: bottom center !important;
+    background-repeat: no-repeat !important;
+  }
+
+  /* Remove extra padding on the root so the game area can use full viewport */
+  .bugcleanup-root.pz-layout {
+    padding: 0 !important;
+  }
+
+  /* Disable the two-column sidebar layout for small tablets so the game uses full width */
+  .bugcleanup-root.pz-layout {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 1fr !important;
+    gap: 0 !important;
+  }
 }
 

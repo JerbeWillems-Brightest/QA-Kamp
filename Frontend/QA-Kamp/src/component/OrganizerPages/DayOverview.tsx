@@ -26,8 +26,6 @@ export default function DayOverview() {
     return (d >= 1 && d <= 5) ? d - 1 : 0
   })
 
-  // responsive scale so tablet/laptop show the same visual layout as a large monitor
-  const [scale, setScale] = useState<number>(1)
   // track if another day has an active game so we can disable day tiles
   const [activeGameInfo, setActiveGameInfo] = useState<{ game?: string; day?: string } | null>(null)
    const DESIGN_WIDTH = 1200 // the width we design for (monitor)
@@ -35,16 +33,9 @@ export default function DayOverview() {
   // All days should be clickable at any time; no disabled logic.
   // (Removed previous allowedMaxIndex + auto-select rules.
 
-  useEffect(() => {
-    function updateScale() {
-      const w = window.innerWidth
-      const newScale = Math.min(1, w / DESIGN_WIDTH)
-      setScale(newScale)
-    }
-    updateScale()
-    window.addEventListener('resize', updateScale)
-    return () => window.removeEventListener('resize', updateScale)
-  }, [])
+  // Use fluid responsive layout instead of transform-based scaling. The
+  // container will use maxWidth and width:100% so it adapts to tablet/iPad
+  // widths without causing transform/coordinate mismatches.
 
   const days = [
     { name: 'Maandag', img: MaandagImg },
@@ -221,12 +212,12 @@ export default function DayOverview() {
     error: { color: '#e74c3c', marginBottom: 12 },
   }
 
-  // scale wrapper style computed at render time so it uses the latest `scale`
+  // wrapper uses fluid width with a maxWidth equal to the design width
   const scaleWrapperStyle: React.CSSProperties = {
-     width: DESIGN_WIDTH,
-     transform: `scale(${scale})`,
-     transformOrigin: 'top center',
+     maxWidth: DESIGN_WIDTH,
+     width: '100%',
      margin: '0 auto',
+     boxSizing: 'border-box'
    }
 
   useEffect(() => {

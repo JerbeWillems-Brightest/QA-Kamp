@@ -89,3 +89,4 @@ npm run dev
 - 28/04/2026 release/sprint3 v1
 - 05/05/2026 release/sprint3 v2
 - 18/05/2026 release/sprint4
+- 26/05/2026 release/sprint5
