@@ -225,6 +225,9 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     const [showPracticeStart, setShowPracticeStart] = useState(false) // "Even oefenen!" modal
     const [showPracticeEnd, setShowPracticeEnd] = useState(false) // "Het echte spel begint nu" modal
 
+    // Detect small portrait tablets (iPad Mini) to apply inline overrides
+    const [isSmallTabletPortrait, setIsSmallTabletPortrait] = useState(false)
+
   const introText = INTRO_BY_AGE[effectiveAge]
   const hintText = HINT_BY_AGE[effectiveAge]
 
@@ -676,6 +679,35 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     }
   }, [])
 
+  // Watch for small-tablet portrait matches and apply important inline styles
+  useEffect(() => {
+    try {
+      if (typeof window === 'undefined') return
+      const mq = window.matchMedia('(min-width: 640px) and (max-width: 820px) and (orientation: portrait)')
+      const apply = () => {
+        try { setIsSmallTabletPortrait(Boolean(mq.matches)) } catch { setIsSmallTabletPortrait(false) }
+        try {
+          const el = gameAreaRef.current?.querySelector('.bc-progress') as HTMLElement | null
+          if (el && mq.matches) {
+            try { el.style.setProperty('position', 'absolute', 'important') } catch { /* ignore */ }
+            try { el.style.setProperty('left', '18px', 'important') } catch { /* ignore */ }
+            try { el.style.setProperty('bottom', '18px', 'important') } catch { /* ignore */ }
+            try { el.style.setProperty('width', '285px', 'important') } catch { /* ignore */ }
+            try { el.style.setProperty('z-index', '980', 'important') } catch { /* ignore */ }
+          }
+        } catch { /* ignore */ }
+      }
+      apply()
+      try { mq.addEventListener('change', apply) } catch { try { (mq as any).addListener(apply) } catch { /* ignore */ } }
+      const onResize = () => apply()
+      window.addEventListener('resize', onResize)
+      return () => {
+        try { mq.removeEventListener('change', apply) } catch { try { (mq as any).removeListener(apply) } catch { /* ignore */ } }
+        try { window.removeEventListener('resize', onResize) } catch { /* ignore */ }
+      }
+    } catch { /* ignore */ }
+  }, [])
+
   // Do NOT unlock the global hint on mount. The hint must be locked at the
   // start of every game and only be unlocked by the game when the player's
   // mistakes in a round reach the per-age threshold.
@@ -742,6 +774,18 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
     let cleanup: (() => void) | null = null
     ;(async () => {
       try {
+        const canvasEl = fwCanvasRef.current
+        // Ensure canvas layout size is applied to pixel width/height attributes
+        if (canvasEl) {
+          const rect = canvasEl.getBoundingClientRect()
+          if (rect.width && rect.height) {
+            try {
+              canvasEl.width = Math.round(rect.width)
+              canvasEl.height = Math.round(rect.height)
+            } catch { /* ignore */ }
+          }
+        }
+
         const mod = await import('../PasswordZapper/passwordZapperFireworks')
         if (fwCanvasRef.current && typeof (mod as { default?: unknown }).default === 'function') {
           cleanup = ((mod as { default: (c: HTMLCanvasElement) => (() => void) }).default)(fwCanvasRef.current)
@@ -1013,7 +1057,20 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
   }, [showEnd, stoppedByUser, inPractice, finalScore])
 
   return (
-    <div className="pz-layout bugcleanup-root" style={{ position: 'fixed', top: 'var(--nav-height)', left: 0, right: 0, bottom: 'var(--bottombar-height)', border: '10px solid #000', boxSizing: 'border-box', zIndex: 900 }}>
+    <div
+      className="pz-layout bugcleanup-root"
+      style={{
+        position: 'fixed',
+        top: 'var(--nav-height)',
+        left: 0,
+        right: 0,
+        bottom: 'var(--bottombar-height)',
+        border: isSmallTabletPortrait ? '6px solid #000' : '10px solid #000',
+        padding: isSmallTabletPortrait ? '6px' : undefined,
+        boxSizing: 'border-box',
+        zIndex: 900
+      }}
+    >
       {!showEnd && (
         // include the legacy `bc-pill` class so tests that query for it succeed
         <div className="pz-score-stack bc-pill" style={inPractice ? { position: 'absolute', top: '8px', left: '8px' } : undefined}>
@@ -1023,23 +1080,7 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
 
       {!showEnd && feedback && <div className="pz-feedback pz-feedback--good">{feedback}</div>}
 
-      {!showEnd && (
-        <div
-          className="bc-progress"
-          role="progressbar"
-          aria-valuemin={0}
-          aria-valuemax={uiTotalBugs}
-          aria-valuenow={uiRemoved}
-          // When in practice mode place the progress bar near the bottom-left and make it compact
-          style={inPractice ? { position: 'absolute', bottom: '8px', left: '8px', width: '160px' } : undefined}
-        >
-          <div className="bc-progress-label">Bugs verwijderd</div>
-          <div className="bc-progress-track">
-            <div className="bc-progress-fill" style={{ width: `${progressPercent}%` }} />
-            <div className="bc-progress-text">{uiRemoved}/{uiTotalBugs}</div>
-          </div>
-        </div>
-      )}
+      {/* progressbar moved inside the game-area so it can be positioned relative to the game */}
 
         <div
           className="game-area bc-area"
@@ -1068,6 +1109,24 @@ export default function BugCleanupGame({ ageGroup, onEnd }: Props) {
             <img src={bugSpriteByVariant[bug.variant]} className="bc-bug-img" alt="" aria-hidden />
           </div>
         ))}
+
+        {/* Progress bar positioned inside the game-area so it remains left-bottom on small tablets */}
+        {!showEnd && (
+          <div
+            className="bc-progress bc-progress--local"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={uiTotalBugs}
+            aria-valuenow={uiRemoved}
+            style={inPractice ? { position: 'absolute', bottom: '8px', left: '8px', width: '160px' } : { position: 'absolute', bottom: '18px', left: '18px' }}
+          >
+            <div className="bc-progress-label">Bugs verwijderd</div>
+            <div className="bc-progress-track">
+              <div className="bc-progress-fill" style={{ width: `${progressPercent}%` }} />
+              <div className="bc-progress-text">{uiRemoved}/{uiTotalBugs}</div>
+            </div>
+          </div>
+        )}
 
         {!showEnd && (
           <img src={cursorSvg} alt="" aria-hidden className="bc-lag-cursor" style={{ left: `${cursorPos.x}px`, top: `${cursorPos.y}px` }} />
