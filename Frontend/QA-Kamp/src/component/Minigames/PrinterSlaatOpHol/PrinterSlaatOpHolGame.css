@@ -5,10 +5,11 @@
 .printer-office-intro {
   position: absolute;
   inset: 10px;
-  /* make the office intro background cover the available area while preserving
-     aspect ratio; center-right aligns important elements on narrower viewports */
-  background-size: cover;
-  background-position: center right;
+  /* Align with the thermostat game: default to stretching the background to
+     the available box (100% 100%) and position toward the top so important
+     UI overlays render on top of the image consistently across desktop. */
+  background-size: 100% 100%;
+  background-position: center top;
   background-repeat: no-repeat;
   height: 100%;
   overflow: hidden;
@@ -123,8 +124,11 @@
    Apply this class to any element that receives an inline background-image
    via the component so size/position/repeat are consistent across states. */
 .printer-root .game-bg {
-  background-size: cover;
-  background-position: center center;
+  /* Match thermostat: prefer stretching the wallpaper to fully fill the
+     container by default (100% 100%) so desktop and iPad show the same crop.
+     Specific breakpoints can switch to `cover` when a crop is preferred. */
+  background-size: 100% 100%;
+  background-position: center top;
   background-repeat: no-repeat;
   /* fallback while image loads */
   background-color: #000;
@@ -156,13 +160,13 @@
     box-sizing: border-box !important;
   }
 
-  /* Prefer cover so the image preserves aspect ratio while filling the box.
-     Position the image to the bottom-right on narrow screens so important
-     artwork remains visible in portrait. This mirrors the BugCleanup approach. */
+  /* Match thermostat: on narrow screens prefer `cover` only when necessary for
+     good cropping — otherwise the stretched 100% 100% base keeps consistent
+     layout between desktop and tablet. Here we keep center-top alignment. */
   .printer-root .game-bg,
   .printer-office-intro {
-    background-size: cover !important;
-    background-position: bottom right !important;
+    background-size: 100% 100% !important;
+    background-position: center top !important;
     background-repeat: no-repeat !important;
   }
 
@@ -180,6 +184,45 @@
   .printer-root.pz-layout { padding: 6px !important; border-width: 6px !important }
   .printer-root .game-area, .printer-root .game-bg { height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 12px) !important }
   .printer-root .game-bg { background-position: bottom right !important; background-size: cover !important }
+}
+
+/* Strong portrait-specific rules: ensure portrait (standing) fills both width and height
+   and that the background keeps the important right/bottom area visible. This complements
+   the generic max-width rules and handles devices that report portrait orientation. */
+@media (orientation: portrait) and (max-width: 1024px) {
+  .printer-root { max-height: none !important; border-width: 6px !important; padding: 6px !important }
+  .printer-root.pz-layout { display: grid !important; grid-template-columns: 1fr !important }
+
+  /* Force full viewport width and calculated height in portrait so the wallpaper
+     expands horizontally and vertically to the available area. */
+  .printer-root,
+  .printer-root .game-area,
+  .printer-root .bg-blur,
+  .printer-root .game-bg,
+  .printer-office-intro {
+    width: 100vw !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(100vh - var(--nav-height) - var(--bottombar-height) - 12px) !important;
+    min-height: 360px !important;
+    box-sizing: border-box !important;
+    overflow: hidden !important;
+  }
+
+  /* Use cover to preserve aspect ratio and keep the lower-right area visible */
+  .printer-root .game-bg,
+  .printer-office-intro {
+    background-size: cover !important;
+    background-position: bottom right !important;
+    background-repeat: no-repeat !important;
+  }
+
+  .printer-root .bg-blur.is-blurred,
+  .printer-root .bg-blur.no-blur {
+    width: 100% !important;
+    height: 100% !important;
+    inset: 0 !important;
+  }
 }
 
 /* Game content and modals sit above the blur */
