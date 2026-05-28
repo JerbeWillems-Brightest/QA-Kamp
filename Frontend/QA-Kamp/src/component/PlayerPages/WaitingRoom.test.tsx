@@ -1,6 +1,14 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import * as rtl from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { vi, describe, beforeEach, afterEach, test, expect } from 'vitest'
+// Some versions of the testing library package typings don't expose all helpers
+// as properties on the namespace import. Cast to any to safely access them.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+const render = (rtl as any).render
+const screen = (rtl as any).screen
+const waitFor = (rtl as any).waitFor
+const fireEvent = (rtl as any).fireEvent
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 // mock navigate so we can assert route changes
 const mockNavigate = vi.fn()
@@ -590,6 +598,343 @@ describe('WaitingRoom page', () => {
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith('/minigame?game=test&age=11-13')
+    })
+  })
+
+  // Additional branch tests
+  test('ignores activeGame for a different sessionId (no navigation)', async () => {
+    sessionStorage.setItem('playerNumber', '2')
+    sessionStorage.setItem('playerSessionId', 'sess-2')
+    localStorage.setItem('currentSessionId', 'sess-2')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    // send an activeGame for another session - should be ignored
+    const payload = { gameName: 'OtherGame', sessionId: 'sess-other', category: '11-13' }
+    window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: JSON.stringify(payload) }))
+
+    await waitFor(() => {
+      expect(mockNavigate).not.toHaveBeenCalledWith('/minigame?game=othergame&age=11-13')
+      // ensure we still show waiting UI
+      expect(screen.getByText('Maak je klaar!')).toBeInTheDocument()
+    })
+  })
+
+  test('mount with existing localStorage.activeGameInfo triggers enterGame on mount', async () => {
+    sessionStorage.setItem('playerNumber', '5')
+    sessionStorage.setItem('playerSessionId', 'sess-5')
+    // pre-populate localStorage with an activeGameInfo so mount path reads it
+    localStorage.setItem('activeGameInfo', JSON.stringify({ gameName: 'Mount Game', sessionId: 'sess-5', category: '8-10' }))
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/minigame?game=mountgame&age=8-10')
+    })
+  })
+
+  test('marks player online locally when no sessionId is present', async () => {
+    // playerNumber present but no session id (no server registration)
+    sessionStorage.setItem('playerNumber', '77')
+    sessionStorage.removeItem('playerSessionId')
+    localStorage.removeItem('currentSessionId')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      const raw = localStorage.getItem('onlinePlayers')
+      expect(raw).toBeTruthy()
+      const arr = JSON.parse(raw as string) as string[]
+      expect(arr).toContain('77')
+    })
+  })
+
+  test('beforeunload cleanup removes player from onlinePlayers', async () => {
+    sessionStorage.setItem('playerNumber', '88')
+    sessionStorage.removeItem('playerSessionId')
+    localStorage.removeItem('currentSessionId')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    // wait for registration (may be stored as '88' or padded '088')
+    await waitFor(() => {
+      const arr = JSON.parse(localStorage.getItem('onlinePlayers') || '[]') as string[]
+      expect(arr.some(x => x === '88' || x === '088')).toBeTruthy()
+    })
+
+    // dispatch beforeunload to trigger cleanup
+    window.dispatchEvent(new Event('beforeunload'))
+
+    await waitFor(() => {
+      const arr = JSON.parse(localStorage.getItem('onlinePlayers') || '[]') as string[]
+      expect(arr.every(x => x !== '88' && x !== '088')).toBeTruthy()
+    })
+  })
+
+  test('when leaderboard empty but player exists on server, do not logout (stay waiting)', async () => {
+    sessionStorage.setItem('playerNumber', '99')
+    sessionStorage.setItem('playerSessionId', 'sess-99')
+    localStorage.setItem('currentSessionId', 'sess-99')
+
+    // override api mocks for this test
+    const api = await import('../../api')
+    const mockFetchLeaderboard = vi.mocked(api.fetchLeaderboard)
+    const mockFetchPlayers = vi.mocked(api.fetchPlayersForSession)
+    mockFetchLeaderboard.mockResolvedValueOnce({ leaderboard: [] })
+    mockFetchPlayers.mockResolvedValueOnce({ players: [{ playerNumber: '99', name: 'Player99', age: 12 }] })
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    // ensure we remain on the waiting screen and are not navigated away
+    await waitFor(() => {
+      expect(screen.getByText('Maak je klaar!')).toBeInTheDocument()
+      expect(screen.getByText('Wacht tot het spel start')).toBeInTheDocument()
+      expect(mockNavigate).not.toHaveBeenCalledWith('/')
+    })
+  })
+
+  test('normalize gameName removes diacritics and spaces when entering game', async () => {
+    sessionStorage.setItem('playerNumber', '11')
+    sessionStorage.setItem('playerSessionId', 'sess-11')
+    localStorage.setItem('currentSessionId', 'sess-11')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    const payload = { gameName: 'Pässwørd Zap', sessionId: 'sess-11', category: '11-13' }
+    window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: JSON.stringify(payload) }))
+
+    await waitFor(() => {
+      // The component's normalization removes characters like 'ø' rather than
+      // transliterating them to 'o', so the resulting key is 'passwrdzap'.
+      expect(mockNavigate).toHaveBeenCalledWith('/minigame?game=passwrdzap&age=11-13')
+    })
+  })
+
+  test('supports legacy "game" key in activeGame payload', async () => {
+    sessionStorage.setItem('playerNumber', '12')
+    sessionStorage.setItem('playerSessionId', 'sess-12')
+    localStorage.setItem('currentSessionId', 'sess-12')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    const payload = { game: 'legacyGame', sessionId: 'sess-12', category: '11-13' }
+    window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: JSON.stringify(payload) }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/minigame?game=legacygame&age=11-13')
+    })
+  })
+
+  test('syncOnlinePlayers updates localStorage when server returns different list', async () => {
+    sessionStorage.setItem('playerNumber', '5')
+    sessionStorage.setItem('playerSessionId', 'sess-5')
+    localStorage.setItem('currentSessionId', 'sess-5')
+
+    // override fetchOnlinePlayers to return a different (padded) server-side list
+    const api = await import('../../api')
+    const mockFetchOnlinePlayers = vi.mocked(api.fetchOnlinePlayers)
+    mockFetchOnlinePlayers.mockResolvedValueOnce({ onlinePlayers: [{ playerNumber: '5', lastSeen: new Date().toISOString() }, { playerNumber: '123', lastSeen: new Date().toISOString() }] })
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      const raw = localStorage.getItem('onlinePlayers')
+      expect(raw).toBeTruthy()
+      const arr = JSON.parse(raw as string) as string[]
+      // syncOnlinePlayers pads numbers to 3 digits
+      expect(arr).toEqual(['005', '123'])
+    })
+  })
+
+  test('fetchPlayersForSession failure causes logout when leaderboard empty', async () => {
+    sessionStorage.setItem('playerNumber', '20')
+    sessionStorage.setItem('playerSessionId', 'sess-20')
+    localStorage.setItem('currentSessionId', 'sess-20')
+
+    const api = await import('../../api')
+    const mockFetchLeaderboard = vi.mocked(api.fetchLeaderboard)
+    const mockFetchPlayers = vi.mocked(api.fetchPlayersForSession)
+    mockFetchLeaderboard.mockResolvedValueOnce({ leaderboard: [] })
+    mockFetchPlayers.mockRejectedValueOnce(new Error('server error'))
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/')
+    })
+  })
+
+  test('setPlayerOnline error (non-online message) does not write onlinePlayers', async () => {
+    sessionStorage.setItem('playerNumber', '33')
+    sessionStorage.setItem('playerSessionId', 'sess-33')
+    localStorage.setItem('currentSessionId', 'sess-33')
+
+    const api = await import('../../api')
+    const mockSetPlayerOnline = vi.mocked(api.setPlayerOnline)
+    mockSetPlayerOnline.mockRejectedValueOnce(new Error('random failure'))
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    // since setPlayerOnline failed with a non-online message, we expect no local onlinePlayers to be written
+    await waitFor(() => {
+      const raw = localStorage.getItem('onlinePlayers')
+      // either absent or does not contain our player
+      if (raw) {
+        const arr = JSON.parse(raw as string) as string[]
+        expect(arr).not.toContain('33')
+      } else {
+        expect(raw).toBeNull()
+      }
+    })
+  })
+
+  test('server activeGameInfo null handled: navigates to /player/waiting', async () => {
+    sessionStorage.setItem('playerNumber', '44')
+    sessionStorage.setItem('playerSessionId', 'sess-44')
+    localStorage.setItem('currentSessionId', 'sess-44')
+
+    const api = await import('../../api')
+    const mockFetchLeaderboard = vi.mocked(api.fetchLeaderboard)
+    const mockGetActiveGameInfo = vi.mocked(api.getActiveGameInfo)
+    mockFetchLeaderboard.mockResolvedValueOnce({ leaderboard: [{ playerNumber: 'x', name: 'PlayerX', age: 11 }] })
+    mockGetActiveGameInfo.mockResolvedValueOnce({ activeGameInfo: null })
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/player/waiting')
+    })
+  })
+
+  test('periodic check with missing onlinePlayers logs out', async () => {
+    // player with no sessionId so check effect runs immediately
+    sessionStorage.setItem('playerNumber', '55')
+    sessionStorage.removeItem('playerSessionId')
+    localStorage.setItem('onlinePlayers', JSON.stringify([]))
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    // simulate organizer removing player via storage event (same result as periodic check)
+    window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify([]) }))
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/')
+    })
+  })
+
+  test('poll empty and server membership missing triggers logout', async () => {
+    sessionStorage.setItem('playerNumber', '66')
+    sessionStorage.setItem('playerSessionId', 'sess-66')
+    localStorage.setItem('currentSessionId', 'sess-66')
+
+    const api = await import('../../api')
+    const mockFetchLeaderboard = vi.mocked(api.fetchLeaderboard)
+    const mockFetchPlayers = vi.mocked(api.fetchPlayersForSession)
+    mockFetchLeaderboard.mockResolvedValueOnce({ leaderboard: [] })
+    mockFetchPlayers.mockResolvedValueOnce({ players: [{ playerNumber: '999', name: 'P999', age: 10 }] })
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith('/')
+    })
+  })
+
+  test('invalid localStorage onlinePlayers JSON is handled gracefully by markOnline', async () => {
+    sessionStorage.setItem('playerNumber', '77')
+    sessionStorage.removeItem('playerSessionId')
+    // set invalid JSON
+    localStorage.setItem('onlinePlayers', 'not-a-json')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    await waitFor(() => {
+      const raw = localStorage.getItem('onlinePlayers')
+      expect(raw).toBeTruthy()
+      const arr = JSON.parse(raw as string) as string[]
+      expect(arr).toContain('77')
+    })
+  })
+
+  test('cleanup beforeunload removes player from onlinePlayers when sessionId present', async () => {
+    sessionStorage.setItem('playerNumber', '88')
+    sessionStorage.setItem('playerSessionId', 'sess-88')
+    localStorage.setItem('currentSessionId', 'sess-88')
+
+    render(
+      <BrowserRouter>
+        <WaitingRoom />
+      </BrowserRouter>
+    )
+
+    // wait for registration (may be stored as '88' or padded '088')
+    await waitFor(() => {
+      const arr = JSON.parse(localStorage.getItem('onlinePlayers') || '[]') as string[]
+      expect(arr.some(x => x === '88' || x === '088')).toBeTruthy()
+    })
+
+    // dispatch beforeunload to trigger cleanup
+    window.dispatchEvent(new Event('beforeunload'))
+
+    await waitFor(() => {
+      const arr = JSON.parse(localStorage.getItem('onlinePlayers') || '[]') as string[]
+      expect(arr.every(x => x !== '88' && x !== '088')).toBeTruthy()
     })
   })
 })

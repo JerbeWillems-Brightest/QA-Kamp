@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useLayoutEffect } from 'react'
 import PasswordZapperGame from './PasswordZapper/PasswordZapperGame.tsx'
 import PrinterSlaatOpHolGame from './PrinterSlaatOpHol/PrinterSlaatOpHolGame.tsx'
 import BugCleanupGame from './BugCleanup/BugCleanupGame.tsx'
@@ -255,7 +255,7 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
   }, [game, ageGroup])
 
   // Listen for organizer actions (stop, kick, session end, onlinePlayers change)
-  useEffect(() => {
+  useLayoutEffect(() => {
     function handleCustom(ev: Event) {
       try {
         const ce = ev as CustomEvent

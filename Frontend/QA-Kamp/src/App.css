@@ -721,39 +721,6 @@ body, #root { word-break: break-word; overflow-wrap: break-word; }
     touch-action: manipulation;
   }
 
-  /* Ensure controls & help are positioned relative to the visible game area
-     on tablet/iPad sizes so they never end up half off-screen. Position the
-     controls absolutely inside the .pz-layout and anchor the help button with
-     a clamped bottom value that takes the bottom bar + safe-area inset into
-     account (similar to how .pz-progress/.pz-score are anchored). */
-  .pz-layout {
-    overflow: visible; /* allow floating buttons to be fully visible */
-  }
-
-  .pz-layout .pz-controls {
-    position: absolute;
-    top: 12px; /* like .pz-score top offset */
-    right: 30px;
-    gap: 6px; /* reduce horizontal gap so controls occupy less width */
-    z-index: 1100;
-  }
-
-  .pz-layout .pz-btn {
-    width: 48px;
-    height: 48px;
-    min-height: 48px;
-  }
-
-  .pz-layout .pz-help {
-    position: absolute;
-    right: 30px;
-    /* anchor above bottombar and respect safe-area; ensure at least 24px from bottom */
-    bottom: max(calc(var(--bottombar-height) + 24px + env(safe-area-inset-bottom)), 24px);
-    width: 56px;
-    height: 56px;
-    z-index: 1100;
-  }
-
   /* Ensure interactive game elements accept pointer events on touch devices */
   .bc-bug, .bc-lag-cursor, .pz-ship, .pz-asteroid, .pz-asteroid img, .pz-comet {
     pointer-events: auto;
