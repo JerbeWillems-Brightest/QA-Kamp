@@ -88,6 +88,73 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('user')).toBeNull()
   })
 
+  // Test: als localStorage iets bevat wat geen geldige JSON is,
+  // moet de provider niet crashen en defaulten naar null.
+  it('handles malformed localStorage JSON gracefully', () => {
+    localStorage.setItem('user', '{ this is : not json')
+
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    )
+
+    // should fallback to null user rather than throwing, and the provider
+    // effect will remove the malformed item from localStorage.
+    expect(screen.getByTestId('user').textContent).toBe('null')
+    expect(localStorage.getItem('user')).toBeNull()
+  })
+
+  // Test: meerdere login-aanroepen overschrijven de huidige user
+  it('multiple login() calls update context and localStorage to the latest user', () => {
+    function TwoLoginConsumer() {
+      const { user, login } = useAuth()
+      return (
+        <div>
+          <div data-testid="user">{user ? JSON.stringify(user) : 'null'}</div>
+          <button onClick={() => login({ id: '1', email: 'first@me', name: 'First' })}>login first</button>
+          <button onClick={() => login({ id: '2', email: 'second@me', name: 'Second' })}>login second</button>
+        </div>
+      )
+    }
+
+    render(
+      <AuthProvider>
+        <TwoLoginConsumer />
+      </AuthProvider>
+    )
+
+    const firstBtn = screen.getByRole('button', { name: /login first/i })
+    const secondBtn = screen.getByRole('button', { name: /login second/i })
+
+    fireEvent.click(firstBtn)
+    expect(screen.getByTestId('user').textContent).toContain('first@me')
+    expect(JSON.parse(localStorage.getItem('user') || '{}')).toMatchObject({ id: '1', email: 'first@me' })
+
+    fireEvent.click(secondBtn)
+    expect(screen.getByTestId('user').textContent).toContain('second@me')
+    expect(JSON.parse(localStorage.getItem('user') || '{}')).toMatchObject({ id: '2', email: 'second@me' })
+  })
+
+  // Test: logout oproepen als er geen ingelogde user is mag geen fout geven
+  it('logout() is a no-op when there is no user', () => {
+    render(
+      <AuthProvider>
+        <TestConsumer />
+      </AuthProvider>
+    )
+
+    // ensure initially null
+    expect(screen.getByTestId('user').textContent).toBe('null')
+
+    const logoutBtn = screen.getByRole('button', { name: /logout/i })
+    // should not throw
+    fireEvent.click(logoutBtn)
+
+    expect(screen.getByTestId('user').textContent).toBe('null')
+    expect(localStorage.getItem('user')).toBeNull()
+  })
+
   // Test: controleert dat useAuth een fout gooit als het buiten
   // een AuthProvider wordt gebruikt (protectie tegen verkeerd gebruik).
   it('useAuth throws when used outside of provider', () => {

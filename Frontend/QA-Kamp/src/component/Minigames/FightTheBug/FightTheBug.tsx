@@ -1665,7 +1665,7 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
           <div className="pz-best-top">
             <div id="ftb-highscore" className="pz-best-top__label">
               Hoogste score: <span id="ftb-highscore-value" className="pz-best-top__time">{highScore ?? Math.max(0, Math.round(playerEnergy))}</span>
-              {isNewHigh && <span id="ftb-new-high" style={{ marginLeft: 10, fontWeight: 700, color: '#166534' }}>Nieuw!</span>}
+              {isNewHigh && <span id="ftb-new-high" className="pz-new-record">Nieuw!</span>}
             </div>
           </div>
           <div id="ftb-end-box" className="pz-end-box">
