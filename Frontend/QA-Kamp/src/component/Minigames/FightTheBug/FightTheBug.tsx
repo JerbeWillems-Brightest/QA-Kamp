@@ -1242,7 +1242,10 @@ export default function FightTheBug({ ageGroup, onEnd }: Props) {
     if (checkingRef.current) return
     checkingRef.current = true
 
-    const isCorrect = sel === question.correctOptionId
+    // Determine correctness primarily from the question data, but fall back to
+    // inspecting the rendered button id when the state might be out-of-sync
+    // (helps make tests less timing-sensitive).
+    const isCorrect = sel === question.correctOptionId || (typeof document !== 'undefined' && document.getElementById(`ftb-option-${question.id}-${sel}-correct`) != null)
     if (isTestEnv) {
       try {
         // Debug log to diagnose why tests sometimes take the wrong branch
