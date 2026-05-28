@@ -2226,7 +2226,7 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
                     ) : (
                       // less than 100%: encouraging lines
                       <>
-                        <li>je bent goed op web</li>
+                        <li>je bent goed op weg</li>
                         <li>probeer opnieuw en verbeter je score</li>
                       </>
                     )}
