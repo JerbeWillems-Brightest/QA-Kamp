@@ -380,3 +380,74 @@ describe('api/index', () => {
   })
 })
 
+// Additional tests to increase branch coverage for api/index.tsx
+describe('additional branch coverage', () => {
+  it('fetchPlayersRawForSession: returns raw players and surfaces plain-string errors', async () => {
+    // success -> returns raw list
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ players: [{ foo: 'bar' }] }) })) as unknown as typeof fetch
+    const raw = await api.fetchPlayersRawForSession('s')
+    expect(raw.players[0].foo).toBe('bar')
+
+    // error -> plain string body should surface
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve('plain err') })) as unknown as typeof fetch
+    await expect(api.fetchPlayersRawForSession('s')).rejects.toThrow('plain err')
+  })
+
+  it('fetchLeaderboard: sums explicit per-game keys and nested highscores and ignores legacy score when per-game present', async () => {
+    const backend = {
+      leaderboard: [
+        {
+          playerNumber: '1',
+          name: 'A',
+          age: 1,
+          // explicit per-game keys and nested highscores should be counted
+          score_passwordzapper: '3',
+          highscores: { printerslaatophol: '2' },
+          // legacy `score` must be ignored because per-game keys were found
+          score: '99',
+        },
+      ],
+    }
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
+    const lb = await api.fetchLeaderboard('s')
+    const lbItemA = lb.leaderboard[0] as unknown as { score?: number }
+    expect(lbItemA.score).toBe(5) // 3 + 2, not 99
+  })
+
+  it('fetchLeaderboard: non-numeric per-game values fall back to legacy numeric score', async () => {
+    const backend = {
+      leaderboard: [
+        {
+          playerNumber: '2',
+          name: 'B',
+          age: 2,
+          // per-game present but non-numeric -> should be ignored and legacy score used
+          score_passwordzapper: 'x',
+          score: '7',
+        },
+      ],
+    }
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
+    const lb = await api.fetchLeaderboard('s')
+    const lbItemB = lb.leaderboard[0] as unknown as { score?: number }
+    expect(lbItemB.score).toBe(7)
+  })
+
+  it('postPlayerHeartbeat: non-ok response throws an Error with status attached', async () => {
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ message: 'srv' }) })) as unknown as typeof fetch
+    await expect(api.postPlayerHeartbeat('s', '1')).rejects.toMatchObject({ message: 'srv', status: 500 })
+  })
+
+  it('setActiveGameInfo: non-ok and json() rejects -> falls back to Unknown error via catch path', async () => {
+    // Simulate server returning non-ok and json() rejects
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 422, json: () => Promise.reject(new Error('bad json')) })) as unknown as typeof fetch
+    await expect(api.setActiveGameInfo('s', { foo: 'x' })).rejects.toThrow('Unknown error')
+  })
+
+  it('createSession: extractId prefers .id over ._id when normalizing organizerId', async () => {
+    const fake = { session: { _id: 'sid', organizerId: { id: 'orgX' }, createdAt: 't' } }
+    globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(fake) })) as unknown as typeof fetch
+    const res = await api.createSession('o')
+    expect(res.session?.organizerId).toBe('orgX')
+  })
+})
