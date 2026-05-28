@@ -185,11 +185,9 @@ const HINT_BY_AGE: Record<AgeGroup, string[]> = {
   '14-16': ['De lamp moet aan in de nacht']
 }
 
-const END_TIP_BY_AGE: Record<AgeGroup, string> = {
-  '8-10': 'Lees de zin hardop: klopt het nog steeds?',
-  '11-13': 'Kijk goed naar ALS/EN/DAN en controleer de betekenis van je keuze.',
-  '14-16': 'Controleer de logica: welke conditie hoort bij THEN en wat gebeurt er in ELSE?'
-}
+// (end-screen tips per age were previously defined here but are no longer
+// used; the end-screen text is now controlled directly in the render
+// based on percent/stoppedByUser.)
 
 const POSITIVE_FEEDBACK = ['Goed!', 'Top!', 'Super!', 'Helemaal juist!', 'Nice!']
 const NEGATIVE_FEEDBACK = ['Fout!', 'Helaas!', 'Probeer opnieuw.']
@@ -2212,9 +2210,26 @@ export default function NietZoSlimmeThermostaat({ ageGroup, onEnd }: Props) {
 
               <div className="pz-end-right">
                 <div id="nzs-tips-card" className="pz-tips-card">
-                  <h3 id="nzs-end-title">{stoppedByUser ? 'Spel gestopt, geen score' : 'Performantie tip'}</h3>
+                  {/* End screen title and tips: show different messages when the
+                      game was stopped by the user, when the player achieved 100%
+                      or when the player scored less than 100%. */}
+                  <h3 id="nzs-end-title">{
+                    stoppedByUser ? 'Spel gestopt, geen score' : (percent === 100 ? 'perfect gedaan' : 'blijf proberen')
+                  }</h3>
+
                   <ul>
-                    <li id="nzs-end-tip">{stoppedByUser ? 'Je spel is gestopt en er is geen score opgeslagen.' : END_TIP_BY_AGE[effectiveAge]}</li>
+                    {stoppedByUser ? (
+                      <li id="nzs-end-tip">Je spel is gestopt en er is geen score opgeslagen.</li>
+                    ) : percent === 100 ? (
+                      // 100%: single congratulatory line
+                      <li id="nzs-end-tip">goed gedaan, je hebt het spel perfect gespeeld</li>
+                    ) : (
+                      // less than 100%: encouraging lines
+                      <>
+                        <li>je bent goed op web</li>
+                        <li>probeer opnieuw en verbeter je score</li>
+                      </>
+                    )}
                   </ul>
                   <div className="pz-end-actions">
                     <button id="nzs-play-again" className="pz-play-again" onClick={restartGame}>Opnieuw spelen</button>

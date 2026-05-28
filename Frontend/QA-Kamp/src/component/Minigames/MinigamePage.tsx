@@ -43,6 +43,24 @@ const practiceControlHide = `
   }
 `
 
+// Ensure the floating "vraag" (help) button is positioned correctly on
+// devices with display insets (iPad notch / home indicator) and on tablet
+// breakpoints. We inject this inline so the minigame page always respects
+// safe-area insets even when a component-level stylesheet doesn't include it.
+const helpButtonSafe = `
+  .pz-help {
+    /* Respect bottom safe-area (home indicator) and any in-app bottombar height */
+    bottom: max(calc(var(--bottombar-height, 0px) + 24px + env(safe-area-inset-bottom, 0px)), 24px);
+    /* keep a consistent right offset while also accounting for safe-area on the right */
+    right: calc(30px + env(safe-area-inset-right, 0px));
+  }
+
+  /* Slightly reduce size on tablet widths so the button doesn't overlap content */
+  @media (min-width: 600px) and (max-width: 1100px) {
+    .pz-help { width: 56px; height: 56px; }
+  }
+`
+
 function useQuery() {
   return new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
 }
@@ -423,8 +441,9 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
 
   // render fullscreen container. We intentionally omit the back button and title
   return (
-    <div className="pz-root">
+      <div className="pz-root">
       <style>{practiceControlHide}</style>
+      <style>{helpButtonSafe}</style>
       {game === 'passwordzapper' || game === 'printerslaatophol' || game === 'bugcleanup' || game === 'slimmethermostaat' || game === 'nietzoslimmethermostaat' || game === 'fightthebug' ? (
         <>
           {/* compute support flag to avoid TS narrowing issues in JSX */}
