@@ -106,23 +106,24 @@ const MISTAKES_HINT_THRESHOLD: Record<AgeGroup, number> = {
 const INTRO_BY_AGE: Record<AgeGroup, string[]> = {
   '8-10': [
     'De Bug valt je aan met vragen en opdrachten.',
-    'Kies het juiste antwoord of voer de juiste actie uit.',
+    'Kies het juiste antwoord.',
     'Bij een juist antwoord verliest de Bug energie.',
     'Maak je een fout? Dan verlies jij energie.',
     'Versla de Bug door zoveel mogelijk juiste antwoorden te geven!'
   ],
   '11-13': [
-    'De Bug valt je aan met vragen en opdrachten.',
-    'Kies het juiste antwoord of voer de juiste actie uit.',
-    'Bij een juist antwoord verliest de Bug energie.',
-    'Maak je een fout? Dan verlies jij energie.',
-    'Versla de Bug door 10 correcte antwoorden te geven.'
+      'De Bug valt je aan met vragen en opdrachten.',
+      'Kies het juiste antwoord.',
+      'Bij een juist antwoord verliest de Bug energie.',
+      'Maak je een fout? Dan verlies jij energie.',
+      'Versla de Bug door zoveel mogelijk juiste antwoorden te geven!'
   ],
   '14-16': [
-    'De Bug valt je aan met vragen en opdrachten.',
-    'Kies het juiste antwoord (soms met pseudocode).',
-    'Juist = Bug -10 energie, fout = Jij -10 energie.',
-    'Versla de Bug door 10 correcte antwoorden te geven.'
+      'De Bug valt je aan met vragen en opdrachten.',
+      'Kies het juiste antwoord.',
+      'Bij een juist antwoord verliest de Bug energie.',
+      'Maak je een fout? Dan verlies jij energie.',
+      'Versla de Bug door zoveel mogelijk juiste antwoorden te geven!'
   ]
 }
 
