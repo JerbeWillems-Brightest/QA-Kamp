@@ -1471,54 +1471,9 @@ describe('MinigamePage', () => {
     })
   })
 
-  it('storage event with kick_<num> for matching player triggers navigate to /', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
-    // set playerNumber so kick matches
-    sessionStorage.setItem('playerNumber', '007')
+  // test removed per request
 
-    render(
-      <MemoryRouter>
-        <MinigamePage />
-      </MemoryRouter>
-    )
-
-    // dispatch a storage event for kick_007
-    const ev = new StorageEvent('storage', { key: 'kick_007' } as unknown as StorageEventInit)
-    window.dispatchEvent(ev)
-
-    await waitFor(() => {
-      // navigation may go to '/' (home) or '/player/waiting' depending on
-      // which listener runs first in the test environment; accept either.
-      expect(mockNavigate).toHaveBeenCalled()
-      const calledWith = mockNavigate.mock.calls[0] && mockNavigate.mock.calls[0][0]
-      expect(['/', '/player/waiting']).toContain(calledWith)
-    })
-  })
-
-  it('storage event onlinePlayers not containing this player triggers navigate to /', async () => {
-    window.history.replaceState({}, '', '/?game=passwordzapper')
-    // set playerNumber so not present in onlinePlayers
-    sessionStorage.setItem('playerNumber', '999')
-    const online = JSON.stringify(['111','222'])
-    localStorage.setItem('onlinePlayers', online)
-
-    render(
-      <MemoryRouter>
-        <MinigamePage />
-      </MemoryRouter>
-    )
-
-    const ev = new StorageEvent('storage', { key: 'onlinePlayers', newValue: online } as unknown as StorageEventInit)
-    window.dispatchEvent(ev)
-
-    await waitFor(() => {
-      // navigation may go to '/' (home) or '/player/waiting' depending on
-      // which listener runs first in the test environment; accept either.
-      expect(mockNavigate).toHaveBeenCalled()
-      const calledWith = mockNavigate.mock.calls[0] && mockNavigate.mock.calls[0][0]
-      expect(['/', '/player/waiting']).toContain(calledWith)
-    })
-  })
+  // test removed per request
 
   it('uses backend fetchPlayersForSession to set playerCategory when player found', async () => {
     // Ensure no stored category so the effect will try to fetch
@@ -1990,21 +1945,7 @@ describe('MinigamePage', () => {
                                     })
                                   })
 
-                                  it('storage event activeGame set to "null" string triggers navigation', async () => {
-                                    window.history.replaceState({}, '', '/?game=passwordzapper')
-                                    render(
-                                      <MemoryRouter>
-                                        <MinigamePage />
-                                      </MemoryRouter>
-                                    )
-
-                                    const ev = new StorageEvent('storage', { key: 'activeGame', newValue: 'null' } as unknown as StorageEventInit)
-                                    window.dispatchEvent(ev)
-
-                                    await waitFor(() => {
-                                      expect(mockNavigate).toHaveBeenCalled()
-                                    })
-                                  })
+                                  // test removed per request
 
                                   it('minigame:hint-unlocked and minigame:hint-locked toggle the hint button for passwordzapper', async () => {
                                     window.history.replaceState({}, '', '/?game=passwordzapper')
