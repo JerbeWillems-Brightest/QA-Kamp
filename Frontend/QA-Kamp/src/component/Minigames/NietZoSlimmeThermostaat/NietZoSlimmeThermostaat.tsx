@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import type { ApiPlayer } from '../../../api'
 import './NietZoSlimmeThermostaat.css'
 import '../PasswordZapper/PasswordZapperGame.css'
 // background image for thermostat (correct assets path)
@@ -108,52 +109,123 @@ function inferAgeGroup(value?: string | null): AgeGroup {
   return '11-13'
 }
 
-// Highscore helper (inlined so this file is self-contained like other games)
-const API_BASE = (typeof import.meta !== 'undefined' ? (import.meta as unknown as { env?: { VITE_API_BASE?: string } }).env?.VITE_API_BASE : undefined) || '/api'
-type HighscorePayload = { game: string; player: string; score: number; [k: string]: unknown }
-const PENDING_KEY = 'pz_pending_highscores'
+  // Highscore helper: persist to session player doc (per-game field + aggregated score)
+  type HighscorePayload = { game: string; player?: string; score: number; [k: string]: unknown }
+  const PENDING_KEY = 'pz_pending_highscores'
 
-async function sendHighscore(game: string, player: string, score: number, extra: Record<string, unknown> = {}) {
-  const payload: HighscorePayload = { game, player, score, ...extra }
-  try {
-    const res = await fetch(`${API_BASE}/highscores`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`Highscore POST failed: ${res.status} ${text}`)
-    }
-    return await res.json()
-  } catch (err) {
+  function normalizeGameKey(game: string) {
+    return String(game || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+  }
+
+  async function sendHighscore(game: string, player: string | undefined, score: number, extra: Record<string, unknown> = {}) {
+    const payload: HighscorePayload = { game, player, score, ...extra }
     try {
-      const cur = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as Array<Record<string, unknown>>
-      cur.push({ payload, ts: Date.now() })
-      localStorage.setItem(PENDING_KEY, JSON.stringify(cur))
-    } catch { /* ignore */ }
-    throw err
-  }
-}
+      const sessionStorageId = sessionStorage.getItem('playerSessionId')
+      const localStorageId = localStorage.getItem('currentSessionId')
+      const sid = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
+      const playerNumberRaw = sessionStorage.getItem('playerNumber') || ''
+      if (!sid || !playerNumberRaw) throw new Error('No session/player available')
 
-async function retryPendingHighscores(): Promise<void> {
-  try {
-    const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as Array<{ payload: HighscorePayload }>
-    if (!pending || pending.length === 0) return
-    const remaining: Array<typeof pending[0]> = []
-    for (const item of pending) {
+      const normalizedPlayerNumber = String((playerNumberRaw || '').toString().replace(/\D/g, '')).padStart(3, '0')
+      const gameKey = normalizeGameKey(game)
+      const scoreField = `score_${gameKey}`
+
+      const api = await import('../../../api')
+      let found: Record<string, unknown> | undefined = undefined
+      let otherGameTotal = 0
+      let foundCategory: string | undefined = undefined
       try {
-        await sendHighscore(item.payload.game, item.payload.player, item.payload.score, Object.assign({}, item.payload))
+        const pResp = await api.fetchPlayersRawForSession(sid)
+        const list = (pResp && (pResp as { players?: unknown[] }).players) || []
+        found = (list as Record<string, unknown>[]).find((p) => {
+          const pn = String(p['playerNumber'] ?? p['nummer'] ?? '')
+          return pn.padStart(3, '0') === normalizedPlayerNumber || pn === normalizedPlayerNumber
+        })
+        if (found) {
+          try {
+            for (const k of Object.keys(found)) {
+              const lk = k.toLowerCase()
+              if (lk.includes('score') || lk.includes('highscore')) {
+                if (lk === scoreField.toLowerCase()) continue
+                const raw = found[k]
+                const n = typeof raw === 'number' ? raw : (typeof raw === 'string' ? Number(raw) : NaN)
+                if (!Number.isNaN(n)) otherGameTotal += Number(n)
+              }
+            }
+
+          } catch { /* ignore */ }
+          const catVal = found['category']
+          if (typeof catVal === 'string' && catVal) foundCategory = catVal
+        }
       } catch {
-        remaining.push(item)
+        // ignore and proceed optimistic
       }
+
+      let shouldUpdate = true
+      try {
+        if (found) {
+          const rawG = found[scoreField]
+          let existingGameScore: number | undefined = undefined
+          if (typeof rawG === 'number' && !Number.isNaN(rawG)) existingGameScore = Number(rawG)
+          else if (typeof rawG === 'string' && rawG.trim() !== '' && !Number.isNaN(Number(rawG))) existingGameScore = Number(rawG)
+          if (typeof existingGameScore === 'number' && !Number.isNaN(existingGameScore) && existingGameScore >= score) shouldUpdate = false
+        }
+      } catch { /* ignore */ }
+
+      if (shouldUpdate) {
+        const aggregated = Number.isNaN(otherGameTotal as unknown as number) ? score : (score + otherGameTotal)
+        const payloadObj: Record<string, unknown> = {}
+        payloadObj[scoreField] = score
+        payloadObj['score'] = aggregated
+        if (foundCategory) payloadObj['category'] = foundCategory
+          try {
+            await api.updatePlayerInSession(sid, normalizedPlayerNumber, payloadObj as unknown as ApiPlayer)
+          } catch {
+            await new Promise((r) => setTimeout(r, 250))
+            const payload2: Record<string, unknown> = {}
+            payload2[scoreField] = score
+            if (foundCategory) payload2['category'] = foundCategory
+            await api.updatePlayerInSession(sid, normalizedPlayerNumber, payload2 as unknown as ApiPlayer)
+          }
+
+        try {
+          const key = 'pz_score_update'
+          const msg = JSON.stringify({ sessionId: sid, playerNumber: normalizedPlayerNumber, score, ts: Date.now() })
+          localStorage.setItem(key, msg)
+          try { window.dispatchEvent(new StorageEvent('storage', { key, newValue: msg })) } catch { /* ignore */ }
+          try { window.dispatchEvent(new CustomEvent('pz_score_update', { detail: { sessionId: sid, playerNumber: normalizedPlayerNumber, score, ts: Date.now() } })) } catch { /* ignore */ }
+        } catch { /* ignore */ }
+        return { success: true }
+      }
+
+      return { success: false }
+    } catch (err) {
+      try {
+        const cur = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as Array<Record<string, unknown>>
+        cur.push({ payload, ts: Date.now() })
+        localStorage.setItem(PENDING_KEY, JSON.stringify(cur))
+      } catch { /* ignore */ }
+      throw err
     }
-    localStorage.setItem(PENDING_KEY, JSON.stringify(remaining))
-  } catch {
-    // ignore
   }
-}
+
+  async function retryPendingHighscores(): Promise<void> {
+    try {
+      const pending = JSON.parse(localStorage.getItem(PENDING_KEY) || '[]') as Array<{ payload: HighscorePayload }>
+      if (!pending || pending.length === 0) return
+      const remaining: Array<typeof pending[0]> = []
+      for (const item of pending) {
+        try {
+          await sendHighscore(item.payload.game, item.payload.player, item.payload.score, Object.assign({}, item.payload))
+        } catch {
+          remaining.push(item)
+        }
+      }
+      localStorage.setItem(PENDING_KEY, JSON.stringify(remaining))
+    } catch {
+      // ignore
+    }
+  }
 
 const MISTAKES_HINT_THRESHOLD: Record<AgeGroup, number> = {
   '8-10': 1,
