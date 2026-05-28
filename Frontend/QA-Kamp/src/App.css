@@ -721,6 +721,14 @@ body, #root { word-break: break-word; overflow-wrap: break-word; }
     touch-action: manipulation;
   }
 
+  /* Move the help/question (vraag) button higher on iPad/tablet sizes so it
+     doesn't overlap the bottom UI and avoids creating a vertical scrollbar.
+     Use a selector scoped under .pz-layout for higher specificity so the
+     override applies across minigames that render inside the layout. */
+  .pz-layout .pz-help {
+    bottom: 110px; /* raise the button */
+    right: 30px;
+  }
   /* Ensure interactive game elements accept pointer events on touch devices */
   .bc-bug, .bc-lag-cursor, .pz-ship, .pz-asteroid, .pz-asteroid img, .pz-comet {
     pointer-events: auto;
