@@ -724,10 +724,34 @@ body, #root { word-break: break-word; overflow-wrap: break-word; }
   /* Move the help/question (vraag) button higher on iPad/tablet sizes so it
      doesn't overlap the bottom UI and avoids creating a vertical scrollbar.
      Use a selector scoped under .pz-layout for higher specificity so the
-     override applies across minigames that render inside the layout. */
+     override applies across minigames that render inside the layout.
+
+     Increase the bottom offset on tablets because some iPad variants have a
+     taller footer/bottom-bar and the previous value (110px) still sat too
+     low. Use a calc with the bottom bar variable so the button stays above
+     the footer on all configurations. */
+  /* Reduce spacing between the top controls and the floating help button on iPad
+     so the help button moves up earlier and avoids overlapping game UI. We
+     reduce the control gap and slightly shrink touch targets on tablets, and
+     move the help button up using a smaller offset that includes the safe-area
+     inset for devices with a home indicator. */
+  .pz-layout .pz-controls {
+    gap: 6px; /* smaller horizontal gap between hint/pause so they occupy less space */
+    top: 12px; /* nudge controls slightly closer to the top on tablets */
+  }
+
+  .pz-layout .pz-btn {
+    width: 48px; /* slightly smaller circular buttons on tablets */
+    height: 48px;
+    min-height: 48px;
+  }
+
   .pz-layout .pz-help {
-    bottom: 110px; /* raise the button */
+    /* position the button above footer + smaller extra spacing so it rises sooner */
+    bottom: calc(var(--bottombar-height) + 96px + env(safe-area-inset-bottom));
     right: 30px;
+    width: 56px; /* match a bit larger help button for discoverability */
+    height: 56px;
   }
   /* Ensure interactive game elements accept pointer events on touch devices */
   .bc-bug, .bc-lag-cursor, .pz-ship, .pz-asteroid, .pz-asteroid img, .pz-comet {
