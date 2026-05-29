@@ -1,4 +1,3 @@
-// Small seeding runner that can be run manually with `npm run seed`
 import dotenv from 'dotenv'
 dotenv.config()
 

@@ -8,6 +8,9 @@ let mongod
 let app
 let Organizer
 
+// Test suite: Users routes (compiled)
+// Deze suite test CRUD-operaties voor Organizer (users) tegen de gecompileerde API.
+// Ook bevat het helpers die verschillende response vormen normaliseren.
 describe('Users routes (compiled)', function() {
   // Helper to normalize id from several possible response shapes
   function getId(body) {
@@ -32,6 +35,7 @@ describe('Users routes (compiled)', function() {
     if (mongod) await mongod.stop()
   })
 
+  // Test: volledige CRUD-flow voor organizers: create, list, get, update, delete
   it('can create, list, get, update and delete organizers', async function() {
     // create
     const createRes = await request(app).post('/api/users').send({ email: 'u1@qa.test', password: 'P1', name: 'U1' })
@@ -59,6 +63,7 @@ describe('Users routes (compiled)', function() {
     expect(delRes.status).to.equal(200)
   })
 
+  // Test: oefen getId helper-paden (verschillende response vormen)
   it('coverage: exercises getId branches', function() {
     expect(getId({ _id: 'x1' })).to.equal('x1')
     expect(getId({ id: 'x2' })).to.equal('x2')
@@ -68,4 +73,3 @@ describe('Users routes (compiled)', function() {
     expect(getId({})).to.equal('')
   })
 })
-
