@@ -20,19 +20,14 @@ export default function StartSession(){
             return
         }
 
-        // refresh sessions in context and navigate to latest if present
         (async () => {
             try {
                 await refreshSessions()
-                // getSessions was called in the context; the context will hold the latest session
-                // navigate on next render if the session exists via setCurrentSessionId call after creation
             } catch (err) {
                 console.error('Failed to refresh sessions', err)
             }
         })()
     }, [auth.user, navigate, refreshSessions])
-
-    // if a session exists in context, go to the day overview automatically
     useEffect(() => {
       if (currentSession && currentSession.id) {
         navigate('/day-overview')

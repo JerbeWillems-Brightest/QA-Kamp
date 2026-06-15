@@ -33,6 +33,9 @@ describe('ManagePlayers (merged tests)', () => {
 
   // Test: controleert dat de pagina header en de actieknoppen rendert
   it('renders header and action buttons', () => {
+    // Arrange: render de component binnen de benodigde providers
+    // Act: geen user-interactie nodig; we controleren de initiële UI
+    // Assert: de header en de verwachte actieknoppen zijn zichtbaar
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -51,7 +54,10 @@ describe('ManagePlayers (merged tests)', () => {
 
   // Test: toont boodschap en import-knop wanneer er geen spelers zijn
   it('shows message when no players and shows import button', () => {
+    // Arrange: simuleer geen spelers beschikbaar
     mockFetchPlayers.mockResolvedValue({ players: [] })
+    // Act: render de component
+    // Assert: de instructie en import-knop moeten zichtbaar zijn
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -68,6 +74,7 @@ describe('ManagePlayers (merged tests)', () => {
 
   // Test: verbergt de import-knop wanneer er reeds spelers bestaan
   it('hides import button when players exist', async () => {
+    // Arrange: API retourneert bestaande spelers en er is een currentSessionId
     const players = [{ playerNumber: '101', name: 'alice', age: 10 }]
     mockFetchPlayers.mockResolvedValue({ players })
     localStorage.setItem('currentSessionId', 's1')
@@ -82,12 +89,14 @@ describe('ManagePlayers (merged tests)', () => {
       </MemoryRouter>
     )
 
+    // Assert: import-knop is verborgen en 'Spelers toevoegen' blijft aanwezig
     await waitFor(() => expect(screen.queryByText(/Spelers importeren/i)).toBeNull())
     expect(screen.getByText(/Spelers toevoegen/i)).toBeDefined()
   })
 
   // Test: rendert rijen in de tabel voor geladen spelers uit de API
   it('renders table rows for loaded players', async () => {
+    // Arrange: API retourneert één speler; stel sessionId in
     const players = [{ playerNumber: '201', name: 'bob', age: 12, category: '11-13' }]
     mockFetchPlayers.mockResolvedValue({ players })
     localStorage.setItem('currentSessionId', 's2')
@@ -102,6 +111,7 @@ describe('ManagePlayers (merged tests)', () => {
       </MemoryRouter>
     )
 
+    // Assert: de rijen bevatten de player-naam, nummer en categorie
     await waitFor(() => expect(screen.getByText(/bob/i)).toBeDefined())
     expect(screen.getByText('201')).toBeDefined()
     expect(screen.getByText(/11-13/)).toBeDefined()
@@ -109,12 +119,14 @@ describe('ManagePlayers (merged tests)', () => {
 
   // Test: validatie bij toevoegen - laat foutmelding zien wanneer naam ontbreekt/ongevalideerde leeftijd
   it('validation: adding player with invalid age shows error', async () => {
+    // Arrange: geen bestaande spelers; zet session id en patch fetchPlayers voor validatie
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 's3')
     const mockFetchExisting = vi.fn().mockResolvedValue({ players: [] })
     // override api fetchPlayersForSession used inside submitPlayer validation
     mockFetchPlayers.mockImplementation(mockFetchExisting)
 
+    // Act: render en open add-form; voer ongeldige invoer in
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -136,13 +148,17 @@ describe('ManagePlayers (merged tests)', () => {
     fireEvent.change(nameInput, { target: { value: '' } })
     fireEvent.change(categoryInput, { target: { value: '8-10' } })
 
+    // Act: probeer op te slaan met lege naam
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
+    // Assert: validatiefout voor verplichte naam wordt getoond
     await waitFor(() => expect(screen.getByText(/Naam is verplicht/i)).toBeDefined())
   })
 
   // Test: submitPlayer zonder actieve sessie toont foutmelding
   it('submitPlayer without session shows error', async () => {
+    // Arrange: geen currentSessionId ingesteld
     mockFetchPlayers.mockResolvedValue({ players: [] })
+    // Act: render component en open add-form
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -163,16 +179,20 @@ describe('ManagePlayers (merged tests)', () => {
     fireEvent.change(nameInput2, { target: { value: 'John' } })
     fireEvent.change(categorySelect2, { target: { value: '11-13' } })
 
+    // Act: probeer op te slaan zonder actieve sessie
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
+    // Assert: foutmelding over ontbrekende sessie wordt getoond
     await waitFor(() => expect(screen.getByText(/Geen actieve sessie gevonden/i)).toBeDefined())
   })
 
   // Test: toevoegen van een speler roept addPlayersToSession aan en toont succesmelding
   it('adding a player calls addPlayersToSession and shows success', async () => {
+    // Arrange: geen spelers en een geldige session id; mock add response
     mockFetchPlayers.mockResolvedValue({ players: [] })
     localStorage.setItem('currentSessionId', 'sadd')
     mockAdd.mockResolvedValue({ created: [{ playerNumber: '555', name: 'new', age: 9 }] })
 
+    // Act: render, open add-form en vul velden
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -192,7 +212,9 @@ describe('ManagePlayers (merged tests)', () => {
     fireEvent.change(nameInput3, { target: { value: 'new' } })
     fireEvent.change(categorySelect3, { target: { value: '8-10' } })
 
+    // Act: submit form
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
+    // Assert: API is aangeroepen en succesbericht wordt weergegeven
     await waitFor(() => expect(mockAdd).toHaveBeenCalled())
     await waitFor(() => expect(screen.getByText(/Speler toegevoegd|Speler bijgewerkt/i)).toBeDefined())
   })
@@ -789,10 +811,11 @@ describe('ManagePlayers (merged tests)', () => {
 // Additional tests added to increase coverage and assert payloads sent to API mocks
 describe('ManagePlayers additional tests', () => {
   it('calls getSessions and fetchPlayers on mount', async () => {
-    // make sure the mocks resolve so the component can finish mounting
+    // Arrange: zorg dat de mocks resolveren zodat mount kan voltooien
     mockGetSessions.mockResolvedValue({ sessions: [] })
     mockFetchPlayers.mockResolvedValue({ players: [] })
 
+    // Act: render de component
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -803,6 +826,7 @@ describe('ManagePlayers additional tests', () => {
       </MemoryRouter>
     )
 
+    // Assert: bij mount wordt getSessions en fetchPlayers aangeroepen
     await waitFor(() => {
       expect(mockGetSessions).toHaveBeenCalled()
       expect(mockFetchPlayers).toHaveBeenCalled()
@@ -810,11 +834,13 @@ describe('ManagePlayers additional tests', () => {
   })
 
   it('updatePlayerInSession receives payload containing the edited name', async () => {
+    // Arrange: bestaande speler aanwezig en update mock klaargezet
     const players = [{ playerNumber: '777', name: 'editme', age: 11 }]
     mockFetchPlayers.mockResolvedValue({ players })
     localStorage.setItem('currentSessionId', 'sedit')
     mockUpdate.mockResolvedValue({ player: { playerNumber: '777', name: 'edited', age: 12 } })
 
+    // Act: render, start edit en wijzig naam
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -832,15 +858,18 @@ describe('ManagePlayers additional tests', () => {
     fireEvent.change(nameEdit, { target: { value: 'edited' } })
     fireEvent.click(screen.getByText(/Opslaan|Bijwerken/i))
 
+    // Assert: update is aangeroepen met payload die de nieuwe naam bevat
     await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
     const firstCall = mockUpdate.mock.calls[0]
     expect(JSON.stringify(firstCall)).toContain('edited')
   })
 
     it('auto-generates player number when adding', async () => {
+        // Arrange: geen spelers zodat auto-gen paths worden gebruikt
         mockFetchPlayers.mockResolvedValue({ players: [] })
         localStorage.setItem('currentSessionId', 'auto-gen')
 
+        // Act: render en open add-form
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -854,13 +883,16 @@ describe('ManagePlayers additional tests', () => {
         fireEvent.click(screen.getByText(/Spelers toevoegen/i))
         const numInput = await screen.findByPlaceholderText(/001/)
 
+        // Assert: automatisch gegenereerd nummer is 3-cijferig
         expect((numInput as HTMLInputElement).value).toMatch(/^\d{3}$/)
     })
 
     it('player number is always 3 digits padded', async () => {
+        // Arrange: open add-form and enter a short number
         mockFetchPlayers.mockResolvedValue({ players: [] })
         localStorage.setItem('currentSessionId', 'pad')
 
+        // Act: render, open form en vul velden met kort nummer
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -885,6 +917,7 @@ describe('ManagePlayers additional tests', () => {
         const saveBtnPad = await screen.findByText(/Opslaan|Bijwerken/i)
         fireEvent.click(saveBtnPad)
 
+        // Assert: het verzonden spelersobject bevat een gepadde 3-cijferige playerNumber
         await waitFor(() => {
             const call = mockAdd.mock.calls[0]
             const sentPlayers = (call && call[1]) ? (call[1] as any[]) : []
@@ -893,11 +926,13 @@ describe('ManagePlayers additional tests', () => {
     })
 
     it('editing keeps same number allowed', async () => {
+        // Arrange: speler aanwezig met bepaald nummer
         const players = [{ playerNumber: '222', name: 'same', age: 10 }]
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'edit-same')
         mockUpdate.mockResolvedValue({})
 
+        // Act: render en start edit
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -918,12 +953,15 @@ describe('ManagePlayers additional tests', () => {
         const saveBtnSame = await screen.findByText(/Opslaan|Bijwerken/i)
         fireEvent.click(saveBtnSame)
 
+        // Assert: update is aangeroepen en behoudt hetzelfde nummer
         await waitFor(() => expect(mockUpdate).toHaveBeenCalled())
     })
 
     it('cancelEdit resets form', async () => {
+        // Arrange: render add form
         mockFetchPlayers.mockResolvedValue({ players: [] })
 
+        // Act: open form, type and cancel
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -940,12 +978,15 @@ describe('ManagePlayers additional tests', () => {
         fireEvent.change(name, { target: { value: 'test' } })
         fireEvent.click(screen.getByText(/Annuleren/i))
 
+        // Assert: formulier is gereset en velden verdwijnen
         expect(screen.queryByPlaceholderText(/naam/i)).toBeNull()
     })
 
     it('shows loading indicator', async () => {
+        // Arrange: laat fetchPlayers hangen
         mockFetchPlayers.mockImplementation(() => new Promise(() => {}))
 
+        // Act: render component
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -956,12 +997,15 @@ describe('ManagePlayers additional tests', () => {
             </MemoryRouter>
         )
 
+        // Assert: laadindicator zichtbaar
         expect(screen.getByText(/Laden/i)).toBeDefined()
     })
 
     it('handles empty API response safely', async () => {
+        // Arrange: API retourneert lege respons
         mockFetchPlayers.mockResolvedValue({})
 
+        // Act: render component
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -972,12 +1016,14 @@ describe('ManagePlayers additional tests', () => {
             </MemoryRouter>
         )
 
+        // Assert: component toont dat er 0 spelers zijn
         await waitFor(() => {
             expect(screen.getByText(/Huidige spelers: 0/i)).toBeDefined()
         })
     })
 
     it('table sorts players by number', async () => {
+        // Arrange: spelers in ongesorteerde volgorde
         const players = [
             { playerNumber: '300', name: 'c', age: 10 },
             { playerNumber: '100', name: 'a', age: 10 },
@@ -985,6 +1031,7 @@ describe('ManagePlayers additional tests', () => {
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'sort')
 
+        // Act: render component
         render(
             <MemoryRouter>
                 <AuthProvider>
@@ -995,6 +1042,7 @@ describe('ManagePlayers additional tests', () => {
             </MemoryRouter>
         )
 
+        // Assert: tabel is gesorteerd op playerNumber en toont 100 als eerste
         await waitFor(() => screen.getByText('100'))
 
         const rows = screen.getAllByText(/\d{3}/)
@@ -1002,9 +1050,11 @@ describe('ManagePlayers additional tests', () => {
     })
 
     it('rejects name shorter than 2 chars', async () => {
+        // Arrange: open add form
         mockFetchPlayers.mockResolvedValue({ players: [] })
         localStorage.setItem('currentSessionId', 'short')
 
+        // Act: render and attempt to submit too-short name
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1014,12 +1064,15 @@ describe('ManagePlayers additional tests', () => {
         fireEvent.change(name, { target: { value: 'a' } })
 
         fireEvent.click(screen.getByText(/Opslaan/i))
+        // Assert: validatiemelding voor minimale lengte
         await waitFor(() => screen.getByText(/minimaal 2 tekens/i))
     })
 
     it('toggle add form open/close', async () => {
+        // Arrange: render component
         mockFetchPlayers.mockResolvedValue({ players: [] })
 
+        // Act: open and close the add form
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1028,15 +1081,18 @@ describe('ManagePlayers additional tests', () => {
         expect(await screen.findByPlaceholderText(/naam/i)).toBeDefined()
 
         fireEvent.click(screen.getByText(/Spelers toevoegen/i))
+        // Assert: form is closed and inputs are gone
         expect(screen.queryByPlaceholderText(/naam/i)).toBeNull()
     })
 
     it('delete removes row from UI', async () => {
+        // Arrange: speler aanwezig en delete mock OK
         const players = [{ playerNumber: '500', name: 'gone', age: 10 }]
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'remove')
         mockDelete.mockResolvedValue({})
 
+        // Act: render en klik verwijder
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1044,6 +1100,7 @@ describe('ManagePlayers additional tests', () => {
         await waitFor(() => screen.getByText(/gone/i))
         fireEvent.click(screen.getByTitle(/Verwijder/i))
 
+        // Assert: rij is verdwenen uit de UI
         await waitFor(() => {
             expect(screen.queryByText(/gone/i)).toBeNull()
         })
@@ -1052,26 +1109,32 @@ describe('ManagePlayers additional tests', () => {
     // ---------- loadPlayers branches ----------
 
     it('loadPlayers handles missing players field', async () => {
+        // Arrange: API-respons mist het players-veld
         mockFetchPlayers.mockResolvedValue({})
         localStorage.setItem('currentSessionId', 'noplayers')
 
+        // Act: render component
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
 
+        // Assert: component toont dat er 0 spelers zijn
         await waitFor(() => {
             expect(screen.getByText(/Huidige spelers: 0/i)).toBeDefined()
         })
     })
 
     it('loadPlayers handles non-array players field', async () => {
+        // Arrange: API retourneert een players-veld dat geen array is
         mockFetchPlayers.mockResolvedValue({ players: 'invalid' })
         localStorage.setItem('currentSessionId', 'badplayers')
 
+        // Act: render component
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
 
+        // Assert: component fall-back toont 0 spelers
         await waitFor(() => {
             expect(screen.getByText(/Huidige spelers: 0/i)).toBeDefined()
         })
@@ -1080,14 +1143,17 @@ describe('ManagePlayers additional tests', () => {
     // ---------- categorize fallback ----------
 
     it('categorize returns out-of-range', async () => {
+        // Arrange: speler met onrealistische leeftijd om fallback-categorisatie te testen
         const players = [{ playerNumber: '111', name: 'x', age: 99 }]
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'cat-out')
 
+        // Act: render component
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
 
+        // Assert: categorisatie-fallback (out-of-range) wordt weergegeven
         await waitFor(() => {
             expect(screen.getByText(/out-of-range/i)).toBeDefined()
         })
@@ -1096,6 +1162,7 @@ describe('ManagePlayers additional tests', () => {
     // ---------- generateUniqueNumber failure ----------
 
     it('generateUniqueNumber throws and fallback error shown', async () => {
+        // Arrange: simuleer dat alle nummers bezet zijn en forceer Math.random fout
         const players = []
         for (let i = 100; i <= 999; i++) {
             players.push({ playerNumber: String(i), name: 'x', age: 10 })
@@ -1107,12 +1174,14 @@ describe('ManagePlayers additional tests', () => {
         // force random to throw so generateUniqueNumber exits quickly instead of looping forever
         const randSpy = vi.spyOn(Math, 'random').mockImplementation(() => { throw new Error('force random failure') })
 
+        // Act: render en trigger add flow
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
 
         fireEvent.click(screen.getByText(/Spelers toevoegen/i))
 
+        // Assert: fallback-instructie verschijnt wanneer genereren faalt
         await waitFor(() => {
             expect(screen.getByText(/handmatig één toe/i)).toBeDefined()
         })
@@ -1123,13 +1192,16 @@ describe('ManagePlayers additional tests', () => {
     // ---------- localStorage fallback ----------
 
     it('uses localStorage sessionId fallback', async () => {
+        // Arrange: zet sessionId direct in localStorage
         localStorage.setItem('currentSessionId', 'fallback-session')
         mockFetchPlayers.mockResolvedValue({ players: [] })
 
+        // Act: render component
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
 
+        // Assert: fetchPlayers is aangeroepen met de fallback-session id
         await waitFor(() => {
             expect(mockFetchPlayers).toHaveBeenCalledWith('fallback-session')
         })
@@ -1138,6 +1210,7 @@ describe('ManagePlayers additional tests', () => {
     // ---------- normalizeHeader + findValue indirectly ----------
 
     it('handles different header formats in import (findValue)', async () => {
+        // Arrange: prepare a fake file with uppercase headers to exercise header-normalization
         const fakeFile = new File(
             [JSON.stringify([{ NAAM: 'jan', LEEFTIJD: 10 }])],
             'test.xlsx'
@@ -1146,6 +1219,7 @@ describe('ManagePlayers additional tests', () => {
         mockFetchPlayers.mockResolvedValue({ players: [] })
         localStorage.setItem('currentSessionId', 'import')
 
+        // Act: render component (we cannot fully parse XLSX here)
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1154,19 +1228,21 @@ describe('ManagePlayers additional tests', () => {
         const input = document.createElement('input')
         Object.defineProperty(input, 'files', { value: [fakeFile] })
 
-        // we can't fully trigger XLSX parsing here, but this covers the branch setup
+        // Assert: basic file object is attached (covers header-find branch setup)
         expect(input.files?.length).toBe(1)
     })
 
     // ---------- delete localStorage branch ----------
 
     it('delete updates localStorage onlinePlayers', async () => {
+        // Arrange: onlinePlayers bevat het playerNumber en delete mock verwijdert speler
         const players = [{ playerNumber: '300', name: 'x', age: 10 }]
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'ls')
         localStorage.setItem('onlinePlayers', JSON.stringify(['300']))
         mockDelete.mockResolvedValue({})
 
+        // Act: render en voer delete uit
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1175,6 +1251,7 @@ describe('ManagePlayers additional tests', () => {
 
         fireEvent.click(screen.getByTitle(/Verwijder/i))
 
+        // Assert: localStorage.onlinePlayers is geüpdatet en bevat niet meer het verwijderde nummer
         await waitFor(() => {
             const updated = JSON.parse(localStorage.getItem('onlinePlayers') || '[]')
             expect(updated).not.toContain('300')
@@ -1184,6 +1261,7 @@ describe('ManagePlayers additional tests', () => {
     // ---------- StorageEvent branch ----------
 
     it('delete triggers storage event safely', async () => {
+        // Arrange: speler aanwezig en delete mock
         const players = [{ playerNumber: '400', name: 'y', age: 10 }]
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'storage')
@@ -1191,6 +1269,7 @@ describe('ManagePlayers additional tests', () => {
 
         const spy = vi.spyOn(window, 'dispatchEvent')
 
+        // Act: render en verwijder
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1199,6 +1278,7 @@ describe('ManagePlayers additional tests', () => {
 
         fireEvent.click(screen.getByTitle(/Verwijder/i))
 
+        // Assert: er is een storage-event (or equivalent) gedispatched
         await waitFor(() => {
             expect(spy).toHaveBeenCalled()
         })
@@ -1207,8 +1287,7 @@ describe('ManagePlayers additional tests', () => {
     // ---------- cleanup timeout branch ----------
 
     it('cleanup removes kick keys after timeout', async () => {
-        // Instead of using fake timers (which caused flakiness), stub setTimeout to run
-        // the cleanup callback immediately so we can assert the keys are removed.
+        // Arrange: stub setTimeout zodat cleanup callback direct uitgevoerd wordt
         const players = [{ playerNumber: '500', name: 'z', age: 10 }]
         mockFetchPlayers.mockResolvedValue({ players })
         localStorage.setItem('currentSessionId', 'cleanup')
@@ -1220,6 +1299,7 @@ describe('ManagePlayers additional tests', () => {
             return 0 as unknown as ReturnType<typeof setTimeout>
         })
 
+        // Act: render en trigger delete
         render(
             <MemoryRouter><AuthProvider><SessionProvider><ManagePlayers /></SessionProvider></AuthProvider></MemoryRouter>
         )
@@ -1228,7 +1308,7 @@ describe('ManagePlayers additional tests', () => {
 
         fireEvent.click(screen.getByTitle(/Verwijder/i))
 
-        // ensure our stub was invoked and the cleanup ran synchronously
+        // Assert: stub is aangeroepen en cleanup verwijdert kick key
         await waitFor(() => expect(setTimeoutSpy).toHaveBeenCalled())
         expect(localStorage.getItem('kick_500')).toBeNull()
 

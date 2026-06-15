@@ -17,12 +17,10 @@ function HomePage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    // prevent submitting while there is a known input-format error
     if (numberError) {
       return;
     }
 
-    // Read the live input value to avoid a race with the controlled state in tests
     const rawInput = (inputRef.current && inputRef.current.value) ? inputRef.current.value : playerNumber
     if (!rawInput) {
       setNumberError('Vul je spelersnummer in');
@@ -39,14 +37,11 @@ function HomePage() {
       return;
     }
 
-    // At this point, playerNumber should equal rawInput (or truncated form) and be numeric.
     if (playerNumber.length !== 3) {
       setNumberError('Spelersnummer moet uit precies 3 cijfers bestaan');
       return;
     }
 
-    // Prefer existing client session id (fast path).
-    // Before relying on localStorage.onlinePlayers, sync the authoritative server list.
     const existingSessionId = (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (existingSessionId) {
       try {
@@ -58,7 +53,6 @@ function HomePage() {
       }
     }
 
-    // check uniqueness against localStorage key 'onlinePlayers' (assumed to be an array of used numbers)
     try {
       const raw = localStorage.getItem('onlinePlayers');
       const onlinePlayers: string[] = raw ? (JSON.parse(raw) as string[]) : [];
@@ -73,7 +67,6 @@ function HomePage() {
     setNumberError('')
     if (existingSessionId) {
       try {
-        // Ask server to mark this player online first (server-authoritative)
         try {
           await api.setPlayerOnline(existingSessionId, playerNumber)
         } catch (srvErr: unknown) {
@@ -87,11 +80,9 @@ function HomePage() {
           return
         }
 
-        // Persist session/player values only after server confirmed
         try {
           sessionStorage.setItem('playerNumber', playerNumber)
           sessionStorage.setItem('playerSessionId', existingSessionId)
-          // Flag so WaitingRoom knows it already acquired the online lock.
           sessionStorage.setItem('playerOnlineLocked', 'true')
         } catch { /* ignore */ }
         try {
@@ -99,7 +90,6 @@ function HomePage() {
           const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
           if (online.includes(playerNumber)) {
             setNumberError('Dit spelersnummer is al ingelogd in deze browser')
-            // revert server-side online set by calling offline
             try { await api.setPlayerOffline(existingSessionId, playerNumber) } catch { /* ignore */ }
             try {
               sessionStorage.removeItem('playerNumber')
@@ -114,14 +104,12 @@ function HomePage() {
           // ignore localStorage errors
         }
 
-        // Now verify on the server that the player exists for this session. If verification fails, revert the optimistic writes.
         try {
               const res = await api.fetchPlayersForSession(existingSessionId)
               const found = (res.players || []).some((p: ApiPlayer) => p.playerNumber === playerNumber)
               if (!found) {
             try { sessionStorage.removeItem('playerNumber'); sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
             try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
-            // remove from onlinePlayers and notify server
             try {
               const raw2 = localStorage.getItem('onlinePlayers')
               const online2: string[] = raw2 ? (JSON.parse(raw2) as string[]) : []
@@ -132,7 +120,6 @@ function HomePage() {
             setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
             return
           }
-          // store player's category/ageGroup if available
           try {
             const player = (res.players || []).find((p: ApiPlayer) => p.playerNumber === playerNumber) as ApiPlayer | undefined
             if (player) {
@@ -145,7 +132,6 @@ function HomePage() {
           navigate('/player/waiting')
           return
         } catch (innerErr: unknown) {
-          // verification network failure - revert optimistic writes and show error
           try {
             sessionStorage.removeItem('playerNumber')
             sessionStorage.removeItem('playerSessionId')
@@ -157,7 +143,6 @@ function HomePage() {
             const idx = online3.indexOf(playerNumber)
             if (idx >= 0) { online3.splice(idx, 1); localStorage.setItem('onlinePlayers', JSON.stringify(online3)) }
           } catch (err) { void err }
-          // also tell server to go offline
           try { await api.setPlayerOffline(existingSessionId, playerNumber) } catch { /* ignore */ }
           console.error('error checking players with existingSessionId', innerErr)
           setNumberError('Er is een fout opgetreden bij het controleren van je spelersnummer')
@@ -170,24 +155,20 @@ function HomePage() {
       }
     }
 
-    // No local session id — use server-authoritative join which finds the active session and the player by number
     try {
       const resp = await api.joinActiveSession(playerNumber)
       if (!resp || !resp.session || !resp.player) {
-        // server returned 404 or no player found — show friendly message
         setNumberError('Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.')
         return
       }
 
       const serverSessionId = String((resp.session as Record<string, unknown>).id ?? (resp.session as Record<string, unknown>)._id ?? '')
 
-      // update onlinePlayers list in localStorage (prevent multiple logins in same browser)
       try {
         const raw = localStorage.getItem('onlinePlayers')
         const online: string[] = raw ? (JSON.parse(raw) as string[]) : []
         if (online.includes(playerNumber)) {
           setNumberError('Dit spelersnummer is al ingelogd in deze browser')
-          // revert server-side online set
           try { await api.setPlayerOffline(serverSessionId, playerNumber) } catch { /* ignore */ }
           return
         }
@@ -197,14 +178,11 @@ function HomePage() {
         // ignore localStorage errors
       }
 
-      // persist authoritative session/player info
       try {
         localStorage.setItem('currentSessionId', serverSessionId)
         sessionStorage.setItem('playerNumber', playerNumber)
         sessionStorage.setItem('playerSessionId', serverSessionId)
-        // Flag so WaitingRoom won't call setPlayerOnline again (prevents 409).
         sessionStorage.setItem('playerOnlineLocked', 'true')
-        // persist player's category if backend returned it as part of player
         try {
           const playerObj = (resp.player as ApiPlayer | undefined)
           if (playerObj && (playerObj.category || !Number.isNaN(playerObj.age))) {
@@ -221,7 +199,6 @@ function HomePage() {
       const msg = err instanceof Error ? err.message : String(err)
       console.error('joinActiveSession failed', msg, err)
 
-      // If the server indicated the player is already online elsewhere, revert optimistic local writes
       if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
         try {
           sessionStorage.removeItem('playerNumber')
@@ -238,7 +215,6 @@ function HomePage() {
         return
       }
 
-      // show friendly message for network/server issues
       setNumberError(msg.includes('Player not found') || /not found/i.test(msg) ? 'Je bent niet toegevoegd aan deze sessie. Vraag de organisator om je toe te voegen.' : 'Er is een fout opgetreden bij het controleren van je spelersnummer')
     }
   }
@@ -246,44 +222,31 @@ function HomePage() {
   function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
     const raw = e.target.value;
 
-    // remove any non-digit characters so letters/specials are not allowed
     const cleaned = raw.replace(/\D/g, '');
-    // limit to maximum 3 digits
     const truncated = cleaned.slice(0, 3);
 
-    // set appropriate error messages for invalid input as the user types
     if (cleaned !== raw) {
       setNumberError('Geen letters of speciale tekens toegestaan');
     } else if (cleaned.length > 3) {
       setNumberError('Maximaal 3 cijfers toegestaan');
     } else {
-      // clear only the input-format related errors; keep uniqueness/emptiness handled on submit
       setNumberError('');
     }
 
     setPlayerNumber(truncated);
   }
 
-  // Ensure localStorage keys exist when page is opened directly (so other parts of the app can rely on them)
   useEffect(() => {
     ;(async () => {
       try {
-        // create onlinePlayers array if missing
         try {
           if (!localStorage.getItem('onlinePlayers')) localStorage.setItem('onlinePlayers', JSON.stringify([]))
         } catch { /* ignore */ }
-
-        // IMPORTANT: do NOT set `currentSessionId` here on page load. We want the player to only receive
-        // a `currentSessionId` when they explicitly join (press "Speel mee"). Setting it on load causes
-        // other users to see a wrong session id when they first open the app.
-        // If you need an authoritative active-session lookup for other UI, do it on-demand from components
-        // that require it (e.g. when the player tries to join or when organizer actions need it).
-
       } finally {
         // no state to set; effect just ensures storage keys
       }
     })()
-    return () => { /* cleanup not needed */ }
+    return () => { }
   }, [])
 
   return (

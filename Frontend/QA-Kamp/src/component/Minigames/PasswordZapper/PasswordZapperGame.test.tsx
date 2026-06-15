@@ -47,7 +47,8 @@ describe('PasswordZapperGame start modal', () => {
     }
   })
 
-  // Additional tests to improve coverage: presence fallback, skipPracticeIntro, and resetGame via pause
+  // Extra tests ter verbetering van coverage: presence fallback, skipPracticeIntro en resetGame via pauze
+  // Test: markOnline fallback slaat de speler in localStorage op wanneer er geen session id aanwezig is
   it('markOnline fallback stores player in localStorage when no session id', async () => {
     // ensure no session id is present so markOnline uses the localStorage fallback
     sessionStorage.clear()
@@ -73,6 +74,7 @@ describe('PasswordZapperGame start modal', () => {
     })
   })
 
+  // Test: het overslaan van de oefenronde (skipPracticeIntro) start het echte spel en de progressbar heeft max 25
   it('skipPracticeIntro starts the real game and progressbar max is 25', async () => {
     render(
       <MemoryRouter>
@@ -92,6 +94,7 @@ describe('PasswordZapperGame start modal', () => {
     expect(screen.getByText(/Score:/i)).toBeInTheDocument()
   })
 
+  // Test: bij pauzeren en klikken op 'Opnieuw beginnen' wordt het spel gereset naar het startmodal
   it('pause then Opnieuw beginnen resets the game to the start modal', async () => {
     render(
       <MemoryRouter>
@@ -143,6 +146,7 @@ describe('PasswordZapperGame start modal', () => {
     } catch { /* ignore */ }
   })
 
+  // Test: bij het laden van de component wordt het speluitleg-modal (regels) getoond voordat het spel start
   it('shows the rules modal before the game starts', async () => {
     render(
       <MemoryRouter>
@@ -158,6 +162,7 @@ describe('PasswordZapperGame start modal', () => {
   // NOTE: Test removed — was failing intermittently after recent game logic updates.
   // The age-specific start test was removed per request to delete failing tests.
 
+  // Test: als de speluitleg via de help-knop geopend wordt, toont het help-modal een 'Verder spelen' knop
   it('shows the Verder spelen button when opening the rules via the speluitleg (help) button', async () => {
     // Render the page so the help button exists and the game can be started
     try { window.history.pushState({}, '', '/minigame/passwordzapper?age=11-13') } catch { /* ignore */ }
@@ -192,6 +197,7 @@ describe('PasswordZapperGame start modal', () => {
     expect(spelenBtnInHelp).toBeInTheDocument()
   })
 
+  // Test: bij pauze moet het pauze-modal de acties Verder spelen, Opnieuw beginnen en Stoppen tonen
   it('shows pause modal actions (Verder spelen, Opnieuw beginnen, Stoppen) when paused', async () => {
     // Render the page so the pause event can be dispatched
     try { window.history.pushState({}, '', '/minigame/passwordzapper?age=11-13') } catch { /* ignore */ }
@@ -231,6 +237,7 @@ describe('PasswordZapperGame start modal', () => {
   // NOTE: Test removed — was failing intermittently after recent game logic updates.
   // The full game UI test was removed per request to delete failing tests.
 
+  // Test: score-updates controleren nadat een zwak wachtwoord gezapt wordt en een ander zwak wachtwoord gemist/overgeslagen wordt
   it('updates score correctly after zapping a weak and skipping a weak password', async () => {
     // Create deterministic initial passwords: idx 0 weak, idx1 strong, idx2 weak
     const initial = [
@@ -297,6 +304,7 @@ describe('PasswordZapperGame start modal', () => {
     vi.useRealTimers()
   })
 
+  // Test: na 3 correcte zaps (oefenronde) verschijnt de practice-end popup met 'Spelen' en 'Opnieuw oefenen'
   it('shows Spelen and Opnieuw oefenen buttons on practice end popup after 3 zaps', async () => {
     // Provide exactly 3 weak passwords so zapping all of them ends practice
     const initial = [
@@ -340,6 +348,7 @@ describe('PasswordZapperGame start modal', () => {
     expect(retryBtn).toHaveAttribute('id', 'btnRestartPractice')
   })
 
+  // Test: het einde-scherm toont 'Opnieuw spelen', de score, percentage en correcte/foute aantallen
   it('end screen shows Opnieuw spelen, score, percentage, correct and wrong counts', async () => {
     // Start the game via the start modal so the running UI is present, then force end
     const initial = [
@@ -392,7 +401,9 @@ describe('PasswordZapperGame start modal', () => {
     expect(wrongEl!.textContent).toMatch(/\d+/)
   })
 
+  // Testgroep TC15: scoreberekening en update bij correcte antwoorden
   describe('TC15: Score calculation and update - correct answer', () => {
+    // Test: het zappen van een zwak wachtwoord verhoogt de score met 2 punten
     it('increases score by 2 points when zapping a weak password', async () => {
       const mockPasswords = [
         { value: '123456', isWeak: true, zapped: false, missed: false },
@@ -444,6 +455,7 @@ describe('PasswordZapperGame start modal', () => {
       })
     })
 
+    // Test: door een sterk wachtwoord niet te zappen verandert de score niet
     it('does not change score when letting a strong password pass', async () => {
       const mockPasswords = [
         { value: 'StrongPass123!', isWeak: false, zapped: false, missed: false }
@@ -483,7 +495,9 @@ describe('PasswordZapperGame start modal', () => {
       })
     })
 
+  // Testgroep TC16: scoreberekening en update bij foutieve acties
   describe('TC16: Score calculation and update - wrong answer', () => {
+    // Test: zappen van een sterk wachtwoord verlaagt de score met 1 punt
     it('decreases score by 1 point when zapping a strong password', async () => {
       const mockPasswords = [
         { value: 'StrongPass123!', isWeak: false, zapped: false, missed: false }
@@ -523,6 +537,7 @@ describe('PasswordZapperGame start modal', () => {
       })
     })
 
+    // Test: missen van een zwak wachtwoord verlaagt de score met 1 punt
     it('decreases score by 1 point when missing a weak password', async () => {
       const mockPasswords = [
         { value: '123456', isWeak: true, zapped: false, missed: false }
@@ -572,7 +587,9 @@ describe('PasswordZapperGame start modal', () => {
       }, { timeout: 3000 })
       })
 
+  // Testgroep TC17: scoreberekening bij opeenvolgende acties (mix van goed en fout)
   describe('TC17: Score calculation and update - consecutive actions', () => {
+    // Test: cumulatieve score wordt correct berekend over meerdere goede en foute acties
     it('calculates cumulative score correctly over multiple good and wrong answers', async () => {
       const mockPasswords = [
         { value: '123456', isWeak: true, zapped: false, missed: false },      // +2
@@ -643,6 +660,7 @@ describe('PasswordZapperGame start modal', () => {
       }, { timeout: 3000 })
     })
 
+    // Test: score herstelt zich correct na fouten gevolgd door goede antwoorden
     it('handles score correctly when making mistakes and then recovering', async () => {
       const mockPasswords = [
         { value: 'StrongPass123!', isWeak: false, zapped: false, missed: false }, // -1 (mistake)
@@ -719,6 +737,7 @@ describe('PasswordZapperGame start modal', () => {
       }, { timeout: 3000 })
     })
 
+    // Test: zorg dat de score nooit negatief wordt (Math.max(0, score)) ook na meerdere fouten
     it('prevents negative scores with Math.max(0, score)', async () => {
       const mockPasswords = [
         { value: 'StrongPass123!', isWeak: false, zapped: false, missed: false }, // -1

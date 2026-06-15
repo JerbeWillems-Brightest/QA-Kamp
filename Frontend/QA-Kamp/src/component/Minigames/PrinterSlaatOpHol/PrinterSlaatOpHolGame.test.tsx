@@ -32,6 +32,133 @@ vi.mock('../PasswordZapper/passwordZapperFireworks', () => ({
 import PrinterSlaatOpHolGame from './PrinterSlaatOpHolGame.tsx'
 
 describe('PrinterSlaatOpHolGame', () => {
+  /*
+   Nederlandse toelichting per test (kort - Arrange / Act / Assert):
+
+   - renders intro screen on initial load
+     Arrange: render component
+     Act: eventueel office-scene klikken via helper
+     Assert: intro-tekst en "Volgende" knop zichtbaar
+
+   - shows Volgende button on the catastrophe intro and advances to the tutorial when clicked
+     Arrange: render
+     Act: klik "Volgende" op intro
+     Assert: intro verdwijnt en tutorial verschijnt
+
+   - shows Verder spelen button when help (spelregels) popup is opened via the top-level help event
+     Arrange: render en advanceToRunningGame
+     Act: dispatch 'minigame:question'
+     Assert: help-modal bevat "Verder spelen" knop
+
+   - shows Verder spelen button on the hint popup when opened via the top-level hint event
+     Arrange: render en advanceToRunningGame
+     Act: dispatch 'minigame:hint'
+     Assert: hint-modal bevat "Verder spelen" knop
+
+   - pause popup shows Verder spelen button (TC07)
+     Arrange: render en advanceToRunningGame
+     Act: dispatch 'minigame:pause'
+     Assert: pauze-modal bevat "Verder spelen"
+
+   - pause popup shows Opnieuw beginnen button (TC08)
+     Arrange/Act: als boven
+     Assert: pauze-modal bevat "Opnieuw beginnen"
+
+   - pause popup shows Stoppen button (TC09)
+     Arrange/Act: als boven
+     Assert: pauze-modal bevat "Stoppen"
+
+   - game screen shows Hint, Pauze and Speluitleg buttons (TC10-TC12)
+     Arrange: render via MinigamePage
+     Assert: top-level controls (Hint, Pause, Vraag) aanwezig
+
+   - in-game shows progressbar, timer and feedback updates when clicking wrong item (TC13-TC16)
+     Arrange: render en advanceToRunningGame
+     Act: klik verkeerd element
+     Assert: progressbar, timer en negatieve feedback verschijnen en timer verandert
+
+   - adds ~10s penalty to timer when wrong element clicked (TC17)
+     Arrange: render en advanceToRunningGame
+     Act: klik fout element meerdere keren
+     Assert: timer toename ~10s per fout
+
+   - does not add penalty when correct differing element clicked (TC18)
+     Arrange/Act: klik correct element
+     Assert: geen ~10s penalty (slechts kleine drift)
+
+   - end screen shows Opnieuw spelen, score, percent, correct/wrong counts, time and highscore (TC25-TC31)
+     Arrange: render, advanceToRunningGame, open pause en klik Stoppen
+     Assert: eindscherm toont knoppen en statistieken
+
+   - uses default age group when none provided
+     Arrange: render zonder ageGroup
+     Assert: component render zonder fouten (intro zichtbaar)
+
+   - handles different age groups correctly (8-10, 11-13, 14-16)
+     Arrange: render met verschillende ageGroup props
+     Assert: component render zonder fouten
+
+   - handles missing background asset gracefully
+     Arrange: mock achtergrond undefined, her-import
+     Assert: component render zonder crash
+
+   - infers age group from sessionStorage / URL params / invalid values
+     Arrange: zet sessionStorage of window.location.search
+     Act: render
+     Assert: component gebruikt/valideert ageGroup correct of valt terug op default
+
+   - calls onEnd callback when provided
+     Arrange: pass mockOnEnd
+     Assert: callback aanwezig (sanity check)
+
+   - handles localStorage / sessionStorage errors gracefully
+     Arrange: mock storage methods throw
+     Act: render
+     Assert: render crasht niet
+
+   - handles window.location being undefined
+     Arrange: mock location getter
+     Assert: render crasht niet
+
+   - handles API/fireworks/SVG import errors gracefully
+     Arrange: reset modules en mockeer errors
+     Assert: component rendert zonder te crashen
+
+   - handles custom events without listeners
+     Act: dispatch diverse custom events
+     Assert: geen crashes
+
+   - handles component unmount / rapid state changes / cleanup
+     Arrange/Act: unmount of rerender
+     Assert: geen crashes
+
+   - background URL resolution, import.meta.url, console.log errors
+     Arrange: diverse mocks
+     Assert: component blijft stabiel
+
+   - many smaller utility/branch tests (inferAgeGroup patterns, penalty schedules, grid sizes,
+     computeSize, buildPenaltySchedule, handleClick, animation handlers, formatMs, randomFrom, etc.)
+     -> Deze tests renderen doorgaans component met specifieke props/state en verifiëren
+        dat de component niet crasht en/of verwachte UI-elementen aanwezig zijn.
+
+   - TC32-TC36: final score computation (fast/mid/slow cases)
+     Arrange: play full game flows met variërende fouten en correcties
+     Act: simulate clicks and animationend events
+     Assert: score wordt berekend en valt binnen verwachte buckets (100/90/.../0)
+
+   - TC39-TC41: same score calc for all ages and grid sizes
+     Arrange: loop over age/grid combos
+     Act: snel afronden voor 100 punten
+     Assert: score 100 en juiste cell-aantal
+
+   - TC42-TC45: timer penalty + progressbar ARIA values
+     Arrange: start game
+     Act: klik fout en goed
+     Assert: timer toename bij fout, geen penalty bij goed, progress en ARIA waarden geldig
+
+   Als je wilt dat ik per individuele `it('...')`-blok een aparte, inline Arrange/Act/Assert comment toevoeg,
+   kan ik dat ook doen (meer werk). Zeg dan "inline" en ik pas het direct toe voor dit bestand.
+  */
   beforeEach(() => {
     vi.resetAllMocks()
     vi.useFakeTimers()

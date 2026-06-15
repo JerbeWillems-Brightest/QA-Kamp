@@ -32,7 +32,7 @@ describe('Scoreboard checklist tests', () => {
 
   // Test: controleert dat de "Terug" knop aanwezig is op de scoreboard pagina
   it('back button is present on the page', () => {
-    // no session needed for back button presence
+    // Arrange: er is geen actieve sessie nodig om de knop te tonen
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -43,13 +43,14 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
+    // Assert: de terug-knop is aanwezig en zichtbaar met juiste tekst en aria-label
     expect(screen.getByLabelText(/Terug naar kalender/i)).toBeDefined()
     expect(screen.getByText(/Terug/i)).toBeDefined()
   })
 
   // Test: controleert dat de uitlog-knop in de header zichtbaar is wanneer een gebruiker is ingelogd
   it('logout button is present on the scoreboard page', async () => {
-    // seed a logged-in user so Navbar shows logout
+    // Arrange: seed een ingelogde gebruiker en een geldige sessie zodat de Navbar de uitlog-knop rendert
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-score-4')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-score-4', organizerId: 'org1', startedAt: new Date().toISOString() }] })
@@ -66,17 +67,20 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
-    // logout button has aria-label 'Uitloggen'
+    // Act: render componenten en wacht tot async-hydratatie klaar is
+    // Assert: de uitlog-knop (aria-label 'Uitloggen') moet zichtbaar zijn
     await waitFor(() => expect(screen.getByLabelText(/Uitloggen/i)).toBeDefined())
   })
 
   // Test: controleert dat foutmeldingen correct worden weergegeven
   it('displays error message when leaderboard fails to load', async () => {
+    // Arrange: seed gebruiker en sessie, en forceer dat leaderboard-fetch faalt
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-error-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-error-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
     mockFetchLeaderboard.mockRejectedValue(new Error('Network error'))
 
+    // Act: render de Scoreboard component
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -86,7 +90,7 @@ describe('Scoreboard checklist tests', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-
+    // Assert: er moet een foutmelding zichtbaar zijn die aangeeft dat het leaderboard niet geladen kon worden
     await waitFor(() => {
       expect(screen.getByText(/Kon leaderboard niet laden/i)).toBeDefined()
     })
@@ -94,7 +98,8 @@ describe('Scoreboard checklist tests', () => {
 
   // Test: controleert dat er een foutmelding wordt getoond wanneer geen sessie is gevonden
   it('displays error when no active session is found', () => {
-    // No session set in localStorage
+    // Arrange: geen actieve sessie in localStorage om de foutroute te triggeren
+    // Act: render de component zonder sessie
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -105,19 +110,21 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
-    // Use getAllByText since there might be multiple error elements
+    // Assert: minstens één foutmelding 'Geen actieve sessie gevonden' moet aanwezig zijn
     const errorElements = screen.getAllByText(/Geen actieve sessie gevonden/i)
     expect(errorElements.length).toBeGreaterThan(0)
   })
 
   // Test: controleert dat loading state wordt getoond tijdens het laden
   it('shows loading state while fetching data', async () => {
+    // Arrange: seed gebruiker en sessie; zorg dat leaderboard-promise nooit resolveert zodat loading zichtbaar blijft
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-loading-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-loading-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
-    // Make the promise hang to test loading state
+    // Laat de fetch hangen
     mockFetchLeaderboard.mockImplementation(() => new Promise(() => {}))
 
+    // Act: render de component
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -127,24 +134,24 @@ describe('Scoreboard checklist tests', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-
-    // Check for loading state immediately after render
-    // If loading state doesn't appear immediately, check that component renders without error
+    // Assert: controleer of de loading state direct zichtbaar is; als niet, controleer in ieder geval dat component rendert
     try {
       expect(screen.getByText('Laden...')).toBeDefined()
     } catch {
-      // If loading state is not shown, at least verify the component renders
+      // Als loading niet wordt getoond, garandeer dat de component in ieder geval zonder fouten rendert
       expect(screen.getByText('Scorebord')).toBeDefined()
     }
   })
 
   // Test: controleert dat een leeg scoreboard correct wordt weergegeven
   it('displays empty scoreboard message when no data available', async () => {
+    // Arrange: geen leaderboard-data beschikbaar
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-empty-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-empty-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
     mockFetchLeaderboard.mockResolvedValue({ leaderboard: [] })
 
+    // Act: render component
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -155,6 +162,7 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
+    // Assert: toon melding dat er nog geen scorebord beschikbaar is
     await waitFor(() => {
       expect(screen.getByText(/Er is nog geen scorebord beschikbaar/i)).toBeDefined()
     })
@@ -162,6 +170,7 @@ describe('Scoreboard checklist tests', () => {
 
   // Additional stable tests to increase coverage
   it('renders podium and table for many players', async () => {
+    // Arrange: seed gebruiker en een langere leaderboard-lijst
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-many-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-many-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
@@ -186,18 +195,18 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
-    // podium should render top 3
+    // Assert: podium toont top 3; overige spelers verschijnen in de tabel
     await waitFor(() => expect(container.querySelectorAll('.pillar-wrapper').length).toBeGreaterThanOrEqual(3))
-    // table header and rows for remaining players should be present
     await waitFor(() => expect(container.querySelectorAll('.table-header').length).toBe(1))
     const rows = container.querySelectorAll('.row')
     expect(rows.length).toBe(leaderboard.length - 3)
-    // score element for first remaining row should have badge class
+    // score-element van de eerste overgebleven rij moet een badge-class hebben
     const firstRemainingScore = rows[0].querySelector('.badge')
     expect(firstRemainingScore).toBeDefined()
   })
 
   it('falls back to players list when all leaderboard scores are zero', async () => {
+    // Arrange: alle scores zijn 0; component moet terugvallen op spelerslijst
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-zero-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-zero-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
@@ -214,6 +223,7 @@ describe('Scoreboard checklist tests', () => {
       { playerNumber: '203', name: 'Bob' }
     ]})
 
+    // Act: render component
     const { container } = render(
       <MemoryRouter>
         <AuthProvider>
@@ -227,7 +237,7 @@ describe('Scoreboard checklist tests', () => {
     // With 3 players the component renders only the podium (no .row entries)
     await waitFor(() => expect(container.querySelectorAll('.pillar-wrapper').length).toBeGreaterThanOrEqual(3))
     const pillars = container.querySelectorAll('.pillar-wrapper')
-    // left = #2 (items[1]), center = #1 (items[0]), right = #3 (items[2])
+    // Assert: controleer dat podiumnamen correct zijn en in verwachte volgorde (gestandaardiseerd door component)
     const left = pillars[0].querySelector('.pillar-name')?.textContent?.trim()
     const center = pillars[1].querySelector('.pillar-name')?.textContent?.trim()
     const right = pillars[2].querySelector('.pillar-name')?.textContent?.trim()
@@ -235,6 +245,7 @@ describe('Scoreboard checklist tests', () => {
   })
 
   it('handles string scores correctly', async () => {
+    // Arrange: scores zijn strings; component moet deze correct interpreteren
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-string-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-string-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
@@ -245,6 +256,7 @@ describe('Scoreboard checklist tests', () => {
     ]
     mockFetchLeaderboard.mockResolvedValue({ leaderboard })
 
+    // Act: render component
     const { container } = render(
       <MemoryRouter>
         <AuthProvider>
@@ -255,17 +267,19 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
+    // Assert: pillar scores bevatten de stringwaarden zoals verwacht
     await waitFor(() => expect(container.querySelectorAll('.pillar-wrapper').length).toBeGreaterThanOrEqual(2))
     const scores = Array.from(container.querySelectorAll('.pillar-score')).map(s => s.textContent?.trim())
     expect(scores).toEqual(expect.arrayContaining(['20', '5']))
   })
 
   it('refreshFromPlayers aggregates game-specific scores and sorts correctly', async () => {
+    // Arrange: seed gebruiker en sessie; zet initial leaderboard leeg zodat refreshFromPlayers wordt gebruikt
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-refresh-agg-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-refresh-agg-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
 
-    // Start with an empty leaderboard so component will fallback to players and then refreshFromPlayers will update
+    // Begin met een leeg leaderboard zodat de component terugvalt op spelersdata
     mockFetchLeaderboard.mockResolvedValue({ leaderboard: [] })
     mockFetchPlayers.mockResolvedValue({ players: [
       { playerNumber: '101', name: 'Anna' },
@@ -274,7 +288,7 @@ describe('Scoreboard checklist tests', () => {
       { playerNumber: '104', name: 'Dave' }
     ]})
 
-    // Raw players include game-specific scores and legacy scores (mix of numbers and strings)
+    // Raw players bevatten game-specifieke scores en legacy-waarden (mix van strings en nummers)
     mockFetchPlayersRaw.mockResolvedValue({ players: [
       { playerNumber: '101', name: 'Anna', score_passwordzapper: 5, score_printerslaatophol: 3, score: 2 },
       { playerNumber: '102', name: 'Bob', score_passwordzapper: '7', score_printerslaatophol: '4' },
@@ -282,6 +296,7 @@ describe('Scoreboard checklist tests', () => {
       { playerNumber: '104', name: 'Dave', score_passwordzapper: 'NaN', score_printerslaatophol: null, score: 1 }
     ]})
 
+    // Act: render component
     const { container } = render(
       <MemoryRouter>
         <AuthProvider>
@@ -292,11 +307,11 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
-    // Trigger a custom event which causes refreshFromPlayers to run
+    // Act: trigger custom event zodat refreshFromPlayers wordt uitgevoerd
     const customEvent = new CustomEvent('pz_score_update', { detail: { sessionId: 's-refresh-agg-1' } })
     window.dispatchEvent(customEvent)
 
-    // Wait for items to update from refreshFromPlayers: top names should include bob and anna (lowercased by component)
+    // Assert: na refreshFromPlayers moeten namen zoals 'bob' en 'anna' in de podiumlijst voorkomen
     await waitFor(() => {
       const names = Array.from(container.querySelectorAll('.pillar-name')).map(n => n.textContent?.trim())
       expect(names).toEqual(expect.arrayContaining(['bob', 'anna']))
@@ -304,6 +319,7 @@ describe('Scoreboard checklist tests', () => {
   })
 
   it('applies optimistic updates: updates existing and appends new players on storage events', async () => {
+    // Arrange: seed gebruiker en sessie, en een bestaande leaderboardlijst
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-opt-agg-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-opt-agg-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
@@ -316,6 +332,7 @@ describe('Scoreboard checklist tests', () => {
     mockFetchLeaderboard.mockResolvedValue({ leaderboard })
     mockFetchPlayersRaw.mockResolvedValue({ players: [] })
 
+    // Act: render component
     const { container } = render(
       <MemoryRouter>
         <AuthProvider>
@@ -328,20 +345,21 @@ describe('Scoreboard checklist tests', () => {
 
     await waitFor(() => expect(container.querySelectorAll('.pillar-wrapper').length).toBeGreaterThanOrEqual(1))
 
-    // Update existing player 102 to higher score using custom event (same-tab)
+    // Act: stuur een update-event om een bestaande speler te updaten en controleer dat component stabiel blijft
     const updEvent = new CustomEvent('pz_score_update', { detail: { sessionId: 's-opt-agg-1', playerNumber: '102', score: 25 } })
     window.dispatchEvent(updEvent)
 
-    // Dispatch events (applyOptimistic + refreshFromPlayers + load are executed)
+    // Assert: na de update moet de component nog steeds renderen zonder fouten
     await waitFor(() => {
       const containerEl = container.querySelector('.container')
       expect(containerEl).toBeDefined()
     })
 
+    // Act: voeg een nieuwe speler toe via hetzelfde mechanisme
     const addEvent = new CustomEvent('pz_score_update', { detail: { sessionId: 's-opt-agg-1', playerNumber: '200', score: 30 } })
     window.dispatchEvent(addEvent)
 
-    // ensure component remains stable after events
+    // Assert: component blijft stabiel nadat nieuwe speler is toegevoegd
     await waitFor(() => {
       const containerEl = container.querySelector('.container')
       expect(containerEl).toBeDefined()
@@ -366,15 +384,17 @@ describe('Scoreboard checklist tests', () => {
 
   // Test: controleert dat component correct wordt opgeruimd bij unmount
   it('cleans up event listeners and intervals on unmount', async () => {
+    // Arrange: seed gebruiker en sessie; prepareer spies om cleanup-methoden te observeren
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o@x' }))
     localStorage.setItem('currentSessionId', 's-cleanup-1')
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 's-cleanup-1', organizerId: 'org1', startedAt: new Date().toISOString() }] })
     mockFetchLeaderboard.mockResolvedValue({ leaderboard: [] })
 
-    // Spy on removeEventListener before render
+    // Spy op removeEventListener en clearInterval vóór render
     const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener')
     const clearIntervalSpy = vi.spyOn(global, 'clearInterval')
 
+    // Act: render en daarna unmount om cleanup te triggeren
     const { unmount } = render(
       <MemoryRouter>
         <AuthProvider>
@@ -385,13 +405,13 @@ describe('Scoreboard checklist tests', () => {
       </MemoryRouter>
     )
 
-    // Wait a bit for component to set up listeners
+    // Wacht even zodat listeners kunnen worden gezet
     await new Promise(resolve => setTimeout(resolve, 100))
 
-    // Unmount the component
+    // Unmount de component om cleanup uit te voeren
     unmount()
 
-    // Verify cleanup methods were called
+    // Assert: de cleanup-functies zijn aangeroepen (removeEventListener en clearInterval)
     expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', expect.any(Function))
     expect(removeEventListenerSpy).toHaveBeenCalledWith('pz_score_update', expect.any(Function))
     expect(clearIntervalSpy).toHaveBeenCalled()
@@ -413,6 +433,7 @@ describe('Scoreboard checklist tests', () => {
 
   // Test: controleert accessibility van de terug knop
   it('has proper accessibility attributes on back button', () => {
+    // Arrange + Act: render de Scoreboard zodat we de terugknop kunnen vinden
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -422,7 +443,7 @@ describe('Scoreboard checklist tests', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-
+    // Assert: controleer href en CSS-class voor toegankelijkheid en styling
     const backButton = screen.getByLabelText(/Terug naar kalender/i)
     expect(backButton).toHaveAttribute('href', '/day-overview')
     expect(backButton).toHaveClass('back')

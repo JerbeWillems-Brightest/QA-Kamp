@@ -2,6 +2,10 @@
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest'
 import initFireworks from './passwordZapperFireworks'
 
+// Beschrijving: test-suite voor de fireworks-animatie helper
+// Deze tests verifiëren dat het canvas correct wordt geresized, dat
+// animatie-frames gepland en uitgevoerd worden en dat de cleanup
+// correcte teardown (cancel RAF + event listener verwijdering) uitvoert.
 describe('passwordZapperFireworks', () => {
   let originalRaf: typeof window.requestAnimationFrame
   let originalCancel: typeof window.cancelAnimationFrame
@@ -31,6 +35,8 @@ describe('passwordZapperFireworks', () => {
     try { delete (window as any).devicePixelRatio } catch { /* ignore */ }
   })
 
+  // Test: het canvas wordt aangepast volgens de bounding rect en devicePixelRatio
+  // en de functie retourneert een cleanup-functie die zonder fouten kan worden aangeroepen
   it('resizes canvas based on bounding rect and devicePixelRatio and returns cleanup', () => {
     const dpr = 2;
     // mock devicePixelRatio in a way that avoids starting a line with '('
@@ -77,6 +83,9 @@ describe('passwordZapperFireworks', () => {
     removeSpy.mockRestore()
   })
 
+  // Test: voer een paar animatie-frames uit, controleer dat er tekenopdrachten naar
+  // de 2D-context worden gestuurd (rockets/bursts) en dat cleanup raf annuleert en
+  // resize-listener verwijdert
   it('runs a few animation frames and draws rockets/bursts (ctx methods called) then cleans up', () => {
     const ctx: any = {
       setTransform: vi.fn(),

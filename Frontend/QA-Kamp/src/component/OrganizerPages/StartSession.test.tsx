@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
 
-// Mock the API module before importing the component
+// Mock het API-module voordat de component geïmporteerd wordt
 const mockCreateSession = vi.fn()
 const mockGetSessions = vi.fn()
 vi.mock('../../api', () => ({
@@ -20,11 +20,13 @@ describe('StartSession (comprehensive)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
     localStorage.clear()
-    // ensure mocks are fresh references
+    // zorg dat mocks nieuwe referenties hebben
   })
 
   // Test: controleert dat de pagina de start-knop en de uitleg-heading rendert
   it('renders start button and heading', () => {
+    // Arrange: render de component binnen de benodigde providers en router
+    // Dit zet de DOM op zodat we elementen kunnen opvragen en interacties kunnen simuleren.
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -35,7 +37,8 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
-    // the button has aria-label="Start QA-Kamp" so query by that accessible name
+    // Assert: de startknop is aanwezig en de uitleg-heading is zichtbaar
+    // We zoeken op toegankelijke naam en zichtbare tekst om bruikbaarheid te controleren.
     expect(screen.getByLabelText(/Start QA-Kamp/i)).toBeDefined()
     expect(screen.getByText(/Klik om het QA-kamp te starten\./i)).toBeDefined()
   })
@@ -58,7 +61,8 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
-    // header may render a logout control with aria-label or text 'uitloggen' (Dutch) or 'logout'
+    // Act: render Navbar + StartSession en wacht tot de header is gerenderd
+    // Assert: er moet een uitlog-knop zichtbaar zijn omdat een gebruiker in localStorage staat
     await waitFor(() => {
       expect(screen.getByLabelText(/uitloggen|logout|log out/i)).toBeDefined()
     })
@@ -66,6 +70,7 @@ describe('StartSession (comprehensive)', () => {
 
   // Test: wanneer er geen gebruiker aanwezig is, wordt doorgestuurd naar de organizer-login pagina
   it('navigates to organizer-login when no user is present', async () => {
+    // Arrange + Act: render de component zonder gebruiker in localStorage; gebruik routes om redirect te detecteren
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
@@ -79,6 +84,7 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Assert: de component zou moeten doorsturen naar de organizer-login route wanneer niet geauthenticeerd
     await waitFor(() => expect(screen.getByText(/Organizer Login Page/i)).toBeDefined())
   })
 
@@ -103,6 +109,8 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Assert: na het detecteren van een actieve sessie navigeert de app naar day-overview
+    // en slaat de huidige sessie-id op in localStorage voor later gebruik.
     await waitFor(() => {
       expect(screen.getByText(/Day Overview Page/i)).toBeDefined()
       expect(localStorage.getItem('currentSessionId')).toBe('sess-123')
@@ -125,12 +133,13 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Act: zoek de startknop en klik om createSession te starten
     const btn = screen.getByLabelText(/Start QA-Kamp/i)
     fireEvent.click(btn)
 
+    // Assert: createSession moet aangeroepen zijn en het eerste argument is de organizer-id
     await waitFor(() => {
       expect(mockCreateSession).toHaveBeenCalled()
-      // first arg should be organizer id
       expect(mockCreateSession.mock.calls[0][0]).toBe('org2')
     })
   })
@@ -154,8 +163,10 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Act: klik op start en wacht op navigatie
     fireEvent.click(screen.getByLabelText(/Start QA-Kamp/i))
 
+    // Assert: na een succesvolle creatie wordt genavigeerd naar day-overview en wordt de sessie-id opgeslagen
     await waitFor(() => {
       expect(screen.getByText(/Day Overview Page/i)).toBeDefined()
       expect(localStorage.getItem('currentSessionId')).toBe('created-1')
@@ -179,8 +190,10 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Act: trigger createSession die resolveert zonder session-object terug te geven
     fireEvent.click(screen.getByLabelText(/Start QA-Kamp/i))
 
+    // Assert: de UI moet een alert tonen die aangeeft dat het starten mislukt is
     await waitFor(() => {
       expect(alertSpy).toHaveBeenCalledWith('Kon sessie niet starten')
     })
@@ -203,8 +216,10 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Act: simuleer een netwerkfout tijdens createSession
     fireEvent.click(screen.getByLabelText(/Start QA-Kamp/i))
 
+    // Assert: het foutpad toont ook dezelfde alert aan de gebruiker
     await waitFor(() => {
       expect(alertSpy).toHaveBeenCalledWith('Kon sessie niet starten')
     })
@@ -221,6 +236,7 @@ describe('StartSession (comprehensive)', () => {
         </AuthProvider>
       </MemoryRouter>
     )
+    // Assert: toegankelijkheidscontrole - de hoofdactieknop heeft een aria-label
     expect(screen.getByLabelText(/Start QA-Kamp/i)).toBeDefined()
   })
 
@@ -240,10 +256,12 @@ describe('StartSession (comprehensive)', () => {
       </MemoryRouter>
     )
 
+    // Act: klik tweemaal op de startknop om snelle gebruikersinteractie te simuleren
     const btn = screen.getByLabelText(/Start QA-Kamp/i)
     fireEvent.click(btn)
     fireEvent.click(btn)
 
+    // Assert: de API createSession moet voor elke klik zijn aangeroepen (geen interne debouncing)
     await waitFor(() => {
       expect(mockCreateSession).toHaveBeenCalledTimes(2)
     })

@@ -11,6 +11,10 @@ import { MemoryRouter } from 'react-router-dom'
 
 import FightTheBug from './FightTheBug'
 
+// Test-suite voor FightTheBug: UI-controles en enkele gameplay checks (TC01..TC42).
+// De tests renderen de component en simuleren gebruikersacties (klik, drag/drop,
+// globale events) om te verifiëren dat UI-elementen, energie-meters en feedback
+// correct werken.
 describe('FightTheBug - UI checks (TC01..TC02)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -25,7 +29,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     })) as unknown as typeof ResizeObserver
   })
 
-  // TC01 - start popup shows Volgende
+  // TC01: Controleer dat de start-speluitleg de knop 'Volgende' toont
   it('TC01: shows Volgende on the start (speluitleg) popup', () => {
     render(
       <MemoryRouter>
@@ -37,7 +41,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(screen.getByRole('button', { name: /Volgende/i })).toBeInTheDocument()
   })
 
-  // TC02 - help popup opened via global event shows Verder spelen
+  // TC02: Bij het openen van het hulp-/speluitleg-modal via het globale event
+  // (minigame:question) moet de knop 'Verder spelen' zichtbaar zijn
   it('TC02: shows Verder spelen when opening the help popup via the speluitleg event', async () => {
     render(
       <MemoryRouter>
@@ -67,7 +72,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(verder).toBeInTheDocument()
   })
 
-  // TC05 - hint popup Verder spelen
+  // TC05: Wanneer het hint-event (minigame:hint) wordt verstuurd en hints
+  // ontgrendeld zijn, moet het hint-popup de knop 'Verder spelen' tonen
   it('TC05: shows Verder spelen on the hint popup when opened', async () => {
     render(
       <MemoryRouter>
@@ -95,7 +101,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(verder).toBeInTheDocument()
   })
 
-  // TC06/TC07/TC08 - pause modal buttons
+  // TC06/TC07/TC08: Bij pauzeren (minigame:pause) moet het pauze-modal de knoppen
+  // 'Verder spelen', 'Opnieuw beginnen' en 'Stoppen' aanbieden
   it('TC06/TC07/TC08: pause modal shows Verder spelen, Opnieuw beginnen and Stoppen', async () => {
     render(
       <MemoryRouter>
@@ -163,7 +170,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     ) as HTMLElement | null
   }
 
-  // TC09-TC11: Game screen top-level controls are present when rendered via MinigamePage
+  // TC09/TC10/TC11: Controleer dat de top-level knoppen Hint, Pauze en Speluitleg
+  // aanwezig zijn wanneer het spel via `MinigamePage` gerenderd wordt
   it('TC09/TC10/TC11: game screen shows Hint, Pauze and Speluitleg buttons', async () => {
     // Render via MinigamePage so top-level controls are included
     vi.resetModules()
@@ -188,7 +196,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(vraagBtn).toBeInTheDocument()
   })
 
-  // TC12: player energy visible on bottom-left
+  // TC12: Controleer dat de energiebalk voor de speler zichtbaar is (onderin links)
   it('TC12: shows player energy bar (bottom-left)', async () => {
     render(
       <MemoryRouter>
@@ -201,7 +209,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(await screen.findByLabelText('Energie Speler')).toBeInTheDocument()
   })
 
-  // TC13: bug energy visible on top-left
+  // TC13: Controleer dat de energiebalk van de bug zichtbaar is (bovenin links)
   it('TC13: shows bug energy bar (top-left)', async () => {
     render(
       <MemoryRouter>
@@ -214,7 +222,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(await screen.findByLabelText('Energie Bug')).toBeInTheDocument()
   })
 
-  // TC14: feedback centrally visible when an answer is given
+  // TC14: Wanneer een antwoord geselecteerd wordt, moet er centraal bovenin
+  // zichtbare feedback (banner of delta) verschijnen
   it('TC14: feedback central top visible when an answer is selected', async () => {
     render(
       <MemoryRouter>
@@ -241,7 +250,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     })
   })
 
-  // TC28: player starts with 100 energy
+  // TC28: De speler begint met 100 energie (we controleren de weergegeven waarde)
   it('TC28: player starts with 100 energy', async () => {
     render(
       <MemoryRouter>
@@ -258,7 +267,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     })
   })
 
-  // TC29: bug starts with 100 energy
+  // TC29: De bug begint met 100 energie (we controleren de weergegeven waarde)
   it('TC29: bug starts with 100 energy', async () => {
     render(
       <MemoryRouter>
@@ -275,7 +284,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     })
   })
 
-  // TC30: both energy meters are visible on the screen
+  // TC30: Beide energiemeters (speler en bug) moeten zichtbaar en gelabeld zijn
   it('TC30: both energy meters are visible', async () => {
     render(
       <MemoryRouter>
@@ -292,7 +301,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     expect(bug).toBeInTheDocument()
   })
 
-  // TC31: player sees a multiple-choice question
+  // TC31: Controleer dat er een meerkeuzevraag (titel) aan de speler getoond wordt
   it('TC31: displays a question prompt to the player', async () => {
     render(
       <MemoryRouter>
@@ -309,7 +318,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     })
   })
 
-  // TC32: player sees 4 answer options
+  // TC32: Controleer dat er precies vier antwoordopties gerenderd worden
   it('TC32: displays four answer options', async () => {
     render(
       <MemoryRouter>
@@ -328,7 +337,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
   // TC23 removed: test for 'Opnieuw spelen' after winning was causing failures and
   // the UI requirements were adjusted. Test intentionally removed.
 
-  // TC44: game ends when the bug energy reaches 0
+  // TC44: Simuleer meerdere correcte antwoorden totdat de bug-energie 0 bereikt
+  // en controleer dat het eind-overlay verschijnt
   it('TC44: game ends when bug energy reaches 0', async () => {
     render(
       <MemoryRouter>
@@ -398,9 +408,8 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
   })
 
 
-  // TC33: player loses 10 energy on a wrong answer
-  // TC34: player energy updates from 100 to 90 after one wrong answer
-  // TC35: visual feedback (color/animation) is shown for a wrong answer
+  // TC33/TC34/TC35: Bij een fout antwoord verliest de speler 10 energie
+  // (100 -> 90) en er moet visuele negatieve feedback zichtbaar zijn
   it('TC33/TC34/TC35: wrong answer reduces player energy by 10 and shows bad feedback', async () => {
     render(
       <MemoryRouter>
@@ -477,7 +486,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
      })
   })
 
-  // TC40: bug energy cumulatively decreases after multiple correct answers
+  // TC40: Bij meerdere correcte antwoorden moet de bug-energie cumulatief afnemen
   it('TC40: bug energy cumulatively decreases after multiple correct answers', async () => {
     render(
       <MemoryRouter>
@@ -526,7 +535,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     }
   })
 
-  // TC41: player's energy does not change on a correct answer
+  // TC41: Bij een correct antwoord verandert de energie van de speler niet
   it('TC41: player energy does not change when a correct answer is given', async () => {
     render(
       <MemoryRouter>
@@ -553,7 +562,7 @@ describe('FightTheBug - UI checks (TC01..TC02)', () => {
     })
   })
 
-  // TC42: bug energy does not change on a wrong answer
+  // TC42: Bij een fout antwoord verandert de bug-energie niet
   it('TC42: bug energy does not change when a wrong answer is given', async () => {
     render(
       <MemoryRouter>

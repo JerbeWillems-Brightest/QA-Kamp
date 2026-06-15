@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { fetchLeaderboard, fetchPlayersForSession, fetchPlayersRawForSession } from '../../api'
 import { useSession } from '../../context/SessionContext'
-// Embedded CSS so HTML + CSS live in a single file
 const embeddedCss = `
 body{
     font-family: Arial, Helvetica, sans-serif;
@@ -196,22 +195,18 @@ export default function Scoreboard() {
     async function load() {
       setLoading(true)
       try {
-        // try leaderboard (sorted by score desc on server)
         const lbResp = await fetchLeaderboard(sid)
         if (!mounted) return
         const lb = (lbResp && lbResp.leaderboard) || []
         const leaderboardTyped = lb as LeaderboardItem[]
-        // check if any score > 0
         const hasNonZero = leaderboardTyped.some((p) => (p.score ?? 0) > 0)
         if (hasNonZero) {
           setItems(leaderboardTyped)
         } else {
-          // no game started: fetch players and show alphabetical list (by name)
           try {
             const pResp = await fetchPlayersForSession(sid)
             if (!mounted) return
             const rawPlayers = (pResp && (pResp as { players?: unknown[] }).players) || []
-            // map and sort alphabetically by name
             const mapped: LeaderboardItem[] = (rawPlayers as Record<string, unknown>[]).map((p) => ({
               playerNumber: String(p['playerNumber'] ?? p['nummer'] ?? ''),
               name: String(p['name'] ?? p['naam'] ?? '').toLowerCase(),
@@ -234,7 +229,6 @@ export default function Scoreboard() {
         if (mounted) setLoading(false)
       }
     }
-    // helper: refresh items directly from players list and aggregate per-game score fields
     async function refreshFromPlayers() {
       try {
         const pResp = await fetchPlayersRawForSession(sid)
@@ -259,7 +253,6 @@ export default function Scoreboard() {
             score: typeof scoreVal === 'number' ? scoreVal : 0,
           }
         })
-        // sort by score desc then name
         mapped.sort((a, b) => {
           const sa = a.score ?? 0
           const sb = b.score ?? 0
@@ -273,17 +266,12 @@ export default function Scoreboard() {
       }
     }
     load()
-    // Poll every 10 seconds
+
     const iv = setInterval(load, 10000)
 
-    // Also listen for cross-tab/localStorage events that indicate a score was
-    // updated by a player (PasswordZapper writes a 'pz_score_update' key when
-    // it successfully persists a score). React to that by reloading the
-    // leaderboard immediately so the organiser sees updated scores fast.
     const applyOptimistic = (payload: { sessionId?: string; playerNumber?: string; score?: number } | null) => {
       try {
         if (!payload || !payload.playerNumber) return
-        // only apply optimistic change for the same session
         if (payload.sessionId && payload.sessionId !== sid) return
         const pn = String((payload.playerNumber || '').toString()).padStart(3, '0')
         const sc = typeof payload.score === 'number' ? payload.score : undefined
@@ -293,15 +281,13 @@ export default function Scoreboard() {
           const idx = copy.findIndex((it) => String(it.playerNumber || '').padStart(3, '0') === pn)
           if (idx >= 0) {
             const existing = copy[idx]
-            // update score only if different
             if ((existing.score ?? 0) !== sc) {
               copy[idx] = { ...existing, score: sc }
             }
             return copy
           }
-          // not found: append a minimal row (name unknown) so organiser sees the new score
+
           copy.push({ playerNumber: pn, name: `#${pn}`, score: sc })
-          // keep sort: highest score first
           copy.sort((a, b) => (b.score ?? 0) - (a.score ?? 0) || a.name.localeCompare(b.name))
           return copy
         })
@@ -320,24 +306,18 @@ export default function Scoreboard() {
               applyOptimistic(parsed)
             } catch { /* ignore parse errors */ }
           }
-          // try to immediately update the UI from players list (fast path)
           void refreshFromPlayers().catch(() => {})
-          // schedule load asynchronously to avoid state updates during storage event
           setTimeout(() => { void load().catch(() => {}) }, 0)
         }
       } catch {
         /* ignore */
       }
     }
-    // typed shape for the custom event detail used by pz_score_update
     type PzScoreUpdateDetail = { sessionId?: string; playerNumber?: string; score?: number } | null
 
     const onCustom = (ev: Event) => {
       try {
-        // custom events (pz_score_update) dispatched by games to notify same-tab listeners
-        // fast path: apply optimistic update from event.detail, then refresh
         try {
-          // cast to CustomEvent with a typed detail instead of using `any`
           const ce = ev as CustomEvent<PzScoreUpdateDetail>
           const det = ce?.detail ?? null
           applyOptimistic(det)

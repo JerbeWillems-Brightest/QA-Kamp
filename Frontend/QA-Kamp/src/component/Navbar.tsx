@@ -9,7 +9,6 @@ export default function Navbar() {
 
   function handleLogout(e: MouseEvent<HTMLButtonElement>) {
     e.preventDefault()
-    // If a player is logged in via sessionStorage, clear player session
     const playerNumber = sessionStorage.getItem('playerNumber')
     if (playerNumber) {
       try {
@@ -22,7 +21,6 @@ export default function Navbar() {
         const raw = localStorage.getItem('onlinePlayers')
         if (raw) {
           const arr = JSON.parse(raw) as string[]
-          // remove both plain and padded forms
           const plain = String(playerNumber)
           const padded = plain.padStart(3, '0')
           const filtered = arr.filter(n => String(n) !== plain && String(n) !== padded)
@@ -39,18 +37,15 @@ export default function Navbar() {
       } catch {
           // ignore error
       }
-      // Also remove the currentsessionid so a subsequent login will re-fetch the active session
       try { localStorage.removeItem('currentSessionId'); try { window.dispatchEvent(new StorageEvent('storage', { key: 'currentSessionId', newValue: null })) } catch { /* ignore */ } } catch { /* ignore */ }
       navigate('/')
       return
     }
 
-    // Otherwise assume organizer logout -> send to organizer login page
     auth.logout()
     navigate('/organizer-login')
   }
 
-  // Show logout button when organizer logged in or player session present
   const playerNumber = typeof window !== 'undefined' ? sessionStorage.getItem('playerNumber') : null
 
   return (

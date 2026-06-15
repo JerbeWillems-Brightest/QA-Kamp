@@ -36,9 +36,6 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const login = (u: User) => setUser(u)
   const logout = () => {
     setUser(null)
-    // Also clear active game info when the user logs out so player clients
-    // don't remain 'in-game' after sign-out. Notify other tabs/windows in
-    // the same browser via CustomEvent and a StorageEvent so they can react.
       try {
         if (typeof window !== 'undefined') {
           // Remove active game info
@@ -53,7 +50,6 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
           try { window.dispatchEvent(new StorageEvent('storage', { key: 'pz-highscore_passwordzapper', newValue: null })) } catch (e) { void e }
         }
       } catch (err) {
-      // best-effort only
       console.warn('AuthContext: failed to clear activeGameInfo on logout', err)
     }
   }
@@ -61,7 +57,6 @@ export const AuthProvider: FC<{ children: ReactNode }> = ({ children }) => {
   return <AuthContext.Provider value={{ user, login, logout }}>{children}</AuthContext.Provider>
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')

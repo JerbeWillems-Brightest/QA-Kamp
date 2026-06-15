@@ -16,12 +16,8 @@ import Navbar from './component/Navbar'
 import WaitingRoom from './component/PlayerPages/WaitingRoom'
 
 function App() {
-    // We need to use useLocation to know the current route in order to hide
-    // the footer during minigames. useLocation must be used inside a Router,
-    // so create an inner component that renders the page contents.
     const InnerApp: React.FC = () => {
         const location = useLocation()
-        // Only show the footer on the login pages (root and organizer login)
         const allowedFooterPaths = ['/', '/organizer-login']
         const showFooter = allowedFooterPaths.includes(location.pathname)
 
@@ -33,9 +29,6 @@ function App() {
             return () => { try { document.body.classList.remove('pz-no-footer') } catch { /* ignore */ } }
         }, [showFooter])
 
-        // Detect iPad-like devices and force a landscape-style UI when the
-        // device is held in portrait. This toggles `pz-force-landscape` on the
-        // body so the CSS rotation workaround takes effect.
         useEffect(() => {
             function isIPadLike() {
                 try {
@@ -51,10 +44,6 @@ function App() {
                 try {
                     const wantForce = isIPadLike() && window.matchMedia && window.matchMedia('(orientation: portrait)').matches
                     const haveForce = document.body.classList.contains('pz-force-landscape')
-                    // Only change the class and notify other listeners when the
-                    // forced-landscape state actually changes. This prevents
-                    // dispatching a "resize" that would re-trigger this same
-                    // handler and cause an infinite recursion.
                     if (wantForce && !haveForce) {
                         document.body.classList.add('pz-force-landscape')
                         window.dispatchEvent(new Event('resize'))

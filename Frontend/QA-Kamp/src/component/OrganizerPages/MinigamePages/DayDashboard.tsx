@@ -4,7 +4,6 @@ import Navbar from '../../Navbar.tsx'
 import { useSession } from '../../../context/SessionContext.tsx'
 import { fetchPlayersForSession, fetchLeaderboard, fetchOnlinePlayers } from '../../../api'
 import { useState } from 'react'
-// import images so the bundler (Vite) resolves their URLs
 import KRAAK_IMG from '../../../assets/NonExistingGame.png'
 import PASS_IMG from '../../../assets/PasswordZapperImage.png'
 import BUG_IMG from '../../../assets/BugCleanupImage.png'
@@ -18,7 +17,7 @@ import THERMOSTAAT_IMG from '../../../assets/NietZoSlimmeThermostaatImage.png'
 import FIGHT_IMG from '../../../assets/FightTheBugImage.png'
 import MinigamePopup from './MinigamePopup'
 
-// embedded CSS so the component is self-contained
+
 const embeddedCss = `
 :root{
   --yellow:#f2c200;
@@ -326,28 +325,22 @@ function DayDashboard(){
   const { day } = useParams<{ day: string }>()
   const loc = useLocation()
   const { currentSession } = useSession()
-  // sessionId logic unchanged
   const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
   const [players, setPlayers] = useState<Player[]>([])
-  // track which playerNumbers are currently online (synchronized via localStorage)
   const [onlinePlayers, setOnlinePlayers] = useState<string[]>([])
   const [leaderboard, setLeaderboard] = useState<LeaderboardItem[]>([])
   const [loading, setLoading] = useState(false)
 
-  // popup state
   const [selectedGame, setSelectedGame] = useState<string | null>(null)
-  // global running state for the day dashboard: which game is active
   const [isGameRunning, setIsGameRunning] = useState(false)
   const [activeGame, setActiveGame] = useState<string | null>(null)
 
-  // helper to read onlinePlayers from localStorage safely
   function readOnlinePlayersFromStorage(): string[] {
     try {
       const raw = localStorage.getItem('onlinePlayers')
       if (!raw) return []
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) return parsed.map((v) => String(v).padStart(3,'0'))
-      // back-compat: comma-separated
       if (raw.includes(',')) return raw.split(',').map(s => s.trim()).filter(Boolean).map(s => String(s).padStart(3,'0'))
       return []
     } catch {
@@ -355,11 +348,8 @@ function DayDashboard(){
     }
   }
 
-  // initialize and subscribe to localStorage changes for onlinePlayers
   useEffect(() => {
-    // initial read
     setOnlinePlayers(readOnlinePlayersFromStorage())
-    // storage event listener to sync across tabs
     const onStorage = (ev: StorageEvent) => {
       if (ev.key === 'onlinePlayers') {
         setOnlinePlayers(readOnlinePlayersFromStorage())
@@ -367,7 +357,6 @@ function DayDashboard(){
     }
     window.addEventListener('storage', onStorage)
 
-    // Poll server for authoritative onlinePlayers every 5s while this component is mounted
     let cancelled = false
     let timer: number | null = null
     async function pollOnline() {
@@ -377,16 +366,13 @@ function DayDashboard(){
         if (!sessId) return
         const resp = await fetchOnlinePlayers(sessId)
         const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3,'0'))
-        // update localStorage only if changed (helps avoid redundant storage events)
         try {
           const raw = localStorage.getItem('onlinePlayers')
           const cur = raw ? (JSON.parse(raw) as string[]) : []
           const same = Array.isArray(cur) && cur.length === list.length && cur.every((v, i) => String(v) === String(list[i]))
           if (!same) {
             localStorage.setItem('onlinePlayers', JSON.stringify(list))
-            // transient key to ensure same-tab listeners also react
             try { localStorage.setItem('onlinePlayers_last_update', String(Date.now())) } catch { /* ignore */ }
-            // notify other tabs explicitly in case some browsers don't fire storage for same-tab writes
             try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(list) })) } catch { /* ignore */ }
           }
           setOnlinePlayers(list)
@@ -397,7 +383,6 @@ function DayDashboard(){
         if (!cancelled) timer = window.setTimeout(pollOnline, 5000)
       }
     }
-    // start polling
     pollOnline().catch(() => {})
 
     return () => {
@@ -407,14 +392,12 @@ function DayDashboard(){
     }
   }, [sessionId])
 
-  // initialize running state from localStorage so it persists across navigation/tabs
   useEffect(() => {
     try {
       const raw = localStorage.getItem('activeGameInfo')
       if (raw) {
         const parsed = JSON.parse(raw)
         if (parsed && parsed.game) {
-          // defer state update to avoid calling setState synchronously in effect
           setTimeout(() => {
             setIsGameRunning(true)
             setActiveGame(parsed.game)
@@ -428,7 +411,6 @@ function DayDashboard(){
         if (ev.newValue) {
           try {
             const parsed = JSON.parse(ev.newValue)
-            // defer to avoid synchronous state update within storage event handler
             setTimeout(() => {
               setIsGameRunning(true)
               setActiveGame(parsed.game)
@@ -460,9 +442,7 @@ function DayDashboard(){
 
   function normalizeKey(s: string){ return s.toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'') }
   function openGameModal(label: string){
-    // if another game is running and it's not this one, prevent opening
     if (isGameRunning && activeGame && activeGame !== label) {
-      // silently ignore clicks or optionally show an alert
       window.alert(`Kan ${label} niet openen — ${activeGame} is momenteel actief.`)
       return
     }
@@ -473,59 +453,41 @@ function DayDashboard(){
     if (!selectedGame) return
     setIsGameRunning(true)
     setActiveGame(selectedGame)
-    // show alert with game name
     try { window.alert(`${selectedGame} is gestart`) } catch { /* ignore if alert unavailable */ }
-    // keep the popup open so the organizer can stop the game from the popup
     console.log('Starting', selectedGame)
-    // persist running game so other pages know a game is active
     try {
-      // derive day key from the current path (e.g. /day/maandag)
       const p = typeof window !== 'undefined' ? window.location.pathname : ''
       const m = p.match(/\/day\/(\w+)/i)
       const dayKeyForPersist = m && m[1] ? m[1].toLowerCase() : ''
       const info = { game: selectedGame, day: dayKeyForPersist }
       localStorage.setItem('activeGameInfo', JSON.stringify(info))
-      // dispatch custom event for same-tab listeners
       try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: info })) } catch (err) { void err }
-      // also persist to server so remote clients can poll
       try {
         const sid = sessionId
         if (sid) {
-          // import API lazily to avoid circular imports
           const api = await import('../../../api')
           try { await api.setActiveGameInfo(sid, info) } catch (err) { console.warn('Failed to set activeGameInfo on server', err) }
         }
       } catch (err) { console.warn('Failed to notify server of activeGameInfo', err) }
     } catch (e) { console.warn('Failed to persist activeGameInfo', e) }
 
-    // Do NOT navigate the organizer to the minigame. Players are redirected from the
-    // waiting room when the organizer starts the game (we persist activeGameInfo to
-    // localStorage and dispatch a custom event so player UIs will react).
   }
   async function stopGame(){
     if (!selectedGame) return
     setIsGameRunning(false)
-    // capture name before clearing
     const name = selectedGame
     setActiveGame(null)
     try { window.alert(`${name} is gestopt`) } catch { /* ignore */ }
     console.log('Stopping', name)
-    // close the modal after stopping
     closeModal()
-    // First: clear localStorage and notify same-tab and other tabs so the
-    // organizer's browser (and other tabs in this browser) react immediately.
     try {
       try { localStorage.removeItem('activeGameInfo') } catch (e) { console.warn('Failed to remove activeGameInfo', e) }
-      // same-tab listeners: dispatch custom event with null detail
       try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
-      // cross-tab listeners: dispatch a storage event so other tabs will receive newValue === null
       try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch (err) { void err }
     } catch (e) {
       console.warn('Failed to notify clients of stop', e)
     }
 
-    // Ensure any modal-open class applied to the dashboard is removed so the UI returns
-    // to normal (this guards against cases where popup logic left the class behind).
     try {
       const root = typeof document !== 'undefined' ? document.querySelector('.day-dashboard') : null
       if (root && root.classList.contains('modal-open')) root.classList.remove('modal-open')
@@ -533,10 +495,6 @@ function DayDashboard(){
       // ignore
     }
 
-    // Then persist the cleared state to the server so remote devices polling
-    // the server will observe the cleared state. We do this after clearing
-    // localStorage to avoid duplicate fallback calls from popup logic that may
-    // also attempt a server update when the local key still exists.
     try {
       const sid = sessionId
       if (sid) {
@@ -552,13 +510,10 @@ function DayDashboard(){
     }
   }
 
-  // If useParams didn't provide a day (tests often render without a Route), try to derive it from the pathname
   const inferredDay = (() => {
     if (day && String(day).trim()) return String(day)
     try {
-      // Prefer router location (works with MemoryRouter in tests)
       const p = loc?.pathname ?? (typeof window !== 'undefined' ? window.location.pathname : '')
-      // Expecting path like /day/maandag or /day/maandag/...
       const m = p.match(/\/day\/(\w+)/i)
       if (m && m[1]) return m[1]
     } catch {
@@ -567,7 +522,6 @@ function DayDashboard(){
     return ''
   })()
 
-  // compute the display label for the day using explicit mapping
   const dayLabel = (() => {
     const theDay = (inferredDay || day || '').toString()
     if (!theDay) return 'Dag dashboard'
@@ -588,7 +542,6 @@ function DayDashboard(){
     }
   })()
 
-  // mapping of games per day (labels only). Images remain the same for all buttons.
   const gamesByDay: Record<string, string[]> = {
     maandag: ['Kraak het wachtwoord', 'Password zapper'],
     dinsdag: ['Bug Cleanup', 'Getalrace', 'Reactietijd test', 'Whack the bug'],
@@ -600,20 +553,14 @@ function DayDashboard(){
   const currentDayKey = (inferredDay || day || '').toString().toLowerCase()
   const gamesForDay = gamesByDay[currentDayKey] ?? gamesByDay['maandag']
 
-  // helper to find the gameDetails entry for a given label robustly. Handles labels like
-  // '(Niet zo) slimme thermostaat' which normalize to 'nietzoslimmethermostaat' while
-  // the gameDetails key may be 'slimmethermostaat'. We try exact normalized match, strip
-  // common prefixes like 'nietzo', and fall back to partial matches.
   function findGameDetailsByLabel(label: string | null | undefined) {
     if (!label) return undefined
     const key = normalizeKey(label)
     if (gameDetails[key]) return gameDetails[key]
-    // try stripping a leading 'nietzo' (handles '(Niet zo) slimme thermostaat')
     if (key.startsWith('nietzo')) {
       const alt = key.replace(/^nietzo/, '')
       if (gameDetails[alt]) return gameDetails[alt]
     }
-    // try fuzzy partial matches: either direction
     for (const k of Object.keys(gameDetails)) {
       if (k.includes(key) || key.includes(k)) return gameDetails[k]
     }
@@ -621,7 +568,6 @@ function DayDashboard(){
   }
 
   useEffect(() => {
-    // only run effect when we have a session id
     if (!sessionId) {
       return
     }
@@ -633,23 +579,19 @@ function DayDashboard(){
         if (!mounted) return
         const lbResp = (lb as { leaderboard?: unknown } | null) ?? null
         const raw = Array.isArray(lbResp?.leaderboard) ? lbResp!.leaderboard as unknown[] : []
-        // normalize entries
         const parsed: LeaderboardItem[] = raw.map((it) => {
           const obj = (it ?? {}) as Record<string, unknown>
           const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
           const name = typeof obj.name === 'string' ? obj.name : (typeof obj.naam === 'string' ? obj.naam : '')
           const scoreVal = obj.score ?? obj.points ?? obj.punten
           const score = typeof scoreVal === 'number' ? scoreVal : Number(scoreVal ?? 0) || 0
-          // keep original casing for display but sorting will use lowercase
           return { playerNumber: String(playerNumber), name: String(name), score }
         })
 
-        // Sort: primary by score desc, secondary by name asc (case-insensitive)
         parsed.sort((a, b) => {
           const scoreA = typeof a.score === 'number' ? a.score : 0
           const scoreB = typeof b.score === 'number' ? b.score : 0
           if (scoreB !== scoreA) return scoreB - scoreA
-          // names may have mixed casing; compare case-insensitive
           const nameA = (a.name ?? '').toString().toLowerCase()
           const nameB = (b.name ?? '').toString().toLowerCase()
           return nameA.localeCompare(nameB, undefined, { sensitivity: 'base' })
@@ -658,7 +600,6 @@ function DayDashboard(){
         setLeaderboard(parsed)
       } catch (err) {
         console.warn('Failed to fetch leaderboard', err)
-        // continue to try fetching players
       }
       try {
         const p = await fetchPlayersForSession(sessionId)
@@ -669,22 +610,17 @@ function DayDashboard(){
         const parsedPlayers: Player[] = rawPlayers.map((it) => {
            const obj = (it ?? {}) as Record<string, unknown>
            const playerNumber = typeof obj.playerNumber === 'string' ? obj.playerNumber : (typeof obj.nummer === 'string' ? obj.nummer : '')
-           // normalize playerNumber to 3-digit string so it matches onlinePlayers format
            const playerNumberStr = String(playerNumber ?? '').trim().padStart(3,'0')
            const name = typeof obj.name === 'string' ? obj.name : (typeof obj.naam === 'string' ? obj.naam : '')
            const scoreVal = obj.score ?? obj.points ?? obj.punten
            const score = typeof scoreVal === 'number' ? scoreVal : Number(scoreVal ?? 0) || 0
-          // try several possible fields for the age/category column coming from different backends
-           const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
+          const category = (typeof obj.category === 'string' && obj.category.trim()) ? obj.category
              : (typeof obj.ageCategory === 'string' && obj.ageCategory.trim()) ? obj.ageCategory
              : (typeof obj.leeftijdscategorie === 'string' && obj.leeftijdscategorie.trim()) ? obj.leeftijdscategorie
              : (typeof obj.leeftijd === 'string' && obj.leeftijd.trim()) ? obj.leeftijd
              : (typeof obj.categorie === 'string' && obj.categorie.trim()) ? obj.categorie
              : '-'
 
-          // derive status from localStorage onlinePlayers set OR server lastSeen presence
-          // A non-null lastSeen is considered authoritative 'online'; there is no
-          // client-side heartbeat cutoff — offline should only happen on explicit logout.
           let status = 'Offline'
           try {
             const lastSeenRaw = (obj['lastSeen'] ?? obj['last_seen'] ?? obj['lastseen'] ?? null) as string | null
@@ -705,7 +641,6 @@ function DayDashboard(){
     return () => { mounted = false }
   }, [sessionId])
 
-  // whenever onlinePlayers updates, refresh players' status in state
   useEffect(() => {
     if (!players || players.length === 0) return
     const onlineSet = new Set(onlinePlayers.map(s => String(s)))
