@@ -47,10 +47,8 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
-  // new states for manual add/edit
   const [playerNumberInput, setPlayerNumberInput] = useState('')
   const [nameInput, setNameInput] = useState('')
-  // replace free-text age input with category dropdown (8-10, 11-13, 14-16)
   const [categoryInput, setCategoryInput] = useState<'8-10'|'11-13'|'14-16'>('11-13')
   const [editing, setEditing] = useState<string | null>(null) // playerNumber of editing player
   const [showAdd, setShowAdd] = useState(false)
@@ -61,7 +59,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     if (!auth.user) navigate('/organizer-login')
   }, [auth.user, navigate])
 
-  // helper: generate unique 3-digit number between 100-999 not in existing or parsed sets
   function generateUniqueNumber(existing: Set<string>, parsed: Set<string>) {
     const maxAttempts = 1000
     for (let i = 0; i < maxAttempts; i++) {
@@ -91,7 +88,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
             const age = Number(ageVal ?? 0)
             return { playerNumber, name, age, category: (p['category'] as string) ?? categorize(age), lastSeen: lastSeenVal ? String(lastSeenVal) : null }
           })
-          // sort by playerNumber
           mapped.sort((a, b) => a.playerNumber.localeCompare(b.playerNumber))
           setPlayers(mapped)
         }
@@ -115,9 +111,7 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     return () => { cancelled = true }
   }, [API_URL, currentSession?.id])
 
-  // (status removed) no isOnline helper needed
 
-  // helper to convert unknown errors to string message
   function toErrorMessage(err: unknown) {
     if (!err) return 'Unknown error'
     if (typeof err === 'string') return err
@@ -144,7 +138,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         setErrors(['Leeg sheet of ongeldig bestand'])
         return
       }
-      // if we have a session, load existing player numbers to avoid collisions
       const sessionId = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
       const existingNumbers = new Set<string>()
       if (sessionId) {
@@ -169,12 +162,10 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const row = json[i]
         const keys = Object.keys(row)
 
-        // prefer headers for name and age; ignore any playerNumber column — we auto-generate
         const values = Object.values(row)
         const nameRaw = findValue(row, ['naam', 'name', 'voornaam', 'naamkind'], keys) ?? (keys[0] ? row[keys[0]] : values[0]) ?? ''
         const ageRaw = findValue(row, ['leeftijd', 'age', 'leeftijdkind'], keys) ?? (keys[1] ? row[keys[1]] : values[1]) ?? values[1] ?? values[0] ?? ''
 
-        // generate a unique 3-digit playerNumber for this imported row
         let playerNumber: string
         try {
           playerNumber = generateUniqueNumber(existingNumbers, parsedNumbers)
@@ -184,7 +175,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         }
         parsedNumbers.add(playerNumber)
 
-        // name
         const nameVal = String(nameRaw ?? '').trim()
         if (!nameVal) {
           errs.push(`Rij ${i + 2}: Naam ontbreekt`)
@@ -192,7 +182,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         }
         const name = nameVal.toLowerCase()
 
-        // age
         const ageNum = Number(String(ageRaw ?? '').trim())
         if (!Number.isFinite(ageNum) || ageNum < 8 || ageNum > 16) {
           errs.push(`Rij ${i + 2}: Leeftijd "${ageRaw}" is ongeldig — verwacht 8–16`)
@@ -203,7 +192,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         parsed.push({ playerNumber, name, age, category: categorize(age) })
       }
 
-      // check duplicates in parsed
       const dupMap: Record<string, number[]> = {}
       parsed.forEach((p, idx) => {
         dupMap[p.playerNumber] = dupMap[p.playerNumber] || []
@@ -221,15 +209,12 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         return
       }
 
-      // sort and set
       parsed.sort((a, b) => a.playerNumber.localeCompare(b.playerNumber))
       setPlayers(parsed)
 
-      // try send to backend (link to current session)
       const sessionId2 = sessionId
       if (!sessionId2) {
         setSuccessMsg('Import gelukt (lokaal), maar geen actieve sessie gevonden — players niet opgeslagen op server')
-        // keep parsed in UI but avoid localStorage reliance
         setPlayers(parsed)
         return
       }
@@ -240,7 +225,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const rc = (resp && typeof resp === 'object') ? (resp as RespCreated).created : undefined
         const createdCount = Array.isArray(rc) ? rc.length : parsed.length
         setSuccessMsg(`Spelers succesvol toegevoegd (${createdCount})`)
-        // update UI with created players from DB (refresh)
         await loadPlayers(sessionId2)
       } catch (err: unknown) {
         console.error('Network error posting players', err)
@@ -252,7 +236,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     }
   }
 
-  // file picker handler
   const handlePick = (mode: 'append' | 'replace') => {
     const input = document.createElement('input')
     input.type = 'file'
@@ -264,7 +247,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     input.click()
   }
 
-  // Auto-generate a unique spelersnummer and open the add form
   const handleAddClick = async () => {
     if (editing) {
       setShowAdd(s => !s)
@@ -313,7 +295,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     }
   }
 
-  // helper: add or update single player
   async function submitPlayer() {
     setErrors([])
     setSuccessMsg(null)
@@ -323,32 +304,25 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       return
     }
 
-    // validation
     const numOnly = String(playerNumberInput || '').trim().replace(/\D/g, '')
     if (!numOnly) return setErrors(['Ongeldig spelersnummer'])
     const playerNumber = numOnly.padStart(3, '0')
     const name = String(nameInput || '').trim().toLowerCase()
     if (!name) return setErrors(['Naam is verplicht'])
 
-    // New stricter name validations
-    // reject names containing spaces
+
     if (/\s/.test(name)) return setErrors(['Naam mag geen spaties bevatten'])
-    // length constraints
     if (name.length < 2) return setErrors(['Naam moet minimaal 2 tekens bevatten'])
     if (name.length > 25) return setErrors(['Naam mag maximaal 25 tekens bevatten'])
-    // disallow digits
     if (/\d/.test(name)) return setErrors(['Naam mag geen cijfers bevatten'])
-    // allow only letters (include common latin accents)
     if (!/^[a-z\u00C0-\u017F]+$/.test(name)) return setErrors(['Geen speciale tekens toegestaan in naam'])
 
-    // map selected category to a representative age that satisfies backend validation
     const category = categoryInput
     const categoryToAge: Record<string, number> = { '8-10': 8, '11-13': 11, '14-16': 14 }
     if (!category || !categoryToAge[category]) return setErrors(['Ongeldige leeftijdscategorie'])
     const age = categoryToAge[category]
     const player: Player = { playerNumber, name, age, category }
 
-    // ensure the playerNumber is unique (check local state + backend session)
     try {
       const existingNumbers = new Set<string>(players.map(p => String(p.playerNumber).padStart(3, '0')))
       try {
@@ -410,7 +384,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
     setEditing(p.playerNumber)
     setPlayerNumberInput(p.playerNumber)
     setNameInput(p.name)
-    // prefill category from player if available
     setCategoryInput((p.category as '8-10'|'11-13'|'14-16') ?? categorize(p.age) as '8-10'|'11-13'|'14-16')
     setShowAdd(true)
   }
@@ -432,8 +405,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
       await deletePlayerFromSession(sess, playerNumberToDelete)
       setPlayers((prev) => prev.filter((p) => p.playerNumber !== playerNumberToDelete))
       setSuccessMsg('Speler verwijderd')
-      // Also remove the player from localStorage.onlinePlayers so other tabs (organizer/player)
-      // are notified that this player is no longer online / present.
       try {
         const raw = localStorage.getItem('onlinePlayers')
         const arr = raw ? JSON.parse(raw) as string[] : []
@@ -442,7 +413,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
         const filtered = Array.isArray(arr) ? arr.filter(n => String(n) !== plain && String(n) !== padded) : []
         localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
-        // Signal the deleted player(s) explicitly so their client can force logout.
         try {
           const kickPlain = `kick_${plain}`
           const kickPadded = `kick_${padded}`
@@ -451,7 +421,6 @@ export default function ManagePlayers({ onClose }: ManagePlayersProps) {
           try { localStorage.setItem(kickPadded, now) } catch { /* ignore */ }
           try { window.dispatchEvent(new StorageEvent('storage', { key: kickPlain, newValue: now })) } catch { /* ignore */ }
           try { window.dispatchEvent(new StorageEvent('storage', { key: kickPadded, newValue: now })) } catch { /* ignore */ }
-          // cleanup the ephemeral keys after a short delay so storage doesn't remain polluted
           setTimeout(() => {
             try { localStorage.removeItem(kickPlain) } catch { /* ignore */ }
             try { localStorage.removeItem(kickPadded) } catch { /* ignore */ }

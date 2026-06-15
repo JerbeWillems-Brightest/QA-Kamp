@@ -156,6 +156,7 @@ describe('OrganizerLogin (merged tests)', () => {
     expect(screen.getByLabelText(/Terug naar home/i)).toBeDefined()
   })
 
+  // Test: voorkomt dubbele submits door tijdens een lopende login call een loading state en disabled knop te tonen
   it('shows loading state and prevents duplicate submits while login request is in-flight', async () => {
     // create a promise we can resolve later to simulate in-flight request
     let resolveFn: (v?: unknown) => void = () => {}
@@ -189,6 +190,7 @@ describe('OrganizerLogin (merged tests)', () => {
     await waitFor(() => expect(mockLogin).toHaveBeenCalled())
   })
 
+  // Test: parseert JSON foutberichten van de backend en toont een vriendelijke foutmelding voor ongeldige inloggegevens
   it('parses JSON backend message containing invalid credentials into friendly message', async () => {
     mockLogin.mockRejectedValue(new Error(JSON.stringify({ message: 'invalid credentials' })))
 

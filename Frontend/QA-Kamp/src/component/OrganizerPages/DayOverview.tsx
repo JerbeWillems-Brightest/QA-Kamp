@@ -22,20 +22,13 @@ export default function DayOverview() {
   const [hoverIdx, setHoverIdx] = useState<number | null>(null)
   const [focusIdx, setFocusIdx] = useState<number | null>(null)
   const [selectedIdx, setSelectedIdx] = useState<number | null>(() => {
-    const d = new Date().getDay() // 0 Sun .. 6 Sat
+    const d = new Date().getDay()
     return (d >= 1 && d <= 5) ? d - 1 : 0
   })
 
-  // track if another day has an active game so we can disable day tiles
   const [activeGameInfo, setActiveGameInfo] = useState<{ game?: string; day?: string } | null>(null)
-   const DESIGN_WIDTH = 1200 // the width we design for (monitor)
+   const DESIGN_WIDTH = 1200
 
-  // All days should be clickable at any time; no disabled logic.
-  // (Removed previous allowedMaxIndex + auto-select rules.
-
-  // Use fluid responsive layout instead of transform-based scaling. The
-  // container will use maxWidth and width:100% so it adapts to tablet/iPad
-  // widths without causing transform/coordinate mismatches.
 
   const days = [
     { name: 'Maandag', img: MaandagImg },
@@ -51,7 +44,6 @@ export default function DayOverview() {
     }
   }, [auth.user, navigate])
 
-  // reflect whether a session is currently active via context or localStorage fallback
   const sessionIdFallback = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
   const hasSession = Boolean(sessionIdFallback)
 
@@ -59,8 +51,6 @@ export default function DayOverview() {
     const sessionIdLocal = currentSession?.id ?? (() => { try { return localStorage.getItem('currentSessionId') } catch { return null } })()
     if (!sessionIdLocal) return setError('Geen actieve sessie gevonden')
 
-    // New validation: don't allow stopping the QA-kamp while a game is still active.
-    // We read directly from localStorage so we have the latest cross-tab state.
     try {
       const rawActive = localStorage.getItem('activeGameInfo')
       if (rawActive) {
@@ -80,13 +70,12 @@ export default function DayOverview() {
 
     try {
       await deleteSession(sessionIdLocal)
-      // success
       setCurrentSessionId(null)
       try { localStorage.removeItem('currentSessionId') } catch (e) { console.warn('Failed to remove currentSessionId from localStorage', e) }
       navigate('/start-session')
       return
     } catch (err: unknown) {
-      // If backend says session not found (404), treat it as success: clear local state and navigate
+
       const msg = err instanceof Error ? err.message : String(err)
       console.warn('Failed to delete session', msg)
       if (msg.toLowerCase().includes('session not found') || msg.includes('HTTP 404') || msg.toLowerCase().includes('not found')) {
@@ -101,18 +90,15 @@ export default function DayOverview() {
 
   function handleDayClick(dayName: string, idx: number) {
     setSelectedIdx(idx)
-    // navigate to a per-day dashboard route (e.g. /day/maandag)
     navigate(`/day/${dayName.toLowerCase()}`)
   }
 
-  // styles colocated
   const styles: Record<string, React.CSSProperties> = {
     container: {
       background: 'white',
       padding: '20px 0',
       fontFamily: 'Arial, Helvetica, sans-serif',
       minHeight: '100%',
-      // allow horizontal scrolling if scaled content is wider than viewport
       overflowX: 'auto',
       boxSizing: 'border-box',
       display: 'flex',
@@ -142,7 +128,7 @@ export default function DayOverview() {
     },
     title: { fontSize: 32, marginBottom: 2 },
     qa: { color: '#f2c200', fontWeight: 'bold' },
-    // spread buttons evenly in one row; allow them to shrink smoothly when screen gets smaller
+
     days: {
       display: 'flex',
       gap: 20,
@@ -152,9 +138,8 @@ export default function DayOverview() {
       alignItems: 'center',
       width: '100%',
     },
-    // use flex so cards shrink/grow responsively; minWidth prevents becoming too small
     dayCardButton: {
-      // make cards longer and more prominent: larger flex-basis and min width
+
       flex: '1 1 360px',
       minWidth: 'clamp(180px, 16%, 320px)',
       maxWidth: 920,
@@ -176,7 +161,6 @@ export default function DayOverview() {
       cursor: 'not-allowed',
       boxShadow: 'none',
     },
-    // increase image height so the card looks taller and shows more of the image
     dayImage: { width: '100%', height: 'clamp(220px, 32vh, 560px)', objectFit: 'cover', display: 'block', transition: 'transform .18s ease' },
     dayLabel: {
       textAlign: 'center',
@@ -212,7 +196,6 @@ export default function DayOverview() {
     error: { color: '#e74c3c', marginBottom: 12 },
   }
 
-  // wrapper uses fluid width with a maxWidth equal to the design width
   const scaleWrapperStyle: React.CSSProperties = {
      maxWidth: DESIGN_WIDTH,
      width: '100%',
@@ -225,7 +208,6 @@ export default function DayOverview() {
       const raw = localStorage.getItem('activeGameInfo')
       if (raw) {
         const parsed = JSON.parse(raw)
-        // defer to avoid synchronous setState inside effect
         setTimeout(() => setActiveGameInfo(parsed), 0)
       }
     } catch { /* ignore */ }

@@ -14,6 +14,8 @@ function TestConsumer() {
   )
 }
 
+// Hoofdsuite: AuthContext tests
+// De tests controleren initialisatie, login/logout en foutafhandeling bij malformed localStorage
 describe('AuthContext', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -105,7 +107,7 @@ describe('AuthContext', () => {
     expect(localStorage.getItem('user')).toBeNull()
   })
 
-  // Test: meerdere login-aanroepen overschrijven de huidige user
+  // Test: multiple login-aanroepen overschrijven de huidige user
   it('multiple login() calls update context and localStorage to the latest user', () => {
     function TwoLoginConsumer() {
       const { user, login } = useAuth()

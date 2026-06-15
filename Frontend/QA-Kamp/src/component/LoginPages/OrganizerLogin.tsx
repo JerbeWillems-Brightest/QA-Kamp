@@ -24,10 +24,8 @@ export default function OrganizerLogin() {
         setFieldErrors({})
         setGeneralError('')
 
-        // simple client validation
         const nextFieldErrors: { email?: string; password?: string } = {}
         if (!email) nextFieldErrors.email = 'Vul je emailadres in'
-        // basic email format
         else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) nextFieldErrors.email = 'Ongeldig emailadres'
         if (!password) nextFieldErrors.password = 'Vul je wachtwoord in'
 
@@ -39,13 +37,11 @@ export default function OrganizerLogin() {
 
         try {
             const data = await loginOrganizer(email, password)
-            // on success, persist login and navigate
             if (data.user) {
                 auth.login(data.user)
                 navigate('/start-session')
                 return
             }
-            // fallback: if backend returns message but no user
             setGeneralError(data.message || 'Onbekende fout bij inloggen')
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err)
@@ -54,7 +50,6 @@ export default function OrganizerLogin() {
             const isInvalidCredentials = (s?: string) => {
                 if (!s) return false
                 const v = s.toLowerCase().trim()
-                // accept both Dutch and English variants from backend
                 return (
                     v === 'foute inloggegevens' ||
                     v === 'foute_inloggegevens' ||
@@ -64,11 +59,9 @@ export default function OrganizerLogin() {
                 )
             }
 
-            // direct message mapping
             if (isInvalidCredentials(msg)) {
                 setGeneralError('Foute Inloggegevens')
             } else {
-                // try to parse structured backend response
                 try {
                     const parsed = JSON.parse(msg)
                     const parsedMsg = parsed?.error || parsed?.message || undefined
@@ -80,7 +73,6 @@ export default function OrganizerLogin() {
                         setGeneralError(parsedMsg || msg || 'Fout bij inloggen')
                     }
                 } catch (parseErr) {
-                    // couldn't parse, fallback to raw msg
                     console.warn('Could not parse backend error message', parseErr)
                     setGeneralError(msg || 'Fout bij inloggen')
                 }

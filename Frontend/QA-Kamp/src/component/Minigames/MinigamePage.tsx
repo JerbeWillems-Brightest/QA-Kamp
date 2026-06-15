@@ -9,14 +9,14 @@ import type { ApiPlayer } from '../../api'
 import HINT_IMG from '../../assets/hint.png'
 import PAUSE_IMG from '../../assets/pauze.png'
 import VRAAG_IMG from '../../assets/vraag.png'
-// Decorative assets reused from waiting room
+
 import LineImg from '../../assets/Line.png'
 import RocketImg from '../../assets/Rocketship.png'
 import ShapeImg from '../../assets/shape.png'
 import CurveImg from '../../assets/curve.png'
 import StarImg from '../../assets/Star.png'
 
-// star animation CSS (kept small and inline like WaitingRoom)
+
 const starStyles = `
   .animated-stars { display: flex; gap: 12px; align-items: center; justify-content: center; }
   .animated-star { width: 18px; height: 18px; transform-origin: center; opacity: 0.35; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.12)); }
@@ -32,8 +32,6 @@ const starStyles = `
   }
 `
 
-// Hide global minigame controls when a practice modal is open. We add this
-// inline so the behavior is active without changing global stylesheets.
 const practiceControlHide = `
   body.pz-practice-open .pz-controls .pz-btn,
   body.pz-practice-open .pz-help {
@@ -43,10 +41,6 @@ const practiceControlHide = `
   }
 `
 
-// Ensure the floating "vraag" (help) button is positioned correctly on
-// devices with display insets (iPad notch / home indicator) and on tablet
-// breakpoints. We inject this inline so the minigame page always respects
-// safe-area insets even when a component-level stylesheet doesn't include it.
 const helpButtonSafe = `
   .pz-help {
     /* Respect bottom safe-area (home indicator) and any in-app bottombar height */
@@ -74,15 +68,10 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
   const q = useQuery()
   const navigate = useNavigate()
   const location = useLocation()
-  // track initial mount so a refresh doesn't immediately navigate away
-  // on initial mount we prefer a soft reset (show start modal) instead of
-  // clearing sessionStorage/localStorage which would log the player out
   const initialMountRef = useRef(true)
-  // allow game to be specified either via prop, ?game=... or via pathname (/minigame/passwordzapper)
+
   const game = gameProp || q.get('game') || (location?.pathname?.toLowerCase().includes('passwordzapper') ? 'passwordzapper' : '')
-  // Prefer stored playerCategory over ?age param so a player's saved category
-  // isn't silently overridden by a URL. Sanitize sessionStorage values like
-  // 'null'/'undefined'/'false' so they don't count as valid.
+
   const rawSessionValue = (typeof window !== 'undefined') ? (() => {
     try {
       const raw = sessionStorage.getItem('playerCategory') || sessionStorage.getItem('ageGroup') || sessionStorage.getItem('age') || ''
@@ -98,7 +87,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
   const urlAgeParam = q.get('age') || null
   const initialAgeSource = ageGroupProp ?? rawSessionValue ?? urlAgeParam ?? ''
 
-  // Map age query value to component prop expected values
   function mapAge(a: string) {
     const raw = (a || '').toString().trim().toLowerCase()
     if (!raw) return '11-13'
@@ -126,34 +114,22 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
 
   const [ageGroup, setAgeGroup] = useState(() => mapAge(initialAgeSource))
 
-  // Persist normalized playerCategory so components that read sessionStorage
-  // get a canonical value. Do a synchronous set here as well because some
-  // minigame components read sessionStorage during their initial render.
+
   try {
-    // Only write into sessionStorage synchronously if there was no valid
-    // session value. This prevents a URL param from overwriting a stored
-    // playerCategory that was already correct.
     if (typeof window !== 'undefined' && ageGroup && !rawSessionValue) sessionStorage.setItem('playerCategory', ageGroup)
   } catch { /* ignore */ }
 
-  // Also keep it synced in an effect to handle later changes
   useEffect(() => {
     try {
       if (typeof window !== 'undefined' && ageGroup) sessionStorage.setItem('playerCategory', ageGroup)
     } catch { /* ignore */ }
   }, [ageGroup])
 
-  // Ensure the URL reflects the canonical ageGroup when appropriate.
-  // If we have a stored session value (preferred) or the URL had no age param,
-  // replace the current URL's `age` param with the normalized ageGroup so the
-  // user ends up in the correct category visually and on reload.
   useEffect(() => {
     try {
       if (typeof window === 'undefined') return
       const params = new URLSearchParams(window.location.search || '')
       const current = params.get('age')
-      // Only replace if url differs and either we have a stored session value
-      // (so session should be authoritative) or the URL had no age.
       if (current !== ageGroup && (rawSessionValue !== null || current === null)) {
         const u = new URL(window.location.href)
         u.searchParams.set('age', ageGroup)
@@ -164,14 +140,9 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     }
   }, [ageGroup, rawSessionValue])
 
-  // If there is no stored session category, try to verify the player's
-  // category against the backend (based on playerNumber + currentSessionId).
-  // This fixes cases where neither a valid session value nor an explicit
-  // ?age param is present.
   useEffect(() => {
     let cancelled = false
     try {
-      // if we already have a valid session value, don't try to override it
       if (rawSessionValue) return
       const playerNumber = (() => { try { return sessionStorage.getItem('playerNumber') || '' } catch { return '' } })()
       const sidCandidate = (() => { try { return localStorage.getItem('currentSessionId') || sessionStorage.getItem('playerSessionId') || '' } catch { return '' } })()
@@ -203,7 +174,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
             }
             return
           }
-          // Not found: maybe backend hasn't updated yet. Retry a couple times.
           if (attemptsLeft > 0) {
             await new Promise(res => setTimeout(res, 400))
             if (cancelled) return
@@ -220,16 +190,10 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     }
     return () => { cancelled = true }
   }, [rawSessionValue, ageGroup])
-  // whether the hint button (top-level control) is unlocked. Games will
-  // dispatch a global event `minigame:hint-unlocked` when the mistake threshold
-  // is reached and the hint modal should appear. We intentionally keep the
-  // hint locked at the start of every game and only enable it when a game
-  // dispatches the unlock event.
+
   const [hintUnlocked, setHintUnlocked] = useState(false)
 
-  // Listen for global hint unlock/lock events and reset the global transient
-  // lock when the active game changes so the hint button is disabled at the
-  // start of each new game run.
+
   useEffect(() => {
     function onHintUnlocked() {
       try { setHintUnlocked(true) } catch { /* ignore */ }
@@ -240,8 +204,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     window.addEventListener('minigame:hint-unlocked', onHintUnlocked)
     window.addEventListener('minigame:hint-locked', onHintLocked)
 
-    // reset global transient flag so hint is disabled at the start of the game
-    // but only on subsequent mounts, not initial load to preserve hint state on refresh
     try {
       if (typeof window !== 'undefined' && !initialMountRef.current) {
         const w = window as unknown as Record<string, unknown>
@@ -256,7 +218,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
       if (!existing) {
         const info: Record<string, unknown> = { gameName: game || undefined, category: ageGroup || undefined, sessionId: localStorage.getItem('currentSessionId') || undefined }
         try {
-          // include optional network join key when present in URL
           const keyParam = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '').get('key')
           if (keyParam) info.key = keyParam
         } catch { /* ignore */ }
@@ -264,7 +225,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
       }
     } catch { /* ignore */ }
 
-    // Set initialMountRef to false after initial mount
     if (initialMountRef.current) {
       initialMountRef.current = false
     }
@@ -272,7 +232,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     return () => { window.removeEventListener('minigame:hint-unlocked', onHintUnlocked); window.removeEventListener('minigame:hint-locked', onHintLocked); }
   }, [game, ageGroup])
 
-  // Listen for organizer actions (stop, kick, session end, onlinePlayers change)
   useLayoutEffect(() => {
     function handleCustom(ev: Event) {
       try {
@@ -287,7 +246,7 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
 
     function handleStorage(e: StorageEvent) {
       try {
-        // explicit kick (kick_<playerNumber>)
+
         if (e.key && e.key.startsWith('kick_')) {
           const kicked = e.key.slice(5)
           const plain = sessionStorage.getItem('playerNumber') || ''
@@ -303,7 +262,7 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
           }
         }
 
-        // onlinePlayers change: if this player is no longer present, force logout
+
         if (e.key === 'onlinePlayers' || e.key === 'onlinePlayers_last_update') {
           try {
             const raw = (e.key === 'onlinePlayers') ? (e.newValue ?? localStorage.getItem('onlinePlayers')) : localStorage.getItem('onlinePlayers')
@@ -322,7 +281,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
           } catch { /* ignore */ }
         }
 
-        // session ended/cleared by organizer
         if (e.key === 'currentSessionId') {
           if (e.newValue === null) {
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
@@ -343,7 +301,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
           return
         }
 
-        // activeGame cleared -> go back to waiting
         if (e.key === 'activeGameInfo' || e.key === 'activeGame') {
           const nv = e.newValue
           if (nv === null || typeof nv === 'undefined' || nv === '' || String(nv) === 'null') {
@@ -362,7 +319,7 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     }
   }, [navigate])
 
-  // Fallback: poll localStorage periodically to detect cleared activeGameInfo
+
   useEffect(() => {
     const id = window.setInterval(() => {
       try {
@@ -376,10 +333,7 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     return () => clearInterval(id)
   }, [navigate])
 
-  // Poll the server periodically for authoritative activeGameInfo so remote
-  // devices (different machines) can detect when the organizer cleared the
-  // game. We do this in addition to localStorage/storage events which only
-  // synchronize within the same browser/profile.
+
   useEffect(() => {
     let mounted = true
     let timer: number | undefined
@@ -406,9 +360,6 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     return () => { mounted = false; if (timer) clearTimeout(timer) }
   }, [navigate])
 
-  // Also poll the authoritative onlinePlayers list so the minigame page can
-  // detect if this player was removed/kicked while on the minigame and force
-  // a logout/navigation to the home page.
   useEffect(() => {
     let cancelled = false
     async function pollOnline() {
@@ -439,7 +390,7 @@ export function MinigamePage({ game: gameProp, ageGroup: ageGroupProp }: Minigam
     return () => { cancelled = true; clearInterval(id) }
   }, [navigate])
 
-  // render fullscreen container. We intentionally omit the back button and title
+
   return (
       <div className="pz-root">
       <style>{practiceControlHide}</style>

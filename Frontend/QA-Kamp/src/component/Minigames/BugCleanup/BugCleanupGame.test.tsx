@@ -17,6 +17,10 @@ vi.mock('../PasswordZapper/passwordZapperFireworks', () => ({ default: vi.fn(() 
 
 import BugCleanupGame from './BugCleanupGame.tsx'
 
+// Test-suite voor BugCleanupGame: UI-controles en gameplay-gerelateerde checks (TC01..TC47).
+// Deze suite rendert de component en simuleert gebruikersacties (muisklik, mousemove,
+// globale events) om te verifiëren dat modals, progress, feedback en cursor-gedrag
+// correct functioneren voor verschillende leeftijdsgroepen.
 describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -57,7 +61,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     }
   }
 
-  // TC01 - start popup shows Volgende
+  // TC01: Controleer dat het startmodal de knop 'Volgende' bevat (speluitleg zichtbaar)
   it('TC01: shows Volgende on the start (speluitleg) popup', () => {
     render(
       <MemoryRouter>
@@ -69,7 +73,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(screen.getByRole('button', { name: /Volgende/i })).toBeInTheDocument()
   })
 
-  // TC02 - help popup opened via global event shows Verder spelen
+  // TC02: Bij het versturen van het globale event 'minigame:question' moet het
+  // help/speluitleg-modal openen en de knop 'Verder spelen' tonen
   it('TC02: shows Verder spelen when opening the help popup via the speluitleg event', async () => {
     render(
       <MemoryRouter>
@@ -88,7 +93,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(verder).toBeInTheDocument()
   })
 
-  // TC03 - oefenronde popup: ensure the practice-start modal shows a "Spelen" button
+  // TC03: Het oefenronde-startmodal moet een knop 'Spelen' tonen (start oefenronde)
   it('TC03: Spelen button exists on oefenronde popup', () => {
     render(
       <MemoryRouter>
@@ -103,7 +108,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(screen.getByRole('button', { name: /Spelen/i })).toBeInTheDocument()
   })
 
-  // TC04 - hint popup Verder spelen
+  // TC04: Bij het triggeren van het hint-event moet het hint-modal openen en
+  // de knop 'Verder spelen' laten zien
   it('TC04: shows Verder spelen on the hint popup when opened', async () => {
     render(
       <MemoryRouter>
@@ -122,7 +128,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(verder).toBeInTheDocument()
   })
 
-  // TC05/TC06/TC07 - pause modal buttons
+  // TC05/TC06/TC07: Bij pauze moet het pauze-modal de acties 'Verder spelen',
+  // 'Opnieuw beginnen' en 'Stoppen' tonen
   it('TC05/TC06/TC07: pause modal shows Verder spelen, Opnieuw beginnen and Stoppen', async () => {
     render(
       <MemoryRouter>
@@ -142,9 +149,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(within(pauseModal as HTMLElement).getByRole('button', { name: /Stoppen/i })).toBeInTheDocument()
   })
 
-  // TC08 - TC11: game-level controls - validate that the game exposes the expected
-  // modals (hint/help/pause) via global events. There are no dedicated screen
-  // buttons for these controls; tests assert the modals open when the events fire.
+  // TC08: Controleer dat het hint-modal opent wanneer het globale event
+  // 'minigame:hint' wordt gedispatched
   it('TC08: Hint modal opens when minigame:hint event is dispatched', async () => {
     render(
       <MemoryRouter>
@@ -161,6 +167,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(hintHeading).toBeInTheDocument()
   })
 
+  // TC09: Vanuit de draaiende spelstaat moet het hint-modal geopend kunnen worden
   it('TC09: Hint modal can be opened from the running game state', async () => {
     render(
       <MemoryRouter>
@@ -175,6 +182,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(await screen.findByRole('heading', { name: /Hint/i })).toBeInTheDocument()
   })
 
+  // TC10: Het globale 'minigame:pause' event moet het pauze-modal openen
   it('TC10: Pause modal opens when minigame:pause is dispatched', async () => {
     render(
       <MemoryRouter>
@@ -195,6 +203,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(within(pauseModal as HTMLElement).getByRole('button', { name: /Stoppen/i })).toBeInTheDocument()
   })
 
+  // TC11: Het globale 'minigame:question' event moet het speluitleg-modal openen
   it('TC11: Help (Speluitleg) modal opens when minigame:question is dispatched', async () => {
     render(
       <MemoryRouter>
@@ -210,7 +219,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(helpHeading).toBeInTheDocument()
   })
 
-  // TC12: progressbar visible
+  // TC12: De voortgangsbalk (progressbar) moet zichtbaar zijn zodra het spel start
   it('TC12: progressbar is visible on the game screen after starting', async () => {
     const { container } = render(
       <MemoryRouter>
@@ -225,9 +234,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(container.querySelector('.bc-progress-text')).toBeTruthy()
   })
 
-  // TC13: feedback centrally visible when a bug is removed. We simulate
-  // hover-removal by dispatching mousemove events over a rendered bug while
-  // the game is running. Mocking the element rect ensures coordinates line up.
+  // TC13: Bij verwijderen van een bug moet er centrale feedback zichtbaar worden.
+  // We simuleren hover-removal via mousemove over het bug-element en mocken
+  // getBoundingClientRect zodat de coördinaten voorspelbaar zijn.
   it('TC13: feedback central top visible when a bug is removed', async () => {
     const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => {} }
     // make getBoundingClientRect deterministic for the test
@@ -281,7 +290,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     }
   })
 
-  // TC14: timer left-top visible
+  // TC14: De timer (pill) moet linksboven op het scherm zichtbaar zijn tijdens het spel
   it('TC14: shows timer (pill) on top-left', async () => {
     const { container } = render(
       <MemoryRouter>
@@ -293,7 +302,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(container.querySelector('.bc-pill')).toBeTruthy()
   })
 
-  // TC15..TC18: practice (oefenronde) behaviour
+  // TC15: Tijdens de oefenronde moet de tekst 'Oefenronde' zichtbaar zijn in de score/timer
   it('TC15: Oefenronde text visible during oefenronde', () => {
     const { container } = render(
       <MemoryRouter>
@@ -309,6 +318,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(container.querySelector('.pz-score')?.textContent).toMatch(/Oefenronde/i)
   })
 
+  // TC16: Tijdens de oefenronde moet het hint-modal kunnen openen via het event
   it('TC16: Hint modal opens during oefenronde when event dispatched', async () => {
     render(
       <MemoryRouter>
@@ -324,6 +334,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(await screen.findByRole('heading', { name: /Hint/i })).toBeInTheDocument()
   })
 
+  // TC17: Tijdens de oefenronde moet het pauze-modal kunnen openen via het event
   it('TC17: Pause modal opens during oefenronde when event dispatched', async () => {
     render(
       <MemoryRouter>
@@ -339,6 +350,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(await screen.findByRole('heading', { name: /Pauze/i })).toBeInTheDocument()
   })
 
+  // TC18: Tijdens de oefenronde moet het speluitleg-modal kunnen openen via het event
   it('TC18: Help (Speluitleg) modal opens during oefenronde when event dispatched', async () => {
     render(
       <MemoryRouter>
@@ -354,9 +366,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(await screen.findByRole('heading', { name: /Speluitleg - Bug Cleanup/i })).toBeInTheDocument()
   })
 
-  // TC19/TC20: ensure the practice-end modal (shown after 3 practice removals)
-  // contains the "Spelen" and "Opnieuw oefenen" buttons. We simulate
-  // removals by dispatching mousemove events over the first bug three times.
+  // TC19/TC20: Na het voltooien van de oefenronde moeten de knoppen 'Spelen'
+  // en 'Opnieuw oefenen' zichtbaar zijn in het practice-end modal. We
+  // simuleren het verwijderen van bugs door mousemove-events over een bug te sturen.
   it('TC19/TC20: practice-end modal contains Spelen and Opnieuw oefenen buttons after practice', async () => {
     const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => {} }
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect as any)
@@ -422,7 +434,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     }
   })
 
-  // TC21..TC25 end screen UI checks
+  // TC21..TC25: Eindscherm UI-controles controleren: 'Opnieuw spelen', score, percentage,
+  // tijd en highscore moeten zichtbaar zijn nadat het spel is gestopt
   it('TC21..TC25: end screen shows Opnieuw spelen, score, percentage, time and highscore when stopped', async () => {
     const { container } = render(
       <MemoryRouter>
@@ -446,7 +459,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(container.querySelector('.pz-best-top__time')).toBeTruthy()
   })
 
-  // TC26..TC31 score mapping checks (algorithmic)
+  // TC26..TC31: Unit-test voor de tijd->score mapping (mapTimeToScore). Deze
+  // controleert drempels en dat de waarde binnen [0..100] blijft.
   it('TC26..TC31: mapTimeToScore algorithm matches expected thresholds', () => {
     const mapTimeToScore = (ms: number) => {
       if (ms <= 120_000) return 100
@@ -469,7 +483,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     }
   })
 
-  // TC33: same calculation for all age groups (pure function - same algorithm)
+  // TC33: Controleer dat dezelfde scoreberekening (pure functie) voor alle leeftijdsgroepen
+  // consistent hetzelfde resultaat oplevert
   it('TC33: score calculation applies equally across age groups (algorithmic)', () => {
     const mapTimeToScore = (ms: number) => {
       if (ms <= 120_000) return 100
@@ -482,7 +497,8 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(mapTimeToScore(140_000)).toBe(90)
   })
 
-  // TC34..TC39 visibleMax checks per age group
+  // TC34/TC37/TC40: Controleer dat het aantal zichtbare bugs per leeftijdsgroep
+  // overeenkomt met de componentconfiguratie (8-10 => 3, 11-13 => 4, 14-16 => 4)
   it('TC34/TC37/TC40: maximum visible bugs per age group matches configuration', async () => {
     // 8-10 => visibleMax 3
     const { container: c1 } = render(
@@ -520,9 +536,9 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(c3.querySelectorAll('.bc-bug').length).toBe(4)
   })
 
-  // TC40..TC43: test split behaviour for the 14-16 age group where big bugs
-  // split into two smaller children. We force deterministic randomness so a
-  // big variant is created and then simulate a hover removal.
+  // TC40..TC43: Voor 14-16 testen we dat grote bugs kunnen splitsen in twee
+  // kleinere kinderen. We forceren deterministische random zodat een groot
+  // variant wordt aangemaakt en simuleren vervolgens een hit (mousemove).
   it('TC40..TC43: big bug splits into two smaller bugs and removing a child updates progress/feedback', async () => {
     // force Math.random to a small value so the variant chosen for 14-16 is a big variant
     const rnd = vi.spyOn(Math, 'random').mockImplementation(() => 0.1)
@@ -597,7 +613,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     }
   })
 
-  // TC44..TC47 cursor delay / speed tests
+  // TC44/TC47: Smoke-test dat de vertraagde cursor aanwezig is en reageert op pointer-bewegingen
   it('TC44/TC47: delayed cursor element is rendered and follows pointer (basic smoke)', async () => {
     const { container } = render(
       <MemoryRouter>
@@ -617,6 +633,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     expect(cursor).toBeTruthy()
   })
 
+  // TC45: De vertraagde cursor moet blijven bestaan na het verwijderen van bugs (smoke-test)
   it('TC45: delayed cursor element exists and still present after removals (smoke)', async () => {
     const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => {} }
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect as any)
@@ -652,6 +669,7 @@ describe('BugCleanupGame - UI checks (TC01..TC47)', () => {
     }
   })
 
+  // TC46: Wanneer geen bug wordt geraakt mag de cursor niet onverwacht versnellen (smoke-test)
   it('TC46: cursor does not speed up when no bug removed (smoke - no failures)', async () => {
     const rect = { left: 0, top: 0, width: 800, height: 600, right: 800, bottom: 600, x: 0, y: 0, toJSON: () => {} }
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => rect as any)

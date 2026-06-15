@@ -33,6 +33,9 @@ async function startRealGame() {
   await screen.findByRole('button', { name: /Nakijken/i })
 }
 
+// Test-suite voor de NietZoSlimmeThermostaat mini-game
+// Bevat integratietests die de pagina renderen via `MinigamePage` en
+// verschillende gebruikersacties simuleren (drag/drop, pauze, hints, etc.)
 describe('NietZoSlimmeThermostaat - tests', () => {
   beforeEach(() => {
     setGameUrl()
@@ -42,12 +45,14 @@ describe('NietZoSlimmeThermostaat - tests', () => {
 
   afterEach(() => { vi.restoreAllMocks() })
 
+  // TC01: Controleer dat de start-speluitleg de knop 'Volgende' toont
   it('TC01: shows Volgende on start speluitleg', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     const btn = await screen.findByRole('button', { name: /Volgende/i })
     expect(btn).toBeInTheDocument()
   })
 
+  // TC02: Bij het openen van het help/vraag-modal moet de knop 'Verder spelen' zichtbaar zijn
   it('TC02: help modal (vraag) shows Verder spelen button', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -58,6 +63,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(verder).toBeInTheDocument()
   })
 
+  // TC05: Als de hint ontgrendeld wordt en het hint-popup opent, toont het 'Verder spelen'
   it('TC05: hint popup shows Verder spelen', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -71,6 +77,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(verder).toBeInTheDocument()
   })
 
+  // TC06/07/08: Bij pauze moeten de acties Verder spelen, Opnieuw beginnen en Stoppen beschikbaar zijn
   it('TC06/07/08: pause popup has Verder spelen, Opnieuw beginnen and Stoppen', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -86,6 +93,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(stop).toBeInTheDocument()
   })
 
+  // TC09/10/11: Controleer dat de top-level knoppen Hint, Pause en Vraag aanwezig zijn op de pagina
   it('TC09/10/11: top-level controls Hint, Pause, Vraag exist', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     const hint = await screen.findByRole('button', { name: /Hint/i })
@@ -96,6 +104,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(vraag).toBeInTheDocument()
   })
 
+  // TC12: De progressbar met id 'nzs-progress' moet zichtbaar zijn tijdens het spel
   it('TC12: progressbar visible on game screen', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -103,6 +112,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(prog).toBeTruthy()
   })
 
+  // TC13/31/32: Bij een correct antwoord verschijnt feedback en neemt de score toe (+2)
   it('TC13/31/32: correct answer gives feedback and +2 to score', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -134,6 +144,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     })
   })
 
+  // TC33/34: Bij een fout antwoord verschijnt visuele '-1' feedback en wordt -1 toegekend (score floored op 0)
   it('TC33/34: wrong answer gives -1 and visual feedback', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -157,6 +168,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     })
   })
 
+  // TC25-30: Na het stoppen van het spel verschijnt het eindscherm met statistieken en 'Opnieuw spelen'
   it('TC25-30: end screen stats and Opnieuw spelen present after Stoppen', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -175,6 +187,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(document.getElementById('nzs-stats-correct-value')).toBeTruthy()
   })
 
+  // TC51: Feedback mag pas zichtbaar worden nadat de speler op 'Nakijken' heeft geklikt
   it('TC51: feedback only appears after clicking Nakijken', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -196,6 +209,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     await waitFor(() => { expect(document.querySelector('.pz-feedback')).toBeTruthy() })
   })
 
+  // TC13: Feedback-elementen moeten zichtbaar zijn in het bovenste midden van het scherm (feedback containers)
   it('TC13: feedback visibility center top on game screen', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -222,6 +236,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     })
   })
 
+  // TC14: De score moet zichtbaar zijn linksboven op het spel-scherm en een tekstwaarde bevatten
   it('TC14: score visibility top left on game screen', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -232,6 +247,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(scoreElement?.textContent).toBeDefined()
   })
 
+  // TC15: De 'Nakijken' knop moet aanwezig zijn op de thermostaat UI
   it('TC15: Nakijken button present on thermostat', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -241,6 +257,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(checkButton).toBeInTheDocument()
   })
 
+  // TC35: Score wordt na elk antwoord bijgewerkt (controle: waarde verandert na 'Nakijken')
   it('TC35: score updates correctly after each answer', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -268,6 +285,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     })
   })
 
+  // TC36: De eindscore en statistieken worden berekend en getoond op het eindscherm
   it('TC36: end score calculated from correct and wrong answers', async () => {
     render(<MemoryRouter><MinigamePage /></MemoryRouter>)
     await startRealGame()
@@ -304,6 +322,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     expect(document.getElementById('nzs-score-number')).toBeTruthy()
   })
 
+  // TC37: De scoreberekening moet consistent zijn voor alle leeftijdsgroepen (8-10, 11-13, 14-16)
   it('TC37: same score calculation for all age groups', async () => {
     // Test with different age groups to ensure consistent scoring
     const ageGroups = ['8-10', '11-13', '14-16']
@@ -346,6 +365,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     }
   })
 
+  // TC42: Voor leeftijdsgroep 8-10 moet de Nederlandse structuur (ALS ... DAN ...) zichtbaar zijn
   it('TC42: 8-10 age group shows ALS ... EN ... DAN structure', async () => {
     // Mock age group 8-10 in sessionStorage for all possible keys
     const mockGetItem = vi.fn((key) => {
@@ -374,6 +394,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     window.history.replaceState = originalReplaceState
   })
 
+  // TC43: Voor 8-10 moeten opties met tekst/icoon aanwezig zijn; opties bevatten zichtbare content
   it('TC43: 8-10 age group shows icon options with text', async () => {
     // Mock age group 8-10 in sessionStorage (this is what MinigamePage uses)
     const mockGetItem = vi.fn().mockReturnValue('8-10')
@@ -406,6 +427,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     sessionStorage.getItem = originalSessionGetItem
   })
 
+  // TC44: Voor 8-10 kan de juiste optie naar de lege dropzone gesleept en gedropt worden
   it('TC44: 8-10 age group can drag correct block to empty place', async () => {
     // Mock age group 8-10 in sessionStorage (this is what MinigamePage uses)
     const mockGetItem = vi.fn().mockReturnValue('8-10')
@@ -434,6 +456,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     sessionStorage.getItem = originalSessionGetItem
   })
 
+  // TC45: Voor 11-13 moet eveneens de Nederlandse ALS ... DAN structuur zichtbaar zijn
   it('TC45: 11-13 age group shows ALS ... EN ... DAN structure', async () => {
     // Mock age group 11-13 in sessionStorage (this is what MinigamePage uses)
     const mockGetItem = vi.fn().mockReturnValue('11-13')
@@ -451,6 +474,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     sessionStorage.getItem = originalSessionGetItem
   })
 
+  // TC46: Voor 11-13 moeten tekst-gebaseerde opties zichtbaar en klikbaar zijn
   it('TC46: 11-13 age group shows text options', async () => {
     // Mock age group 11-13 in sessionStorage (this is what MinigamePage uses)
     const mockGetItem = vi.fn().mockReturnValue('11-13')
@@ -474,6 +498,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     sessionStorage.getItem = originalSessionGetItem
   })
 
+  // TC47: Voor 11-13 kan de juiste tekst-optie naar de dropzone gesleept worden
   it('TC47: 11-13 age group can drag correct text block to empty place', async () => {
     // Mock age group 11-13 in sessionStorage (this is what MinigamePage uses)
     const mockGetItem = vi.fn().mockReturnValue('11-13')
@@ -502,6 +527,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     sessionStorage.getItem = originalSessionGetItem
   })
 
+  // TC48: Voor 14-16 verwachten we Engelse programmeer-achtige structuur (IF/THEN/ELSE) in plaats van ALS/DAN
   it('TC48: 14-16 age group shows IF ... AND ... THEN ... ELSE structure', async () => {
     // Test the component directly with ageGroup prop to bypass detection issues
     const { unmount } = render(
@@ -541,6 +567,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     unmount()
   })
 
+  // TC49: Voor 14-16 moeten code-achtige opties (zoals IsRaining, MotionDetected) zichtbaar zijn
   it('TC49: 14-16 age group shows code block options', async () => {
     // Test the component directly with ageGroup prop to bypass detection issues
     const { unmount } = render(
@@ -601,6 +628,7 @@ describe('NietZoSlimmeThermostaat - tests', () => {
     unmount()
   })
 
+  // TC50: Voor 14-16 kan de correcte code-block optie naar de lege plaats gesleept en gedropt worden
   it('TC50: 14-16 age group can drag correct code block to empty place', async () => {
     // Test the component directly with ageGroup prop to bypass detection issues
     const { unmount } = render(

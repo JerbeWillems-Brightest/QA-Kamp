@@ -25,6 +25,8 @@ function Consumer() {
   )
 }
 
+// Hoofdsuite: SessionContext unit tests
+// Elke test controleert een specifiek gedrag van de provider of zijn helpers.
 describe('SessionContext - unit tests (20 cases)', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -36,6 +38,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 1) Gebruik zonder provider: useSession fallback geeft no-op waarden
   it('1) useSession fallback returns no-op defaults when not wrapped', () => {
+    // Test: renderen van consumer zonder provider moet geen crash geven
     render(<Consumer />)
     expect(screen.getByTestId('current-session').textContent).toBe('null')
     // calling the buttons should not throw (no provider -> no-op functions)
@@ -45,6 +48,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 2) Als er geen ingelogde gebruiker is, is currentSession null
   it('2) currentSession is null when no auth user', () => {
+    // Test: provider default zonder ingelogde user => currentSession blijft null
     render(
       <AuthProvider>
         <SessionProvider>
@@ -57,6 +61,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 3) Wanneer user ingelogd en API geeft lege lijst, currentSession blijft null en localStorage ongezet
   it('3) logged-in user with empty sessions results in null currentSession and no localStorage key', async () => {
+    // Test: ingelogde user maar geen sessies terug => geen persisted currentSession
     localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'u@x' }))
     mockGetSessions.mockResolvedValue({ sessions: [] })
 
@@ -75,6 +80,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 4) Wanneer API teruggeeft: eerste item wordt gekozen als latest (index 0)
   it('4) chooses the first session from API as latest but does not persist on initial load', async () => {
+    // Test: eerste sessie uit API wordt gekozen als currentSession bij initial load
     localStorage.setItem('user', JSON.stringify({ id: 'u2', email: 'u2@x' }))
     const sess = { id: 's1', name: 'sess1', startedAt: 't' }
     mockGetSessions.mockResolvedValue({ sessions: [sess] })
@@ -94,6 +100,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 5) refreshSessions persisteert latest session naar localStorage
   it('5) refreshSessions persists latest session id to localStorage', async () => {
+    // Test: expliciet refresh zorgt voor persistente opslag van latest session
     localStorage.setItem('user', JSON.stringify({ id: 'u3', email: 'u3@x' }))
     const sA = { id: 'A', startedAt: 't' }
     mockGetSessions.mockResolvedValue({ sessions: [sA] })
@@ -114,6 +121,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 6) refreshSessions doet niets wanneer er geen auth.user is
   it('6) refreshSessions is no-op when no auth.user', async () => {
+    // Test: zonder gebruiker mag refreshSessions geen API-call doen en geen fout gooien
     // ensure no user in localStorage
     localStorage.removeItem('user')
     // make mock throw if called so we can assert it wasn't called
@@ -133,6 +141,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 7) setCurrentSessionId(null) verwijdert currentSession en localStorage key
   it('7) setCurrentSessionId(null) clears currentSession and removes localStorage key', async () => {
+    // Test: clear werkt en verwijdert persisted id
     localStorage.setItem('user', JSON.stringify({ id: 'u4', email: 'u4@x' }))
     const s = { id: 'clear-me', startedAt: 't' }
     mockGetSessions.mockResolvedValue({ sessions: [s] })
@@ -155,6 +164,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 8) setCurrentSessionId met onbekende id zet currentSession op null maar persisteert de id
   it('8) setCurrentSessionId with unknown id sets currentSession null but still persists id', async () => {
+    // Test: onbekend id blijft persistent in localStorage maar currentSession wordt null
     localStorage.setItem('user', JSON.stringify({ id: 'u5', email: 'u5@x' }))
     // API returns only sessX
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 'sessX', startedAt: 't' }] })
@@ -176,6 +186,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 9) refreshSessions waarbij API faalt wordt gevangen en werpt geen fout
   it('9) refreshSessions handles API rejection without throwing', async () => {
+    // Test: faalt API tijdens refresh dan wordt de fout netjes afgehandeld
     localStorage.setItem('user', JSON.stringify({ id: 'u6', email: 'u6@x' }))
     mockGetSessions.mockRejectedValue(new Error('api-fail'))
 
@@ -195,6 +206,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 10) init load with API rejection logs error but leaves state null
   it('10) initial load with API rejection keeps state null', async () => {
+    // Test: fout tijdens initiële load mag state null laten
     localStorage.setItem('user', JSON.stringify({ id: 'u7', email: 'u7@x' }))
     mockGetSessions.mockRejectedValue(new Error('boom'))
 
@@ -211,6 +223,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 11) refreshSessions removes localStorage key when API returns no sessions
   it('11) refreshSessions removes persisted key when no sessions returned', async () => {
+    // Test: refresh met lege sessies verwijdert persisted key
     localStorage.setItem('user', JSON.stringify({ id: 'u8', email: 'u8@x' }))
     // first return non-empty to set something
     mockGetSessions.mockResolvedValueOnce({ sessions: [{ id: 'S' }] })
@@ -233,6 +246,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 13) setCurrentSessionId to a valid id selects that session from allSessions
   it('13) setCurrentSessionId selects existing session and persists id', async () => {
+    // Test: expliciete selectie van bestaande sessie werkt en persist
     localStorage.setItem('user', JSON.stringify({ id: 'u10', email: 'u10@x' }))
     const s1 = { id: 'valid', startedAt: 't' }
     const s2 = { id: 'other', startedAt: 't' }
@@ -260,6 +274,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 14) wanneer gebruiker inlogt (AuthProvider.login) laadt SessionProvider sessies
   it('14) logging in triggers session load via auth.login', async () => {
+    // Test: login-event triggert laden van sessies via provider
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 'L1', startedAt: 't' }] })
 
     function LoginFlow() {
@@ -282,6 +297,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 15) uitloggen (AuthProvider.logout) zet currentSession en allSessions leeg
   it('15) logout clears sessions in provider', async () => {
+    // Test: logout leegmaakt sessies in provider
     localStorage.setItem('user', JSON.stringify({ id: 'u11', email: 'u11@x' }))
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 'Sx', startedAt: 't' }] })
 
@@ -306,6 +322,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 16) useSession functions exist and refreshSessions returns a promise
   it('16) refreshSessions is callable and returns a promise-like (thenable)', async () => {
+    // Test: refreshSessions is aanwezig en kan aangeroepen worden (returns thenable)
     localStorage.setItem('user', JSON.stringify({ id: 'u12', email: 'u12@x' }))
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 'p1' }] })
 
@@ -328,6 +345,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 17) setCurrentSessionId with null is idempotent (calling twice still OK)
   it('17) clearing session twice is safe', async () => {
+    // Test: double clear mag geen fout geven
     localStorage.setItem('user', JSON.stringify({ id: 'u13', email: 'u13@x' }))
     mockGetSessions.mockResolvedValue({ sessions: [{ id: 'x1' }] })
 
@@ -347,6 +365,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 18) provider value functions unchanged shape when no sessions
   it('18) provider returns functions even when no sessions exist', () => {
+    // Test: provider levert altijd function props (prevent null reference in consumers)
     render(
       <AuthProvider>
         <SessionProvider>
@@ -361,6 +380,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 19) calling setCurrentSessionId with an id when allSessions empty still persists id
   it('19) setting id when no sessions persists the id', async () => {
+    // Test: ook bij lege sessions wordt de gekozen id gepersist
     localStorage.setItem('user', JSON.stringify({ id: 'u14', email: 'u14@x' }))
     mockGetSessions.mockResolvedValue({ sessions: [] })
 
@@ -378,6 +398,7 @@ describe('SessionContext - unit tests (20 cases)', () => {
 
   // 20) ensure cleanup between tests: localStorage is cleared by beforeEach
   it('20) sanity: localStorage cleared between tests by beforeEach', () => {
+    // Test: sanity-check dat beforeEach localStorage schoonmaakt
     expect(localStorage.getItem('currentSessionId')).toBeNull()
     expect(localStorage.getItem('user')).toBeNull()
   })

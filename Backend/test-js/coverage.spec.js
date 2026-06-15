@@ -15,9 +15,20 @@ function loadOrganizer(orgPath) {
   }
 }
 
+// Test suite: Coverage helpers (db/index/organizer)
+// Deze suite bevat tests die verschillende helperfuncties en start-up
+// branches van de gecompileerde server (`dist`) oefenen. De tests richten
+// zich op seeding, middleware-gedrag, CORS-configuratie, pre-save hooks en
+// diverse hulpfuncties om tak-dekking te verbeteren.
 describe('Coverage helpers (db/index/organizer)', function() {
   this.timeout(10000)
 
+  // Test: seedOrganizers gebruikt fallback credentials indien nodig en
+  // maakt organizers aan.
+  // - We stubben countDocuments zodat seeding uitgevoerd wordt.
+  // - We wissen environment-variabelen zodat fallback credentials gebruikt
+  //   zouden moeten worden (in test-omgeving).
+  // - Verwacht: er wordt minstens één organizer aangemaakt met plausibele data.
   it('seedOrganizers uses fallback credentials when appropriate and creates organizers', async function() {
     // load dist modules
     const dbPath = path.join(process.cwd(), 'dist', 'db.js')
@@ -59,6 +70,10 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: seedOrganizers slaat seeding over wanneer geen env-creds aanwezig
+  // en de omgeving niet test/ci/local is.
+  // - We simuleren een productie-omgeving met een remote MONGO_URI en
+  //   verwachten dat er geen organizers worden aangemaakt.
   it('seedOrganizers skips when no env and not running in test/ci/local', async function() {
     const dbPath = path.join(process.cwd(), 'dist', 'db.js')
     const orgPath = path.join(process.cwd(), 'dist', 'models', 'Organizer.js')
@@ -94,6 +109,9 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: wanneer `connectDB` een fout gooit, zorgt de index-middleware
+  // ervoor dat requests een serverfout (500) of mogelijk 404 teruggeven
+  // afhankelijk van router-configuratie.
   it('index middleware returns 500 when connectDB throws', async function() {
     const expressPath = path.join(process.cwd(), 'dist', 'index.js')
     const dbPath = path.join(process.cwd(), 'dist', 'db.js')
@@ -114,6 +132,11 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: index-module respecteert de VERCEL-flag zodat seed/listen
+  // startup-blokken worden overgeslagen wanneer VERCEL is ingesteld.
+  // - Wanneer VERCEL=1 moet het bestand nog steeds een express-app exporteren
+  // - Wanneer VERCEL niet is ingesteld, stubben we DB-functies om lokale
+  //   require zonder echte verbinding mogelijk te maken.
   it('index module respects VERCEL flag (covers seed/listen branches)', async function() {
     const expressPath = path.join(process.cwd(), 'dist', 'index.js')
     // Save and restore VERCEL env
@@ -150,6 +173,11 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: CORS-origin handling
+  // - Controleert wildcard ('*') acceptatie en aanwezigheid van header
+  // - Controleert normalisatie van origin (trailing slash / case)
+  // - Controleert dat geblokkeerde origins geen CORS-header krijgen
+  // - Controleert OPTIONS preflight response (204)
   it('CORS origin handling: wildcard, normalization, disallowed and preflight', async function() {
     this.timeout(20000)
     const { MongoMemoryServer } = require('mongodb-memory-server')
@@ -212,6 +240,10 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: Organizer pre-save hook
+  // - Bij het opslaan van een nieuw document moet het wachtwoord gehasht worden
+  // - Bij opnieuw opslaan zonder wijzigingen aan het wachtwoord mag hash niet
+  //   opnieuw aangeroepen worden
   it('Organizer pre-save hook hashes password on save and does not call hash when not modified', async function() {
     const { MongoMemoryServer } = require('mongodb-memory-server')
     const orgPath = path.join(process.cwd(), 'dist', 'models', 'Organizer.js')
@@ -248,6 +280,12 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: loadOrganizer gedrag voor ontbrekende module en fallback naar
+  // reeds geregistreerd mongoose-model
+  // - Wanneer er geen mongoose model bestaat verwachten we dat loadOrganizer
+  //   een fout gooit
+  // - Wanneer er wel een mongoose-model geregistreerd is, moet loadOrganizer
+  //   dit model als fallback retourneren
   it('loadOrganizer: deterministic tests for throw and fallback paths', function() {
     const badPath = path.join(process.cwd(), 'dist', 'models', 'NoSuchModel.js')
     const origModel = mongoose.models && mongoose.models.Organizer
@@ -272,6 +310,10 @@ describe('Coverage helpers (db/index/organizer)', function() {
     }
   })
 
+  // Test: oefen resterende voorwaardelijke paden in dit bestand zonder te falen
+  // Deze test voert diverse kleine scenario's uit (VERCEL-restore, CORS-header
+  // checks, opties-responses, model delete/restore) puur om branches te
+  // dekken en geen fouten te laten optreden.
   it('exercise remaining conditional branches in this test file without failing', function() {
     // 1) simulate the VERCEL app export check both false (throws) and true
     let appWhenVercel = null
@@ -363,6 +405,11 @@ describe('Coverage helpers (db/index/organizer)', function() {
     return optRes.status === 204
   }
 
+  // Test: oefen helper-functies die meerdere takken hebben om branch- en
+  // functie-dekking te verhogen
+  // - _checkAppExport, _restoreVercelEnv, _checkCorsHeader, _checkOptionsStatus
+  //   en model restore/delete worden hier met zowel positieve als negatieve
+  //   gevallen aangeroepen
   it('explicitly exercises helper-branch functions to raise branch/func coverage', function() {
     // _checkAppExport: false branch (should throw) and true branch
     try { _checkAppExport(null) } catch (e) { /* expected */ }
@@ -430,6 +477,11 @@ describe('Coverage helpers (db/index/organizer)', function() {
     return x
   }
 
+  // Test: dekking voor nieuw toegevoegde helper-functies en hun takken
+  // - multiBranch: behandelingen voor null, nummers, arrays en andere types
+  // - complexSwitch: verschillende case-takken
+  // - booleanToggle: true/false
+  // - maybeThrow: zowel throwende als niet-throwende paden
   it('covers newly added helper functions and their branches', function() {
     expect(multiBranch(null)).to.equal('null')
     expect(multiBranch(5)).to.equal('pos')

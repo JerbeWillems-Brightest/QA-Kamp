@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-// Import API helper to ensure we can clear server-side activeGameInfo
 import { setActiveGameInfo } from '../../../api'
 
 export type MinigamePopupProps = {
@@ -7,7 +6,6 @@ export type MinigamePopupProps = {
   title: string
   rules: string
   image?: string
-  // age-specific options removed: popup shows a single rules text for all ages
   onStart?: () => void
   onStop?: () => void
   onClose: () => void
@@ -25,7 +23,6 @@ export default function MinigamePopup({
   running = false,
 }: MinigamePopupProps) {
   useEffect(() => {
-    // Inject modal styles once
     if (typeof document === 'undefined') return
     if (document.getElementById('minigame-popup-styles')) return
     const styles = `
@@ -51,13 +48,8 @@ export default function MinigamePopup({
     document.head.insertAdjacentHTML('beforeend', `<style id="minigame-popup-styles">${styles}</style>`)
   }, [])
 
-  // internal UI state: running state only (we no longer expose/select ages in the popup)
   const [isRunning, setIsRunning] = useState<boolean>(!!running)
 
-  // sync running state from prop when provided. Only depend on `running`
-  // so local interactions (like clicking Start) that update `isRunning`
-  // are not immediately overwritten. When the parent truly changes the
-  // `running` prop, this effect will sync local state.
   useEffect(() => {
     const newRunning = !!running
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -65,18 +57,15 @@ export default function MinigamePopup({
   }, [running])
   
 
-  // Toggle modal-open class on the .day-dashboard element so the page blurs while modal open
   useEffect(() => {
     if (typeof document === 'undefined') return
     const root = document.querySelector('.day-dashboard')
     if (!root) return
-    // keep the page in the disabled/blurred state while either the modal is open OR a game is running
     if (isOpen || isRunning) {
       root.classList.add('modal-open')
     } else {
       root.classList.remove('modal-open')
     }
-    // cleanup: only remove the class if neither modal is open nor a game is running
     return () => {
       try {
         if (!(isOpen || isRunning)) root.classList.remove('modal-open')
@@ -86,46 +75,27 @@ export default function MinigamePopup({
     }
   }, [isOpen, isRunning])
 
-  // age selection removed: the popup uses a single `rules` string for all ages
 
   function handleStart(){
-    // optimistically set local running state so UI updates immediately
     setIsRunning(true)
     if (onStart) onStart()
   }
   async function handleStop(){
-    // optimistically clear local running state
     setIsRunning(false)
 
-    // First, allow parent to perform the authoritative action (persist
-    // activeGameInfo = null on the server). We await it so remote devices
-    // polling the server will observe the cleared state before we clear
-    // localStorage and dispatch events in this browser.
     if (onStop) {
       try {
-        // If onStop returns a promise, await it. If it's synchronous, awaiting
-        // resolves immediately.
         await onStop()
       } catch (err) {
-        // Swallow errors — we still proceed to notify local tabs, but log.
         console.warn('MinigamePopup: onStop handler failed', err)
       }
     }
 
-    // As a safety net, also attempt to clear the server-side activeGameInfo
-    // directly from the popup. This helps when the parent handler doesn't
-    // reach the server (e.g. due to a wrong API url/proxy) — calling the
-    // API here ensures remote devices polling the server will observe the
-    // cleared state.
     try {
       let sid: string | null
       try { sid = localStorage.getItem('currentSessionId') } catch { sid = null }
       if (sid) {
-        // If the parent handler already cleared the activeGameInfo (it usually
-        // removes the key from localStorage after updating the server), there's
-        // no need to call the API again. Only attempt the fallback when the
-        // local key still exists — that indicates the server update may not
-        // have completed.
+
         let hasActive: boolean
         try { hasActive = localStorage.getItem('activeGameInfo') !== null } catch { hasActive = false }
         if (hasActive) {
@@ -143,9 +113,6 @@ export default function MinigamePopup({
       }
     } catch { /* ignore */ }
 
-    // Now clear local state and notify other tabs in this browser. This is
-    // best-effort only: the server call above is the authoritative notification
-    // for remote devices.
     try {
       try { localStorage.removeItem('activeGameInfo') } catch (e) { void e }
       try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (e) { void e }
@@ -157,12 +124,8 @@ export default function MinigamePopup({
 
   if (!isOpen) return null
 
-  // show the generic rules text for all ages
   const displayedRules = rules
 
-  // Don't allow closing the modal by clicking the overlay while a game is running.
-  // The close 'X' button is permitted to close the modal even while a game runs; the page will remain disabled/blurred
-  // as long as `isRunning` is true (we add the modal-open class when either isOpen OR isRunning).
   const overlayClick = () => { if (!isRunning) onClose() }
 
   return (

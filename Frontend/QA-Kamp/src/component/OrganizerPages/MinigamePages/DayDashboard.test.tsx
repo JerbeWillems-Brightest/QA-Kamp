@@ -32,10 +32,10 @@ describe('DayDashboard', () => {
   // Test: controleert dat alle beschikbare spellen voor de geselecteerde dag (Dinsdag)
   // op de pagina worden weergegeven (titels van de minigames worden getoond).
   it('renders all games for the selected day (Dinsdag)', async () => {
-    // ensure a session is present so the component shows games
+    // Arrange: zorg dat er een sessie-id aanwezig is zodat spellen getoond worden
     localStorage.setItem('currentSessionId', 'sess-1')
 
-    // render with route that sets useParams day to "dinsdag"
+    // Act: render component met route voor 'dinsdag'
     render(
       <MemoryRouter initialEntries={["/day/dinsdag"]}>
         <AuthProvider>
@@ -63,20 +63,20 @@ describe('DayDashboard', () => {
   // Test: controleert dat de spelerslijst correct wordt geladen en weergegeven,
   // inclusief spelernummer, naam, leeftijdscategorie en online/offline status.
   it('shows players list with spelernummer, naam, leeftijdscategorie and status', async () => {
-    // Prepare mock players returned from API
+    // Arrange: prepare mock players die de API moet retourneren
     const mockPlayers = [
       { playerNumber: '101', name: 'Alice', age: 9, category: '8-10', lastSeen: null },
       { playerNumber: '202', name: 'Bob', age: 12, category: '11-13', lastSeen: '2026-03-17T10:00:00Z' },
       { playerNumber: '303', name: 'Charlie', age: 15, category: '14-16', lastSeen: null },
     ]
 
-    // Use vitest's Mock type for assertions
+    // Act: patch API mocks to return our sample players and render component
     const fpMock = fetchPlayersForSession as unknown as Mock
     const lbMock = fetchLeaderboard as unknown as Mock
     fpMock.mockImplementationOnce(async () => ({ players: mockPlayers }))
     lbMock.mockImplementationOnce(async () => ({ leaderboard: [] }))
 
-    // set a session id so DayDashboard will attempt to load players
+    // Zorg voor session id zodat component spelers laadt
     localStorage.setItem('currentSessionId', 'sess-test')
 
     render(
@@ -89,14 +89,14 @@ describe('DayDashboard', () => {
       </MemoryRouter>
     )
 
-    // Wait for players to be rendered
+    // Assert: spelers verschijnen in de UI met nummers en categorieën
     await waitFor(() => {
       expect(screen.getByText('Alice')).toBeDefined()
       expect(screen.getByText('Bob')).toBeDefined()
       expect(screen.getByText('Charlie')).toBeDefined()
     })
 
-    // Check that each player number and category is present
+    // Controleer aanwezigheid van playerNumbers en categorieën
     expect(screen.getByText('101')).toBeDefined()
     expect(screen.getByText('202')).toBeDefined()
     expect(screen.getByText('303')).toBeDefined()
@@ -105,9 +105,7 @@ describe('DayDashboard', () => {
     expect(screen.getByText('11-13')).toBeDefined()
     expect(screen.getByText('14-16')).toBeDefined()
 
-    // Status cells should show either 'Online' or 'Offline' (component normalizes)
-    // Bob has lastSeen so should be Online (depending on mapping); Alice/Charlie offline
-    // We simply assert the presence of at least one status cell
+    // Status-cellen moeten ten minste één keer voorkomen (Online/Offline)
     const statusCells = document.querySelectorAll('.status')
     expect(statusCells.length).toBeGreaterThanOrEqual(1)
   })
@@ -115,7 +113,7 @@ describe('DayDashboard', () => {
   // Test: controleert dat het leaderboard correct wordt gesorteerd op score (aflopend)
   // en bij gelijke scores als tiebreaker op naam (alfabetisch oplopend).
   it('displays leaderboard sorted by score desc then name asc', async () => {
-    // Unsorted input: two players with same score but names out of order
+    // Arrange: unsorted leaderboard input om sortering te testen
     const unsorted = [
       { playerNumber: '1', name: 'Charlie', score: 100 },
       { playerNumber: '2', name: 'Alice', score: 100 },
@@ -124,6 +122,7 @@ describe('DayDashboard', () => {
 
     const fpMock2 = fetchPlayersForSession as unknown as Mock
     const lbMock2 = fetchLeaderboard as unknown as Mock
+    // Act: patch mocks en render component
     fpMock2.mockImplementationOnce(async () => ({ players: [] }))
     lbMock2.mockImplementationOnce(async () => ({ leaderboard: unsorted }))
 
@@ -139,6 +138,7 @@ describe('DayDashboard', () => {
     )
 
     // Wait for leaderboard items to appear
+    // Assert: rows zijn aanwezig en gesorteerd zoals verwacht
     await waitFor(() => {
       const rows = document.querySelectorAll('.score-row')
       expect(rows.length).toBeGreaterThanOrEqual(3)
@@ -146,7 +146,7 @@ describe('DayDashboard', () => {
       const second = rows[1].textContent || ''
       const third = rows[2].textContent || ''
 
-      // first should be Alice (100) because tie-breaker name asc
+      // Verwacht: Alice eerst (tie-breaker op naam), dan Charlie, dan Bob
       expect(first).toContain('Alice')
       expect(second).toContain('Charlie')
       expect(third).toContain('Bob')
@@ -155,9 +155,10 @@ describe('DayDashboard', () => {
 
   // Branch tests for edge cases and additional functionality
   it('shows no active session message when no sessionId present', () => {
-    // ensure localStorage has no currentSessionId
+    // Arrange: zorg dat er geen currentSessionId in localStorage staat
     localStorage.removeItem('currentSessionId')
 
+    // Act: render component
     render(
       <MemoryRouter initialEntries={["/day/maandag"]}>
         <AuthProvider>
@@ -167,14 +168,15 @@ describe('DayDashboard', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-
+    // Assert: foutmelding over ontbrekende sessie wordt getoond
     expect(screen.getByText('Geen actieve sessie gevonden')).toBeDefined()
   })
 
   it('startGame persists activeGameInfo and calls API, then stopGame clears it', async () => {
-    // prepare a session id so component loads games and allows starting
+    // Arrange: session id aanwezig zodat spellen geladen kunnen worden
     localStorage.setItem('currentSessionId', 'sess-1')
 
+    // Act: render DayDashboard voor dinsdag
     render(
       <MemoryRouter initialEntries={["/day/dinsdag"]}>
         <AuthProvider>
@@ -191,13 +193,14 @@ describe('DayDashboard', () => {
     expect(btn).toBeTruthy()
     fireEvent.click(btn)
 
-    // Popup should render start button
+    // Assert: popup heeft startknop
     const startBtn = await screen.findByRole('button', { name: 'Spel starten' })
     expect(startBtn).toBeDefined()
 
-    // Click start -> should persist activeGameInfo and call API
+    // Act: start het spel
     fireEvent.click(startBtn)
 
+    // Assert: activeGameInfo is opgeslagen in localStorage en API is aangeroepen
     await waitFor(() => {
       const raw = localStorage.getItem('activeGameInfo')
       expect(raw).toBeTruthy()
@@ -207,21 +210,23 @@ describe('DayDashboard', () => {
 
     expect(mockSetActiveGameInfo).toHaveBeenCalled()
 
-    // Now the popup should show Stop button (running state)
+    // Act: stop het spel via stopknop
     const stopBtn = await screen.findByRole('button', { name: 'Spel stoppen' })
     expect(stopBtn).toBeDefined()
     fireEvent.click(stopBtn)
 
+    // Assert: activeGameInfo is gewist en API is opnieuw aangeroepen
     await waitFor(() => {
       expect(localStorage.getItem('activeGameInfo')).toBeNull()
     })
-    // API should have been called again to clear server side
     expect(mockSetActiveGameInfo).toHaveBeenCalledTimes(2)
   })
 
   it('disables other games when one game is running', async () => {
+    // Arrange: session aanwezig
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: render DayDashboard voor dinsdag
     render(
       <MemoryRouter initialEntries={["/day/dinsdag"]}>
         <AuthProvider>
@@ -232,7 +237,7 @@ describe('DayDashboard', () => {
       </MemoryRouter>
     )
 
-    // Start the first game
+    // Act: start het eerste spel
     const gameTitle = await screen.findByText('Bug Cleanup')
     const btn = gameTitle.closest('button') as HTMLButtonElement
     fireEvent.click(btn)
@@ -240,12 +245,14 @@ describe('DayDashboard', () => {
     const startBtn = await screen.findByRole('button', { name: 'Spel starten' })
     fireEvent.click(startBtn)
 
+    // Assert: activeGameInfo aanwezig in localStorage na starten
     await waitFor(() => {
       expect(localStorage.getItem('activeGameInfo')).toBeTruthy()
     })
 
     // Check that other games are disabled
     const otherGames = ['Getalrace', 'Reactietijd test', 'Whack the bug']
+    // Assert: andere games zijn uitgeschakeld
     for (const gameName of otherGames) {
       const gameBtn = screen.getByText(gameName).closest('button')
       expect(gameBtn).toBeDisabled()
@@ -259,13 +266,16 @@ describe('DayDashboard', () => {
       btn.classList.contains('game-card') && 
       btn.textContent?.includes('Bug Cleanup')
     )
+    // Assert: het draaiende spel blijft klikbaar
     expect(bugCleanupBtn).not.toBeDisabled()
     expect(bugCleanupBtn).not.toHaveAttribute('disabled')
   })
 
   it('displays correct day labels for different days', () => {
+    // Arrange: zorg dat er een sessie aanwezig is
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: defineer testcases met paden en verwachte labels
     const testCases = [
       { path: '/day/maandag', expectedLabel: 'Maandag - Security' },
       { path: '/day/dinsdag', expectedLabel: 'Dinsdag - Performance' },
@@ -275,6 +285,7 @@ describe('DayDashboard', () => {
       { path: '/day/unknown', expectedLabel: 'Unknown - Security' },
     ]
 
+    // Assert: voor elk pad verschijnt het verwachte label
     testCases.forEach(({ path, expectedLabel }) => {
       const { unmount } = render(
         <MemoryRouter initialEntries={[path]}>
@@ -292,8 +303,10 @@ describe('DayDashboard', () => {
   })
 
   it('displays correct games for each day', () => {
+    // Arrange: zorg dat er een sessie aanwezig is
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: definieer paden en verwachte spellen
     const testCases = [
       { path: '/day/maandag', expectedGames: ['Kraak het wachtwoord', 'Password zapper'] },
       { path: '/day/dinsdag', expectedGames: ['Bug Cleanup', 'Getalrace', 'Reactietijd test', 'Whack the bug'] },
@@ -302,6 +315,7 @@ describe('DayDashboard', () => {
       { path: '/day/vrijdag', expectedGames: ['Fight the bug'] },
     ]
 
+    // Assert: voor elk pad verschijnen de verwachte spellen
     testCases.forEach(({ path, expectedGames }) => {
       const { unmount } = render(
         <MemoryRouter initialEntries={[path]}>
@@ -321,8 +335,10 @@ describe('DayDashboard', () => {
   })
 
   it('shows loading state while fetching data', async () => {
+    // Arrange: sessie aanwezig
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: render pagina
     render(
       <MemoryRouter initialEntries={["/day/maandag"]}>
         <AuthProvider>
@@ -334,6 +350,7 @@ describe('DayDashboard', () => {
     )
 
     // Initially should show loading
+    // Assert: laadtekst zichtbaar en verdwijnt uiteindelijk
     expect(screen.getByText('Laden...')).toBeInTheDocument()
     
     // Wait for loading to complete
@@ -343,8 +360,10 @@ describe('DayDashboard', () => {
   })
 
   it('displays "Geen spelers" when no players are available', async () => {
+    // Arrange: sessie aanwezig
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: render pagina
     render(
       <MemoryRouter initialEntries={["/day/maandag"]}>
         <AuthProvider>
@@ -355,14 +374,17 @@ describe('DayDashboard', () => {
       </MemoryRouter>
     )
 
+    // Assert: de tekst 'Geen spelers' wordt getoond wanneer er geen spelers zijn
     await waitFor(() => {
       expect(screen.getByText('Geen spelers')).toBeInTheDocument()
     })
   })
 
   it('displays "Er is nog geen scorebord beschikbaar" when no leaderboard data', async () => {
+    // Arrange: sessie aanwezig
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: render pagina
     render(
       <MemoryRouter initialEntries={["/day/maandag"]}>
         <AuthProvider>
@@ -373,14 +395,17 @@ describe('DayDashboard', () => {
       </MemoryRouter>
     )
 
+    // Assert: fallback-bericht voor ontbrekend scorebord wordt getoond
     await waitFor(() => {
       expect(screen.getByText('Er is nog geen scorebord beschikbaar')).toBeInTheDocument()
     })
   })
 
   it('renders back button with correct link', () => {
+    // Arrange: sessie aanwezig
     localStorage.setItem('currentSessionId', 'sess-1')
     
+    // Act: render pagina
     render(
       <MemoryRouter initialEntries={["/day/maandag"]}>
         <AuthProvider>
@@ -396,9 +421,8 @@ describe('DayDashboard', () => {
   })
 
   it('handles localStorage errors gracefully', async () => {
+    // Arrange: sessie aanwezig en localStorage.getItem wordt tijdelijk gemockt om een fout te gooien
     localStorage.setItem('currentSessionId', 'sess-1')
-    
-    // Mock localStorage.getItem to throw error
     const originalGetItem = localStorage.getItem
     localStorage.getItem = vi.fn((key: string) => {
       if (key === 'activeGameInfo') {
@@ -407,6 +431,7 @@ describe('DayDashboard', () => {
       return originalGetItem.call(localStorage, key)
     })
 
+    // Act: render pagina
     render(
       <MemoryRouter initialEntries={["/day/maandag"]}>
         <AuthProvider>
@@ -417,7 +442,7 @@ describe('DayDashboard', () => {
       </MemoryRouter>
     )
 
-    // Component should still render without crashing
+    // Assert: component rendert zonder te crashen ondanks localStorage-fout
     expect(screen.getByText('Maandag - Security')).toBeInTheDocument()
     
     // Restore original localStorage.getItem
@@ -425,11 +450,11 @@ describe('DayDashboard', () => {
   })
 
   it('recovers active game state from localStorage on mount', async () => {
+    // Arrange: sessie en actieve game-info vooraf in localStorage
     localStorage.setItem('currentSessionId', 'sess-1')
-    
-    // Set active game in localStorage before render
     localStorage.setItem('activeGameInfo', JSON.stringify({ game: 'Bug Cleanup', day: 'dinsdag' }))
     
+    // Act: render DayDashboard voor dinsdag
     render(
       <MemoryRouter initialEntries={["/day/dinsdag"]}>
         <AuthProvider>
@@ -440,7 +465,7 @@ describe('DayDashboard', () => {
       </MemoryRouter>
     )
 
-    // Game should be in running state
+    // Assert: het spel staat in draaiende staat en knop is niet uitgeschakeld
     await waitFor(() => {
       const gameBtn = screen.getByText('Bug Cleanup').closest('button')
       expect(gameBtn).not.toBeDisabled()

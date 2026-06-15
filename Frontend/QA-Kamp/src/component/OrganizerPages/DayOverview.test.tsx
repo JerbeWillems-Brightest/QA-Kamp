@@ -24,6 +24,9 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: rendert de hoofdtitel en minimaal één dagknop (bijv. Maandag)
   it('renders title and day buttons', () => {
+    // Arrange: render de component binnen benodigde providers
+    // Act: geen interactie - we inspecteren de initiële DOM
+    // Assert: controleer titel, QA-label en ten minste één dagknop
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -46,6 +49,8 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: toont expliciet de QA kalender titel op de pagina
   it('renders QA kalender title', () => {
+    // Arrange: render component
+    // Assert: de tekst 'kalender' staat op de pagina
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -60,6 +65,9 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: standaard geselecteerde dag is afgeleid van de huidige datum (aria-pressed=true)
   it('default selected day is based on current date', () => {
+    // Arrange: render component
+    // Act: zoek de dagknoppen en bepaal welke geselecteerd is
+    // Assert: er moet één knop zijn met aria-pressed=true
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -77,7 +85,9 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: klikken op een uitgeschakelde dag doet niets en veroorzaakt geen fout
   it('clicking a disabled day does nothing', () => {
-    // we can't easily simulate date; assert disabled buttons have not-allowed cursor
+    // Arrange: render component (datum-simulatie niet eenvoudig)
+    // Act: zoek naar uitgeschakelde knoppen en klik er op indien aanwezig
+    // Assert: er mogen geen fouten optreden door het klikken
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -98,6 +108,8 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: controleert aanwezigheid van de drie hoofdactieknoppen (Scorebord, Spelers beheren, QA stoppen)
   it('has three main action buttons', () => {
+    // Arrange: render component
+    // Assert: de drie hoofdactieknoppen moeten zichtbaar zijn
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -115,6 +127,8 @@ describe('DayOverview (merged tests)', () => {
   // Test: header toont uitlog-knop wanneer er een ingelogde gebruiker in localStorage staat
   it('shows logout button in header when user is logged in', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'u@x' }))
+    // Arrange: seed een ingelogde gebruiker
+    // Act: render Navbar + DayOverview
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -131,6 +145,8 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: controleert dat alle weekdagen (Maandag t/m Vrijdag) aanwezig zijn als knoppen
   it('renders all weekdays (maandag t/m vrijdag)', () => {
+    // Arrange: render component
+    // Assert: alle werkdagen verschijnen als knoppen
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -151,7 +167,9 @@ describe('DayOverview (merged tests)', () => {
   it('clicking day navigates to the day dashboard', async () => {
     // ensure auth present so component doesn't redirect
     localStorage.setItem('user', JSON.stringify({ id: 'u-nav', email: 'nav@x' }))
-
+    // Arrange: ensure authenticated and routes are set up to detect navigation
+    // Act: klik op een dag-knop
+    // Assert: navigatie naar day dashboard vindt plaats
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
@@ -176,7 +194,7 @@ describe('DayOverview (merged tests)', () => {
     const days = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag']
 
     for (const day of days) {
-      // seed user before each render so DayOverview won't redirect
+      // Arrange: seed user voor elke iteratie zodat component niet redirect
       localStorage.setItem('user', JSON.stringify({ id: `u-${day}`, email: `${day}@x` }))
 
       const { unmount } = render(
@@ -192,13 +210,15 @@ describe('DayOverview (merged tests)', () => {
         </MemoryRouter>
       )
 
+      // Act: vind de knop en klik indien ingeschakeld
       const btn = await screen.findByRole('button', { name: new RegExp(day, 'i') })
-      // if the button is disabled, ensure no navigation occurs; otherwise expect navigation
       if (!btn.hasAttribute('disabled')) {
         fireEvent.click(btn)
+        // Assert: navigatie naar de juiste day-pagina
         await waitFor(() => expect(screen.getByText(new RegExp(`Day: ${day.toLowerCase()}`, 'i'))).toBeDefined())
       }
 
+      // Cleanup voor volgende iteratie
       unmount()
       cleanup()
     }
@@ -208,6 +228,8 @@ describe('DayOverview (merged tests)', () => {
   it('stop button calls deleteSession and navigates', async () => {
     localStorage.setItem('currentSessionId', 'stop-me')
     mockDelete.mockResolvedValue({ success: true })
+    // Arrange: session id in localStorage en mock delete succesvol
+    // Act: render en klik stop
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -220,18 +242,20 @@ describe('DayOverview (merged tests)', () => {
 
     fireEvent.click(screen.getByText(/QA[- ]kamp stoppen/i))
 
-    // confirmation popup must be shown (User Story 1)
+    // Assert: bevestigingsdialoog verschijnt
     const stopDialog = await screen.findByRole('dialog')
     expect(stopDialog).toBeDefined()
 
-    // "Stoppen" komt zowel op de stop-knop (in de titel) als in de popup voor.
-    // We klikken dus expliciet de "Stoppen" knop binnen de popup.
+    // Act: klik 'Stoppen' in de dialoog
     fireEvent.click(within(stopDialog).getByRole('button', { name: /Stoppen/i }))
+    // Assert: deleteSession API is aangeroepen
     await waitFor(() => expect(mockDelete).toHaveBeenCalled())
   })
 
   // Test: component reageert op window resize events zonder fouten (schaling)
   it('scale responds to window resizing', () => {
+    // Arrange: render component
+    // Act: trigger window resize event
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -256,11 +280,14 @@ describe('DayOverview (merged tests)', () => {
     } catch {
       // ignore
     }
+    // Assert: geen fouten opgetreden door resize (sanity check)
     expect(true).toBeTruthy()
   })
 
   // Test: het 'Spelers beheren' modal wordt geopend bij het klikken op de knop
   it('shows manage players modal when clicked', async () => {
+    // Arrange: render component
+    // Act: klik op 'Spelers beheren'
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -271,12 +298,14 @@ describe('DayOverview (merged tests)', () => {
       </MemoryRouter>
     )
 
+    // Act: klik en Assert: modal (dialog) verschijnt
     fireEvent.click(screen.getByText(/Spelers beheren/i))
     await screen.findByRole('dialog')
   })
 
   // Test: modal sluit wanneer er buiten het overlay-gebied wordt geklikt
   it('modal closes when clicking outside (overlay)', async () => {
+    // Arrange: render component en open modal
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -287,9 +316,9 @@ describe('DayOverview (merged tests)', () => {
       </MemoryRouter>
     )
 
+    // Act: klik buiten overlay en Assert: modal sluit
     fireEvent.click(screen.getByText(/Spelers beheren/i))
     await screen.findByRole('dialog')
-    // click overlay
     const dialog = screen.getByRole('dialog')
     fireEvent.click(dialog)
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
@@ -297,8 +326,9 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: redirects to organizer-login when not authenticated
   it('redirects to organizer-login when not authenticated', async () => {
-    // ensure no user present
+    // Arrange: geen authenticated user aanwezig
     localStorage.removeItem('user')
+    // Act: render and Assert: redirect occurs to organizer-login
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
@@ -322,7 +352,8 @@ describe('DayOverview (merged tests)', () => {
     localStorage.setItem('user', JSON.stringify({ id: 'u-stop-404', email: 'stop@x' }))
     // make mocked delete reject with a not-found style message
     mockDelete.mockRejectedValue(new Error('Session not found'))
-
+    // Arrange: set session id and mock delete to reject with a not-found error
+    // Act: render and confirm stop flow
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
@@ -338,6 +369,7 @@ describe('DayOverview (merged tests)', () => {
 
     fireEvent.click(screen.getByText(/QA[- ]kamp stoppen/i))
     const stopDialog = await screen.findByRole('dialog')
+    // Act: bevestig stoppen en Assert: wordt doorverwezen naar /start-session
     fireEvent.click(within(stopDialog).getByRole('button', { name: /Stoppen/i }))
 
     await waitFor(() => expect(screen.getByTestId('start')).toBeDefined())
@@ -347,6 +379,8 @@ describe('DayOverview (merged tests)', () => {
   it('activeGameInfo in localStorage disables non-matching day buttons', async () => {
     localStorage.setItem('activeGameInfo', JSON.stringify({ day: 'Maandag' }))
     // when the component reads localStorage it defers setting state, so waitFor
+    // Arrange: activeGameInfo staat in localStorage
+    // Act: render component en Assert: niet-overeenkomende dagknoppen zijn disabled
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -365,6 +399,8 @@ describe('DayOverview (merged tests)', () => {
 
   // Test: storage event toggles activeGameInfo on and off
   it('storage event updates activeGameInfo and clears when newValue null', async () => {
+    // Arrange: render component to observe storage events
+    // Act: dispatch storage events to set and clear activeGameInfo
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -385,6 +421,7 @@ describe('DayOverview (merged tests)', () => {
     const evOff = new StorageEvent('storage', { key: 'activeGameInfo', newValue: null as unknown as string })
     window.dispatchEvent(evOff)
 
+    // Assert: na clear is de knop weer ingeschakeld
     await waitFor(() => expect(screen.getByRole('button', { name: /Dinsdag/i })).not.toHaveAttribute('disabled'))
   })
 
@@ -392,7 +429,8 @@ describe('DayOverview (merged tests)', () => {
   it('stop flow shows error when deleteSession fails (non-404)', async () => {
     localStorage.setItem('currentSessionId', 'stop-me-fail')
     mockDelete.mockRejectedValue(new Error('server error'))
-
+    // Arrange: mock delete faalt met server error
+    // Act: render en bevestig stop
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -407,7 +445,7 @@ describe('DayOverview (merged tests)', () => {
     const stopDialog = await screen.findByRole('dialog')
     fireEvent.click(within(stopDialog).getByRole('button', { name: /Stoppen/i }))
 
-    // expect an error message to be shown
+    // Assert: foutmelding wordt weergegeven
     await waitFor(() => expect(screen.getByText(/Kon sessie niet stoppen/i)).toBeDefined())
   })
 
@@ -415,7 +453,8 @@ describe('DayOverview (merged tests)', () => {
   it('navigates to scoreboard when session exists', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 'u-score', email: 's@x' }))
     localStorage.setItem('currentSessionId', 'sess-score')
-
+    // Arrange: gebruiker en sessie aanwezig
+    // Act: render en klik op Scorebord-knop
     render(
       <MemoryRouter initialEntries={["/"]}>
         <AuthProvider>
@@ -429,6 +468,7 @@ describe('DayOverview (merged tests)', () => {
       </MemoryRouter>
     )
 
+    // Act: klik en Assert: navigatie naar scoreboard
     fireEvent.click(screen.getByRole('button', { name: /Scorebord/i }))
     await waitFor(() => expect(screen.getByTestId('scoreboard')).toBeDefined())
   })
@@ -437,7 +477,8 @@ describe('DayOverview (merged tests)', () => {
   it('cancelling stop confirmation closes dialog', async () => {
     localStorage.setItem('currentSessionId', 'stop-me')
     mockDelete.mockResolvedValue({ success: true })
-
+    // Arrange: render component and open stop dialog
+    // Act: click cancel in dialog and Assert: dialog closes
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -457,6 +498,8 @@ describe('DayOverview (merged tests)', () => {
 
   // new test: invalid JSON in storage event is handled gracefully and does not disable days
   it('ignores invalid JSON in activeGameInfo storage event', async () => {
+    // Arrange: render component
+    // Act: dispatch an invalid storage event and Assert: UI remains unchanged
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -470,7 +513,7 @@ describe('DayOverview (merged tests)', () => {
     const evBad = new StorageEvent('storage', { key: 'activeGameInfo', newValue: 'not-a-json' })
     window.dispatchEvent(evBad)
 
-    // Dinsdag should not be disabled
+    // Assert: Dinsdag blijft ingeschakeld
     await waitFor(() => expect(screen.getByRole('button', { name: /Dinsdag/i })).not.toHaveAttribute('disabled'))
   })
 
@@ -478,6 +521,8 @@ describe('DayOverview (merged tests)', () => {
   it('hover and focus apply transform to day image', async () => {
     // ensure authenticated to avoid redirect
     localStorage.setItem('user', JSON.stringify({ id: 'u-hov', email: 'h@x' }))
+    // Arrange: render component
+    // Act: trigger hover and focus
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -489,14 +534,14 @@ describe('DayOverview (merged tests)', () => {
     )
 
     const mondayBtn = screen.getByRole('button', { name: /Maandag/i })
-    // trigger hover
+    // Act: trigger hover and focus
     fireEvent.mouseEnter(mondayBtn)
-    // image should scale up
     const img = mondayBtn.querySelector('img') as HTMLImageElement
     expect(img).toBeDefined()
+    // Assert: image transform bevat schaalvergroting
     await waitFor(() => expect(img.style.transform).toContain('scale(1.04)'))
 
-    // focus should also apply transform
+    // Act: focus and Assert: dezelfde transformatie wordt toegepast
     fireEvent.focus(mondayBtn)
     await waitFor(() => expect(img.style.transform).toContain('scale(1.04)'))
   })
@@ -504,6 +549,8 @@ describe('DayOverview (merged tests)', () => {
   // extra func test: clicking a day sets aria-pressed on that button
   it('clicking a day sets aria-pressed true for that day', async () => {
     localStorage.setItem('user', JSON.stringify({ id: 'u-press', email: 'p@x' }))
+    // Arrange: render component
+    // Act: klik op een dag en Assert: aria-pressed wordt true voor die knop
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -524,7 +571,8 @@ describe('DayOverview (merged tests)', () => {
     // ensure no session
     localStorage.removeItem('currentSessionId')
     localStorage.setItem('user', JSON.stringify({ id: 'u-no', email: 'n@x' }))
-
+    // Arrange: gebruiker aanwezig maar geen session
+    // Act: render en klik Scorebord
     render(
       <MemoryRouter>
         <AuthProvider>
@@ -534,7 +582,7 @@ describe('DayOverview (merged tests)', () => {
         </AuthProvider>
       </MemoryRouter>
     )
-
+    // Act: klik Scorebord en Assert: foutmelding zonder sessie
     fireEvent.click(screen.getByRole('button', { name: /Scorebord/i }))
     await waitFor(() => expect(screen.getByText(/Geen actieve sessie/i)).toBeDefined())
   })

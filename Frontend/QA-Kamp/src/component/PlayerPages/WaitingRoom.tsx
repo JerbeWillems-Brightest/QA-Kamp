@@ -7,7 +7,6 @@ import ShapeImg from '../../assets/shape.png'
 import CurveImg from '../../assets/curve.png'
 import StarImg from '../../assets/Star.png'
 
-// Helper: safely map unknown activeGame payloads to a typed shape
 function mapActiveInfo(v: unknown): { gameName?: string; day?: string; category?: string; sessionId?: string } | null {
   if (!v) return null
   if (typeof v === 'string') {
@@ -24,19 +23,15 @@ function mapActiveInfo(v: unknown): { gameName?: string; day?: string; category?
   const day = typeof rec['day'] === 'string' ? rec['day'] as string : undefined
   const category = typeof rec['category'] === 'string' ? rec['category'] as string : undefined
   const sessionId = typeof rec['sessionId'] === 'string' ? rec['sessionId'] as string : (rec['_id'] ? String(rec['_id']) : undefined)
-  // if we have at least one relevant field return mapped object, otherwise return null
   if (gameName || day || category || sessionId) return { gameName, day, category, sessionId }
   return null
 }
 
 export default function WaitingRoom() {
   const playerNumber = sessionStorage.getItem('playerNumber') || ''
-  // prefer sessionStorage (set during login), but fall back to localStorage.currentSessionId
-  // to handle cases where a player opened the frontend in another tab or has stale storage
   const sessionStorageId = sessionStorage.getItem('playerSessionId')
   const localStorageId = localStorage.getItem('currentSessionId')
   const sessionId = (sessionStorageId && sessionStorageId !== 'null') ? sessionStorageId : (localStorageId ?? '')
-  // Debug: if both exist but differ, sync sessionStorage to localStorage (prefer localStorage)
   if (sessionStorageId && localStorageId && sessionStorageId !== localStorageId) {
     try { sessionStorage.setItem('playerSessionId', localStorageId as string) } catch { /* ignore */ }
     console.debug('WaitingRoom: synced sessionStorage.playerSessionId to localStorage.currentSessionId', { sessionStorageId, localStorageId })
@@ -46,21 +41,16 @@ export default function WaitingRoom() {
   const [serverOnlineConfirmed, setServerOnlineConfirmed] = useState(false)
   const navigate = useNavigate()
 
-  // helper to enter the game page when an activeGame is announced
   const enterGame = useCallback((details: { sessionId?: string; gameName?: string; day?: string; category?: string } | null) => {
     if (!details) return
-    // ensure this is for our session
     if (details.sessionId && sessionId && details.sessionId !== sessionId) return
     try {
       sessionStorage.setItem('playerActiveGame', JSON.stringify(details))
     } catch (err) { void err }
-    // navigate player to the minigame page with query params so minigame page can read the game+age
     try {
-      // normalize game key (e.g. 'Password Zapper' -> 'passwordzapper')
       const rawGame = String(details.gameName ?? '')
       const normalizeKey = (s: string) => s.toLowerCase().normalize('NFKD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g,'').replace(/[^a-z0-9]/g,'')
       const gameKey = normalizeKey(rawGame) || ''
-      // map category to short age-group form used by the minigame page
       const rawCat = String(details.category ?? '')
       const mapAge = (a: string) => {
         const r = (a || '').toString().toLowerCase()
@@ -75,16 +65,12 @@ export default function WaitingRoom() {
         navigate(`/minigame?game=${gameParam}&age=${ageParam}`)
         return
       }
-      // fallback to player game route if no game key
       navigate('/player/game')
     } catch (err) { void err }
   }, [navigate, sessionId])
 
-  // on mount check if there's already an active game (player joining late)
-  // useLayoutEffect so listeners are attached synchronously during mount
   useLayoutEffect(() => {
     try {
-      // support both keys: older 'activeGame' and organizer's 'activeGameInfo'
       const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
       if (rawInfo) {
         const mapped = mapActiveInfo(rawInfo)
@@ -92,16 +78,13 @@ export default function WaitingRoom() {
       }
     } catch (err) { void err }
 
-    // listen for storage events from organizer when they start a game
     function onStorage(e: StorageEvent) {
-      // handle explicit kick keys like 'kick_123' or 'kick_001'
       try {
         if (e.key && e.key.startsWith('kick_')) {
           const kicked = e.key.slice(5) // the player number part
           const plain = String(playerNumber)
           const padded = String(playerNumber).padStart(3,'0')
           if (kicked === plain || kicked === padded) {
-            // organizer explicitly kicked this player
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
@@ -115,15 +98,12 @@ export default function WaitingRoom() {
 
       if (e.key === 'onlinePlayers' || e.key === 'onlinePlayers_last_update') {
         try {
-          // when the transient timestamp key is written, e.newValue will be a timestamp string;
-          // in that case read the canonical onlinePlayers value from localStorage. Otherwise use newValue.
           const raw = (e.key === 'onlinePlayers') ? (e.newValue ?? localStorage.getItem('onlinePlayers')) : localStorage.getItem('onlinePlayers')
           const arr = raw ? JSON.parse(String(raw)) as string[] : []
           const padded = String(playerNumber).padStart(3,'0')
           const plain = String(playerNumber)
           const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded))
           if (!exists) {
-            // player was removed by organizer; force logout
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
@@ -134,13 +114,11 @@ export default function WaitingRoom() {
         } catch { /* ignore */ }
       }
       if (e.key === 'currentSessionId') {
-        // session ended/cleared by organizer on another tab
         if (e.newValue === null) {
           try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
           try { sessionStorage.removeItem('playerNumber') } catch (err) { void err }
           try { sessionStorage.removeItem('playerSessionId') } catch (err) { void err }
           try { sessionStorage.removeItem('playerOnlineLocked') } catch { /* ignore */ }
-          // remove this player from onlinePlayers
           try {
             const raw = localStorage.getItem('onlinePlayers')
             const arr = raw ? JSON.parse(raw) as string[] : []
@@ -148,7 +126,6 @@ export default function WaitingRoom() {
             const padded = String(playerNumber || '').padStart(3, '0')
             const filtered = Array.isArray(arr) ? arr.filter(x => (String(x) !== plain && String(x) !== padded)) : []
             localStorage.setItem('onlinePlayers', JSON.stringify(filtered))
-            // notify other tabs about the change
             window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) }))
           } catch { /* ignore */ }
           try { navigate('/') } catch (err) { void err }
@@ -156,10 +133,8 @@ export default function WaitingRoom() {
         return
       }
       if (e.key === 'activeGame' || e.key === 'activeGameInfo') {
-        // debug: during tests log incoming storage events
         try { if (typeof process !== 'undefined' && process.env && process.env.NODE_ENV === 'test') console.log('WaitingRoom.onStorage', { key: e.key, newValue: e.newValue, oldValue: e.oldValue }) } catch { /* ignore */ }
         try {
-          // storage events set newValue === null when a key is removed
           if (e.newValue === null) {
             try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
             try { navigate('/player/waiting') } catch (err) { void err }
@@ -173,13 +148,11 @@ export default function WaitingRoom() {
       }
     }
 
-    // same-tab fallback: some browsers don't fire storage events in same window
     function onCustom(ev: Event) {
       try {
         const ce = ev as CustomEvent
         const details = ce.detail
         if (!details) {
-          // cleared
           try { sessionStorage.removeItem('playerActiveGame') } catch (err) { void err }
           try { navigate('/player/waiting') } catch (err) { void err }
           return
@@ -197,7 +170,6 @@ export default function WaitingRoom() {
     }
   }, [enterGame, navigate, playerNumber])
 
-  // CSS for animated stars
   const starStyles = `
     .animated-stars { display: flex; gap: 12px; align-items: center; justify-content: center; }
     .animated-star { width: 18px; height: 18px; transform-origin: center; opacity: 0.35; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.12)); }
@@ -213,7 +185,6 @@ export default function WaitingRoom() {
     }
   `
 
-  // register this player as online in localStorage so organizer can see status
   useEffect(() => {
     if (!playerNumber) return
     const sess = sessionId
@@ -222,13 +193,11 @@ export default function WaitingRoom() {
     async function markOnline() {
       setServerOnlineConfirmed(false)
 
-      // If login already acquired the server-side online lock, don't call setPlayerOnline again.
-      // Calling it twice triggers backend 409 because lastSeen is no longer null.
+
       const onlineLocked = (() => {
         try { return sessionStorage.getItem('playerOnlineLocked') === 'true' } catch { return false }
       })()
 
-      // try to mark online on server first (authoritative). If it fails with 409, force local logout.
       let serverOk = false
       if (sess) {
         if (onlineLocked) {
@@ -237,14 +206,13 @@ export default function WaitingRoom() {
           try {
             const api = await import('../../api')
             await api.setPlayerOnline(sess, String(playerNumber))
-            // mark that this tab holds the online lock so other tabs won't retry
+
             try { sessionStorage.setItem('playerOnlineLocked', 'true') } catch { /* ignore */ }
             serverOk = true
           } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err)
             if (/online/i.test(msg) || /al online/i.test(msg) || /already online/i.test(msg)) {
-              // Previously: force logout. Instead, assume another tab/device already holds
-              // the server-side lock. Set local lock so we don't re-call and continue.
+
               try { sessionStorage.setItem('playerOnlineLocked', 'true') } catch { /* ignore */ }
               serverOk = true
             } else {
@@ -256,22 +224,19 @@ export default function WaitingRoom() {
 
       if (cancelled) return
 
-      // store the playerNumber as the plain string (tests expect e.g. '42')
+
       const storedVal = String(playerNumber)
       const padded = storedVal.padStart(3, '0')
 
-      // If the server confirmed, store it too; otherwise only store if there's no sessionId (can't sync to server).
       if (serverOk || !sess) {
         try {
           const raw = localStorage.getItem('onlinePlayers')
           const parsed = raw ? JSON.parse(raw) as unknown : []
           const arr = Array.isArray(parsed) ? parsed as string[] : []
-          // check if either plain or padded representation already exists
           const hasStored = arr.includes(storedVal) || arr.includes(padded)
           if (!hasStored) {
             const next = [...arr.filter(Boolean), storedVal]
             localStorage.setItem('onlinePlayers', JSON.stringify(next))
-            // notify other tabs (some browsers don't fire storage for same-tab writes)
             try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(next) })) } catch { /* ignore */ }
           }
         } catch {
@@ -295,7 +260,6 @@ export default function WaitingRoom() {
         try { window.dispatchEvent(new StorageEvent('storage', { key: 'onlinePlayers', newValue: JSON.stringify(filtered) })) } catch { /* ignore */ }
       } catch { /* ignore */ }
 
-      // tell server to mark offline if we previously set it online
       try {
         const sid = sessionId
         if (sid) {
@@ -304,9 +268,7 @@ export default function WaitingRoom() {
       } catch { /* ignore */ }
     }
 
-    // Remove player only when the browser/tab is closed (beforeunload).
-    // Do NOT remove the player on component unmount so the online status persists
-    // when the player navigates within the SPA (e.g. to /player/game).
+
     window.addEventListener('beforeunload', cleanup)
     return () => {
       cancelled = true
@@ -314,7 +276,6 @@ export default function WaitingRoom() {
     }
   }, [playerNumber, sessionId, navigate])
 
-  // Sync authoritative onlinePlayers from server so status/locking works across devices.
   useEffect(() => {
     if (!sessionId || !playerNumber) return
     if (!serverOnlineConfirmed) return
@@ -326,7 +287,7 @@ export default function WaitingRoom() {
         const resp = await fetchOnlinePlayers(sessionId)
         const list = (resp.onlinePlayers || []).map(p => String(p.playerNumber).padStart(3, '0'))
 
-        // update localStorage only if changed (avoids redundant events)
+
         const raw = localStorage.getItem('onlinePlayers')
         let cur: string[]
         try {
@@ -358,13 +319,9 @@ export default function WaitingRoom() {
     }
   }, [sessionId, playerNumber, serverOnlineConfirmed])
 
-  // Periodically re-check localStorage.onlinePlayers so the waiting-room tab reacts
-  // immediately when the organizer removes the player (even if a storage event
-  // didn't arrive). This avoids requiring a manual refresh.
   useEffect(() => {
     if (!playerNumber) return
-    // Avoid race: localStorage.onlinePlayers might not be written yet while we are
-    // waiting for the server-confirmed online status.
+
     if (sessionId && !serverOnlineConfirmed) return
     const intervalMs = 2000 // check every 2s
     const check = () => {
@@ -373,10 +330,8 @@ export default function WaitingRoom() {
         const arr = raw ? JSON.parse(raw) as string[] : []
         const padded = String(playerNumber).padStart(3, '0')
         const plain = String(playerNumber)
-        // consider existence if either plain or padded present, or after normalizing entries
         const exists = Array.isArray(arr) && (arr.includes(plain) || arr.includes(padded) || arr.map(x => String(x).padStart(3,'0')).includes(padded))
         if (!exists) {
-          // force logout locally
           try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
           try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
@@ -387,7 +342,6 @@ export default function WaitingRoom() {
       } catch { /* ignore parse errors */ }
     }
     const id = window.setInterval(check, intervalMs)
-    // run immediate check once (don't wait interval)
     check()
     return () => clearInterval(id)
   }, [playerNumber, navigate, sessionId, serverOnlineConfirmed])
@@ -404,14 +358,12 @@ export default function WaitingRoom() {
         if (list.length > 0) {
           setStarted(true)
           setMessage('Welkom in de sessie, wacht tot de begeleider het spel start')
-          // if organizer started a game and also wrote activeGame to localStorage, enter it
           try {
             const rawInfo = localStorage.getItem('activeGameInfo') || localStorage.getItem('activeGame')
             if (rawInfo) {
               const mapped = mapActiveInfo(rawInfo)
               if (mapped) enterGame(mapped)
             } else {
-              // no local activeGameInfo persisted (e.g. different device). Ask server for authoritative activeGameInfo
               try {
                 const sid = sessionId
                 if (sid) {
@@ -423,7 +375,6 @@ export default function WaitingRoom() {
                     const mapped = mapActiveInfo(info)
                     if (mapped) enterGame(mapped)
                   } else if (serverResp && (serverResp.activeGameInfo === null || typeof serverResp.activeGameInfo === 'undefined')) {
-                    // server explicitly cleared the active game; ensure local clients remove it too
                     try { localStorage.removeItem('activeGameInfo') } catch (err) { void err }
                     try { window.dispatchEvent(new CustomEvent('activeGameInfoChanged', { detail: null })) } catch (err) { void err }
                     try { window.dispatchEvent(new StorageEvent('storage', { key: 'activeGameInfo', newValue: null })) } catch { /* ignore */ }
@@ -435,8 +386,6 @@ export default function WaitingRoom() {
             }
           } catch (err) { void err }
         } else {
-          // No leaderboard entries — server may have removed players or session ended.
-          // Perform a server-side membership check: if this player no longer exists, force logout.
           try {
             const playersResp = await fetchPlayersForSession(sessionId)
             const playersList = (playersResp && (playersResp as { players?: unknown[] }).players) || []
@@ -449,7 +398,6 @@ export default function WaitingRoom() {
               return s === plain || s === padded || s.padStart(3,'0') === padded
             })
             if (!exists) {
-              // player not found on server -> force logout (removed from session or session ended)
               try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
               try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
               try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }
@@ -457,15 +405,10 @@ export default function WaitingRoom() {
               try { localStorage.removeItem('currentSessionId') } catch { /* ignore */ }
               try { navigate('/') } catch { /* ignore */ }
             } else {
-              // Player exists, but leaderboard is empty.
-              // In that case we must NOT kick the player; just keep them on the waiting screen.
-              // The previous behavior cleared session info and forced logout, which broke
-              // cross-device login flow when the leaderboard isn't populated yet.
               setStarted(false)
               setMessage('Wacht tot het spel start')
             }
           } catch {
-            // if membership check fails, log out as a conservative fallback
             try { sessionStorage.removeItem('playerNumber') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerSessionId') } catch { /* ignore */ }
             try { sessionStorage.removeItem('playerActiveGame') } catch { /* ignore */ }

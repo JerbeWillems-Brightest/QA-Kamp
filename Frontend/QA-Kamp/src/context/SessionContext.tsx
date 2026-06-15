@@ -24,7 +24,6 @@ export const SessionProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [currentSession, setCurrentSession] = useState<Session | null>(null)
   const [allSessions, setAllSessions] = useState<Session[]>([])
 
-  // load sessions for organizer on login
   useEffect(() => {
     let mounted = true
     async function load() {
@@ -37,7 +36,6 @@ export const SessionProvider: FC<{ children: ReactNode }> = ({ children }) => {
         const res = await getSessions(auth.user.id)
         if (!mounted) return
         setAllSessions(res.sessions)
-        // choose the latest session for this organizer if any
         const latest = (res.sessions || [])[0] ?? null
         setCurrentSession(latest)
       } catch (err) {
@@ -55,7 +53,6 @@ export const SessionProvider: FC<{ children: ReactNode }> = ({ children }) => {
       setAllSessions(res.sessions)
       const latest = (res.sessions || [])[0] ?? null
       setCurrentSession(latest)
-      // persist current session id to localStorage for compatibility with other parts/tests
       if (latest && latest.id) {
         try { localStorage.setItem('currentSessionId', latest.id) } catch (e) { console.warn('Failed to persist currentSessionId', e) }
       } else {
@@ -89,8 +86,6 @@ export const SessionProvider: FC<{ children: ReactNode }> = ({ children }) => {
 export function useSession() {
   const ctx = useContext(SessionContext)
   if (!ctx) {
-    // Graceful fallback for tests or non-wrapped usage: provide no-op defaults
-    // This avoids hard failures in unit tests where wrapping may be omitted.
     return {
       currentSession: null,
       setCurrentSessionId: () => {},

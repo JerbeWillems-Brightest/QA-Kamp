@@ -9,43 +9,46 @@ describe('MinigameLoader', () => {
   })
 
   it('shows fallback while loading and then renders named export MinigamePage', async () => {
-    // reset modules so our mock is applied when MinigameLoader is imported
+    // Arrange: reset modules zodat onze mock van MinigamePage wordt toegepast bij import
     vi.resetModules()
 
-    // mock the dynamically imported module to resolve on next tick with a named export
+    // Arrange: mock de dynamische import die op de volgende tick resolveert met een named export
     vi.mock('./MinigamePage', async () => {
       await new Promise((r) => setTimeout(r, 0))
-      // return a simple component that renders a string to avoid TSX/React import
+      // Retourneer een eenvoudige component die tekst renderet (vermijd zware React-imports)
       return { MinigamePage: () => 'Minigame Loaded' }
     })
 
+    // Act: importeer en render de loader
     const { default: MinigameLoader } = await import('./MinigameLoader')
-
     render(<MinigameLoader />)
 
-    // fallback should be visible immediately
+    // Assert: fallback is meteen zichtbaar
     expect(screen.getByText(/Laden.../i)).toBeInTheDocument()
 
-    // after the mocked import resolves the loaded component should appear
-    // accept either the named-export text or the default-export fallback text
+    // Assert: nadat de mock-import is voltooid moet de geladen component verschijnen
+    // accepteer ofwel de named-export tekst of de default-export fallback tekst
     expect(await screen.findByText(/(Minigame Loaded|Default Minigame)/i)).toBeInTheDocument()
 
-    // and the fallback should no longer be present
+    // Assert: fallback is daarna niet meer aanwezig
     expect(screen.queryByText(/Laden.../i)).toBeNull()
   })
 
   it('renders default export when module provides default', async () => {
+    // Arrange: reset modules zodat mock effectief is
     vi.resetModules()
 
+    // Arrange: mock dynamische import die een default export levert
     vi.mock('./MinigamePage', async () => {
       await new Promise((r) => setTimeout(r, 0))
       return { default: () => 'Default Minigame' }
     })
 
+    // Act: importeer en render de loader
     const { default: MinigameLoader } = await import('./MinigameLoader')
-
     render(<MinigameLoader />)
 
+    // Assert: fallback zichtbaar en daarna de default component
     expect(screen.getByText(/Laden.../i)).toBeInTheDocument()
     expect(await screen.findByText(/Default Minigame/i)).toBeInTheDocument()
     expect(screen.queryByText(/Laden.../i)).toBeNull()

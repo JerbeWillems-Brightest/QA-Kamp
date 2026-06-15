@@ -29,6 +29,226 @@ vi.mock('./PasswordZapper/PasswordZapperGame.tsx', () => {
 describe('MinigamePage', () => {
   const originalPath = window.location.pathname + window.location.search
 
+  /*
+   Nederlandse samenvatting van elke test in dit bestand (Arrange / Act / Assert kort):
+   - renders PasswordZapperGame with ageGroup from query param
+     -> rendert PasswordZapperGame met ageGroup uit query-parameter
+   - uses sessionStorage playerCategory when age param is absent
+     -> gebruikt sessionStorage.playerCategory wanneer age-param ontbreekt
+   - hint button is initially enabled for bugcleanup and stays enabled
+     -> hint-knop is initieel ingeschakeld voor bugcleanup en blijft ingeschakeld
+   - shows fallback content when game param is unknown
+     -> toont fallback-content als game-param onbekend is
+   - detects game from pathname when no query param
+     -> detecteert game uit pathname wanneer geen query-param aanwezig
+   - maps age parameter correctly with various inputs
+     -> mappt age-parameter correct voor verschillende invoerwaarden
+   - hint button click dispatches custom event
+     -> klikken op hint-knop stuurt een custom event uit
+   - pause button click dispatches custom event
+     -> klikken op pauzeknop stuurt een custom event uit
+   - question button click dispatches custom event
+     -> klikken op vraag-knop stuurt een custom event uit
+   - hint button is initially enabled for bugcleanup
+     -> hint-knop is initieel ingeschakeld voor bugcleanup
+   - initializes sessionStorage playerActiveGame when not present
+     -> initialiseert sessionStorage.playerActiveGame wanneer niet aanwezig
+   - does not overwrite existing sessionStorage playerActiveGame
+     -> overschrijft geen bestaande sessionStorage.playerActiveGame
+   - initializes hintUnlocked from global window flag
+     -> initialiseert hintUnlocked op basis van globale window-vlag
+   - handles useQuery when window is undefined
+     -> handelt useQuery af als window undefined is (serverachtige omgeving)
+   - renders fallback UI with star animations for unknown game
+     -> rendert fallback UI met ster-animaties voor onbekend spel
+   - initializes hintUnlocked to false when no global flag
+     -> zet hintUnlocked naar false als geen globale vlag aanwezig
+   - handles sessionStorage access errors gracefully
+     -> behandelt fouten bij sessionStorage-toegang zonder te crashen
+   - handles localStorage access errors gracefully
+     -> behandelt fouten bij localStorage-toegang zonder te crashen
+   - tests more age mapping edge cases
+     -> test extra randgevallen voor age-mapping
+   - renders decorative images in fallback UI
+     -> controleert decoratieve afbeeldingen in de fallback UI
+   - handles hint button click when unlocked
+     -> verwerkt hint-knop klik wanneer ontgrendeld
+   - tests game detection edge cases
+     -> test randgevallen voor game-detectie (case, padvarianten)
+   - tests sessionStorage initialization with missing sessionId
+     -> initialiseert playerActiveGame zonder sessionId wanneer nodig
+   - tests sessionStorage initialization with undefined gameName
+     -> initialiseert playerActiveGame wanneer gameName undefined is
+   - tests sessionStorage initialization error handling
+     -> behandelt fouten tijdens initialisatie van sessionStorage
+   - tests hint button title changes when unlocked
+     -> controleert dat hint-knop titel verandert als ontgrendeld
+   - tests age mapping with special characters
+     -> test age-mapping met speciale tekens tussen cijfers
+   - tests mapAge function with whitespace input
+     -> test mapAge met witruimte-gevulde input
+   - tests mapAge function with null input
+     -> test mapAge met 'null' input (valt terug op default)
+   - tests mapAge function with undefined input
+     -> test mapAge met 'undefined' input (valt terug op default)
+   - tests hint button event dispatch error handling
+     -> controleert dat fouten bij dispatchEvent geen crash veroorzaken
+   - tests pause button event dispatch error handling
+     -> controleert foutafhandeling bij pauze-event dispatch
+   - tests question button event dispatch error handling
+     -> controleert foutafhandeling bij vraag-event dispatch
+   - tests sessionStorage getItem error handling
+     -> behandelt fout bij sessionStorage.getItem zonder crash
+   - tests localStorage getItem error handling in useEffect
+     -> behandelt fout bij localStorage.getItem in useEffect
+   - tests sessionStorage removeItem error handling
+     -> behandelt fout bij sessionStorage.removeItem zonder crash
+   - tests localStorage removeItem error handling
+     -> behandelt fout bij localStorage.removeItem zonder crash
+   - tests game detection with empty pathname
+     -> detectie wanneer pathname leeg is
+   - tests game detection with pathname containing passwordzapper but not as game
+     -> detecteert passwordzapper ook in afwijkende paden
+   - tests sessionStorage initialization with undefined category
+     -> initialiseert playerCategory wanneer category undefined is
+   - tests sessionStorage initialization with undefined gameName (dup)
+     -> (zelfde als eerder) initialiseert playerActiveGame zonder gameName
+   - tests sessionStorage initialization with undefined sessionId
+     -> initialiseert zonder sessionId (sessionId blijft undefined)
+   - tests hintUnlocked state initialization with window flag false
+     -> hintUnlocked false wanneer globale vlag false
+   - tests hintUnlocked state initialization with window flag true
+     -> hintUnlocked true wanneer globale vlag true
+   - tests hintUnlocked state initialization with window flag error
+     -> behandelt errors bij lezen van globale hint-vlag
+   - tests sessionStorage removeItem error in cleanup
+     -> cleanup op unmount faalt niet bij storage-fout
+   - tests sessionStorage getItem error in age fallback
+     -> fallback naar default age wanneer sessionStorage faalt
+   - tests localStorage getItem error in polling
+     -> polling functioneert ook als localStorage.getItem faalt
+   - tests JSON.parse error in onlinePlayers polling
+     -> behandelt JSON.parse fouten tijdens onlinePlayers polling
+   - tests JSON.parse error in activeGameInfo polling
+     -> behandelt JSON.parse fouten tijdens activeGameInfo polling
+   - tests navigate error in event handlers
+     -> behandelt fouten wanneer navigate() faalt
+   - tests localStorage setItem error in event handlers
+     -> behandelt fouten bij localStorage.setItem in event handlers
+   - tests sessionStorage getItem with null return
+     -> test gedrag als sessionStorage.getItem null retourneert
+   - tests localStorage getItem with null return
+     -> test gedrag als localStorage.getItem null retourneert
+   - tests sessionStorage setItem error in polling
+     -> behandelt fouten bij sessionStorage.setItem tijdens polling
+   - tests localStorage setItem error in polling
+     -> behandelt fouten bij localStorage.setItem tijdens polling
+   - tests sessionStorage setItem error in event handlers
+     -> behandelt fouten bij sessionStorage.setItem in event handlers
+   - tests useEffect cleanup with multiple timers
+     -> controleert dat timers/timeouts worden opgeruimd bij unmount
+   - tests polling with invalid JSON data
+     -> polling blijft stabiel bij ongeldige JSON in localStorage
+   - tests polling with empty arrays
+     -> polling blijft stabiel met lege arrays
+   - tests polling with non-null activeGameInfo
+     -> polling met actief game-info verandert niets onvoorzien
+   - tests event handler with playerNumber not in onlinePlayers
+     -> controleert gedrag wanneer speler niet in onlinePlayers staat
+   - tests event handler with playerNumber in onlinePlayers
+     -> controleert gedrag wanneer speler wél in onlinePlayers staat
+   - tests event handler with invalid onlinePlayers JSON
+     -> behandelt ongeldige onlinePlayers JSON zonder crash
+   - tests event handler with null onlinePlayers
+     -> behandelt null onlinePlayers zonder crash
+   - tests event handler with undefined onlinePlayers
+     -> behandelt ontbrekende onlinePlayers zonder crash
+   - tests sessionStorage initialization with all undefined values
+     -> fallback naar onbekend spel wanneer alle opslag leeg is
+   - tests polling without currentSessionId
+     -> polling werkt ook zonder currentSessionId
+   - tests polling with currentSessionId but no playerNumber
+     -> polling werkt zonder playerNumber
+   - tests event handler without playerNumber
+     -> event handlers crashen niet zonder playerNumber
+   - tests mapAge function with empty string
+     -> mapAge fallback naar default bij lege string
+   - tests mapAge function with whitespace only
+     -> mapAge trimt witruimte en gebruikt default
+   - tests mapAge function with invalid format
+     -> mapAge behandelt ongeldige formaten als default
+   - tests mapAge function with single number
+     -> mapAge map single number (8 -> 8-10, etc.)
+   - tests mapAge function with three numbers
+     -> mapAge pakt het eerste bereik bij drie nummers
+   - activeGameInfoChanged without detail clears playerActiveGame and navigates to waiting
+     -> activeGameInfoChanged zonder detail wist playerActiveGame en navigeert naar waiting
+   - uses backend fetchPlayersForSession to set playerCategory when player found
+     -> gebruikt backend om playerCategory te bepalen wanneer speler gevonden wordt
+   - treats sessionStorage playerCategory="false" as invalid and uses age query param
+     -> behandelt "false" als ongeldig en gebruikt age-param
+   - accepts sessionStorage playerCategory with surrounding whitespace
+     -> accepteert playerCategory met omliggende witruimte
+   - stores URL key param into sessionStorage.playerActiveGame when present
+     -> slaat key-param uit URL op in playerActiveGame
+   - help (Vraag) button contains image with alt="vraag" when a game is active
+     -> controleert dat de Vraag-knop een image met alt="vraag" bevat
+   - detects game from pathname and maps age param from pathname query correctly
+     -> detecteert game en map age uit pathname query
+   - activeGameInfoChanged with detail does not clear playerActiveGame or navigate
+     -> activeGameInfoChanged mét detail wisht niet en navigeert niet
+   - storage event with currentSessionId set to null clears active game and navigates to root
+     -> storage-event currentSessionId=null wist active game en navigeert
+   - mapAge accepts double-dash input like 8--10
+     -> mapAge accepteert dubbele streepjes en normaliseert
+   - mapAge accepts age text with words and numbers like "age: 11_to_13"
+     -> mapAge parseert tekstuele age-invoeren naar standaardformaat
+   - mapAge accepts tilde separator like 14~16
+     -> mapAge accepteert tilde als scheidingsteken
+   - mapAge with single numeric 10 maps to 8-10
+     -> mapAge: enkel 10 -> 8-10
+   - mapAge with single numeric 13 maps to 11-13
+     -> mapAge: enkel 13 -> 11-13
+   - ignores sessionStorage playerCategory="0" and uses URL age
+     -> negeert "0" en gebruikt age-param
+   - treats sessionStorage playerCategory string "null" as invalid
+     -> negeert string "null" als ongeldig
+   - storage event onlinePlayers containing this player does NOT navigate away
+     -> storage-event met onlinePlayers die deze speler bevat navigeert niet weg
+   - storage event onlinePlayers not containing player triggers navigation
+     -> storage-event zonder deze speler kan navigatie of clear activeren
+   - activeGame key set to null triggers waiting navigation
+     -> activeGame set to null triggert navigatie naar waiting
+   - clicking pause dispatches minigame:pause even if event throwing elsewhere does not crash
+     -> klikken op pauze stuurt minigame:pause; fouten elders crashen niet
+   - mapAge with three numbers picks first and maps (8-10-12 -> 8-10)
+     -> mapAge pakt het eerste bereik bij drie nummers
+   - mapAge with special char @ between numbers maps correctly
+     -> mapAge normaliseert speciale tekens zoals @
+   - pollServer: when getActiveGameInfo returns non-null it does not navigate
+     -> pollServer: als getActiveGameInfo niet-null retourneert, navigeer niet weg
+   - pollOnline: when fetchOnlinePlayers includes padded playerNumber it does not navigate
+     -> pollOnline respecteert gepadde playerNumber (bv. '007') en navigeert niet
+   - storage handler activeGameInfo null triggers navigation to waiting
+     -> storage handler activeGameInfo=null triggert navigatie
+   - renders no controls when game is unknown (supportsHint false)
+     -> rendert geen controls voor onbekend spel
+   - respects explicit props: gameProp and ageGroupProp render correct child
+     -> expliciete props (game, ageGroup) renderen het juiste kindcomponent
+   - does not crash when fetchPlayersForSession throws (backend error)
+     -> component crasht niet als backend throws
+   - when sessionStorage playerCategory exists, URL age param is replaced with stored value
+     -> als playerCategory in sessionStorage bestaat wordt URL age-param vervangen
+   - style injection for starStyles contains keyframes
+     -> controleert dat geïnjecteerde styles keyframes bevatten
+   - storage event currentSessionId non-null does not navigate
+     -> storage event met currentSessionId != null navigeert niet
+   - storage event activeGame set to empty string triggers navigation
+     -> activeGame ingesteld op lege string triggert navigatie
+   - minigame:hint-unlocked and minigame:hint-locked toggle the hint button for passwordzapper
+     -> custom events minigame:hint-unlocked/locked toggelen de hint-knop
+  */
+
   beforeEach(() => {
     // reset DOM and storages
     cleanup()

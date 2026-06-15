@@ -9,6 +9,10 @@ let app
 let Session, Player, Organizer
 let org1, org2, org3, org4
 
+// Test suite: Routes combined (compiled)
+// Deze suite test de gecompileerde express-app endpoints in `dist`.
+// Er wordt een in-memory MongoDB gebruikt en verschillende scenario's
+// van sessions/players/users worden gecontroleerd (successen en fouten).
 describe('Routes combined (compiled)', function() {
   this.timeout(20000)
 
@@ -34,17 +38,24 @@ describe('Routes combined (compiled)', function() {
   })
 
   // --- Tests from routes.spec.js ---
+  // Test: GET /api/sessions/active zonder actieve sessie
+  // - Verwacht een 404 en een foutbericht wanneer er geen actieve sessie is
   it('GET /api/sessions/active returns 404 when no active session', async function() {
     const res = await request(app).get('/api/sessions/active')
     expect(res.status).to.equal(404)
     expect(res.body).to.have.property('error')
   })
 
+  // Test: POST /api/sessions zonder organizerId
+  // - Verwacht een 400 (bad request) wanneer organizerId ontbreekt
   it('POST /api/sessions without organizerId -> 400', async function() {
     const res = await request(app).post('/api/sessions').send({ name: 'x' })
     expect(res.status).to.equal(400)
   })
 
+  // Test: aanmaken van sessie en opnieuw POSTen geeft bestaande sessie terug
+  // - Eerste POST maakt sessie (201)
+  // - Tweede POST met dezelfde naam kan 200 of 201 teruggeven; body bevat session
   it('create session then POST again returns existing session (200)', async function() {
     const org = await Organizer.create({ email: 'r@qa.test', password: 'P', name: 'R' })
     const createRes = await request(app).post('/api/sessions').send({ organizerId: String(org._id), name: 'Sess1' })
@@ -55,6 +66,10 @@ describe('Routes combined (compiled)', function() {
     expect(again.body).to.have.property('session')
   })
 
+  // Test: POST /api/sessions/join validatiepaden
+  // - Ontbrekende code -> 400
+  // - Niet gevonden code -> 404
+  // - Gekende maar inactieve sessie -> 400
   it('POST /api/sessions/join validations: missing code and not found and not active', async function() {
     // missing code
     let r = await request(app).post('/api/sessions/join').send({})
@@ -70,6 +85,11 @@ describe('Routes combined (compiled)', function() {
     expect(r.status).to.equal(400)
   })
 
+  // Test: POST /api/sessions/active/join verschillende paden
+  // - Ontbrekend playerNumber -> 400
+  // - Ongeldig playerNumber (geen cijfers) -> 400
+  // - Actieve sessie zonder spelers -> 404
+  // - Bestaande speler met recent lastSeen -> 409 (busy) of 200 afhankelijk van timing
   it('POST /api/sessions/active/join handles missing/invalid playerNumber, no active session, not found and busy', async function() {
     // missing playerNumber
     let r = await request(app).post('/api/sessions/active/join').send({})
@@ -91,11 +111,18 @@ describe('Routes combined (compiled)', function() {
     expect([200,409]).to.include(r.status)
   })
 
+  // Test: DELETE /api/sessions/:id met niet-bestaande id
+  // - Verwacht 404 wanneer sessie niet bestaat
   it('DELETE /api/sessions/:id returns 404 for missing id', async function() {
     const r = await request(app).delete('/api/sessions/000000000000000000000000')
     expect(r.status).to.equal(404)
   })
 
+  // Test: POST /api/sessions/:id/players verschillende validatie- en importpaden
+  // - Ongeldig body-formaat -> 400
+  // - Validatiefouten binnen payload -> 400
+  // - Dubbele speler-nummers in payload -> 400
+  // - Succesvolle import met overwrite=true -> 201 en 'created' in body
   it('POST /api/sessions/:id/players invalid body and session not found and validation errors and duplicate payload', async function() {
     // invalid body type
     let r = await request(app).post('/api/sessions/000000000000000000000000/players').send({ not: 'array' })
@@ -123,6 +150,13 @@ describe('Routes combined (compiled)', function() {
     expect(r.body).to.have.property('created')
   })
 
+  // Test: volledige flows voor player update, leaderboard, online/offline en delete
+  // - Update zonder body -> 400
+  // - Update met body -> 200
+  // - Leaderboard ophalen -> 200
+  // - Online players ophalen -> 200
+  // - Online/offline toggles op niet-bestaande speler -> mogelijk 404/409/200
+  // - Verwijderen van niet-bestaande speler -> 404
   it('player update/leaderboard/online/offline and delete player flows', async function() {
     const s = await Session.create({ organizerId: org4._id, name: 'Flow', code: 'FLOW', active: true })
     const p = await Player.create({ sessionId: s._id, playerNumber: '401', name: 'P1', age: 12, category: '11-13', lastSeen: null, score: 0 })
@@ -157,6 +191,9 @@ describe('Routes combined (compiled)', function() {
   })
 
   // --- Tests from routes-extra.spec.js ---
+  // Test: POST /api/sessions met herhaalde duplicate-key fouten bij create
+  // - Simuleer dat Session.create een duplicate-key (code 11000) gooit
+  // - Verwacht: de endpoint retourneert 500 en een foutbericht
   it('POST /api/sessions handles repeated duplicate-key creation and returns generation failure (500)', async function() {
     const org = await Organizer.create({ email: 'dup@qa.test', password: 'P', name: 'Dup' })
     const origCreate = Session.create
@@ -170,6 +207,9 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: POST /api/sessions behandelt een fout in Session.findOne
+  // - Mock Session.findOne zodat het een fout gooit en controleer dat de
+  //   endpoint geen onverwachte crash veroorzaakt (kan 200/201/500 teruggeven)
   it('POST /api/sessions handles Session.findOne throwing (existing-check catch branch)', async function() {
     const org = await Organizer.create({ email: 'ff@qa.test', password: 'P', name: 'F' })
     const origFindOne = Session.findOne
@@ -182,6 +222,9 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: POST /api/sessions/:id/players faalt met 500 als er geen uniek
+  // spelersnummer gegenereerd kan worden
+  // - Mock Player.find zodat alle nummers al in gebruik lijken te zijn
   it('POST /api/sessions/:id/players returns 500 when no candidate can be generated', async function() {
     const org = await Organizer.create({ email: 'gen@qa.test', password: 'P', name: 'G' })
     const s = await Session.create({ organizerId: org._id, name: 'GenFail', code: 'GF', active: true })
@@ -204,6 +247,9 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: POST /api/sessions/:id/players retry-logica bij duplicate-key op insert
+  // - De eerste create gooit duplicate-key, de volgende call slaagt
+  // - Verwacht succesvolle creatie (201) en 'created' in body
   it('POST /api/sessions/:id/players handles duplicate-key on insert then retries successfully', async function() {
     const org = await Organizer.create({ email: 'retry@qa.test', password: 'P', name: 'R' })
     const s = await Session.create({ organizerId: org._id, name: 'Retry', code: 'RT', active: true })
@@ -226,6 +272,8 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: GET /api/sessions/:id/online-players zonder cutoffMs
+  // - Maakt spelers met variërende lastSeen en verwacht `onlinePlayers` aanwezig
   it('GET /api/sessions/:id/online-players returns online players without cutoffMs', async function() {
     const org = await Organizer.create({ email: 'cut@qa.test', password: 'P', name: 'C' })
     const s = await Session.create({ organizerId: org._id, name: 'Cut', code: 'C', active: true })
@@ -236,6 +284,7 @@ describe('Routes combined (compiled)', function() {
     expect(r.body).to.have.property('onlinePlayers')
   })
 
+  // Test: users routes - 404 voor niet-bestaande resources en 400 voor ongeldige create
   it('users routes: 404/get-update-delete non-existing and create invalid input errors', async function() {
     let r = await request(app).get('/api/users/000000000000000000000000')
     expect(r.status).to.equal(404)
@@ -249,6 +298,7 @@ describe('Routes combined (compiled)', function() {
 
   // --- Tests merged from routes-errors.spec.js ---
 
+  // Test: sessions POST / retourneert 500 als Session.create een fout gooit
   it('sessions: POST / returns 500 when Session.create throws', async function() {
     const org = await Organizer.create({ email: 'err1@qa.test', password: 'P', name: 'E1' })
     const origCreate = Session.create
@@ -261,6 +311,7 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: sessions GET /active retourneert 500 als Session.findOne een fout gooit
   it('sessions: GET /active returns 500 when Session.findOne throws', async function() {
     const origFindOne = Session.findOne
     Session.findOne = async function() { throw new Error('boom') }
@@ -270,6 +321,7 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findOne = origFindOne }
   })
 
+  // Test: sessions POST /join retourneert 500 als Session.findOne een fout gooit
   it('sessions: POST /join returns 500 when Session.findOne throws', async function() {
     const origFindOne = Session.findOne
     Session.findOne = async function() { throw new Error('boom') }
@@ -279,6 +331,7 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findOne = origFindOne }
   })
 
+  // Test: sessions POST /active/join retourneert 500 als Session.findOne een fout gooit
   it('sessions: POST /active/join returns 500 when Session.findOne throws', async function() {
     const origFindOne = Session.findOne
     Session.findOne = async function() { throw new Error('boom') }
@@ -288,6 +341,7 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findOne = origFindOne }
   })
 
+  // Test: sessions DELETE /:id retourneert 500 als Session.findById een fout gooit
   it('sessions: DELETE /:id returns 500 when Session.findById throws', async function() {
     const origFindById = Session.findById
     Session.findById = async function() { throw new Error('boom') }
@@ -297,6 +351,7 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findById = origFindById }
   })
 
+  // Test: sessions list en players endpoints geven 500 terug wanneer modellen fouten gooien
   it('sessions: list and players endpoints return 500 when underlying model throws', async function() {
     const origFind = Session.find
     Session.find = async function() { throw new Error('boom') }
@@ -314,6 +369,8 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findById = origFindById }
   })
 
+  // Test: leaderboard/online endpoints en online/offline toggles retourneren 500
+  // wanneer onderliggende Player/Session lookups een fout gooien
   it('leaderboard/online/online-set/offline-set return 500 when player/session lookups throw', async function() {
     const s = await Session.create({ organizerId: (await Organizer.create({ email: 'temp3@qa', password: 'P', name: 'T3' }))._id, name: 'Tmp3', code: 'TMP3', active: true })
     const origPlayerFind = Player.find
@@ -335,6 +392,7 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findById = origSessionFindById }
   })
 
+  // Test: active-game get/post geven 500 bij fouten in Session.findById
   it('active-game get/post return 500 when Session.findById throws', async function() {
     const s = await Session.create({ organizerId: (await Organizer.create({ email: 'temp4@qa', password: 'P', name: 'T4' }))._id, name: 'Tmp4', code: 'TMP4', active: true })
     const origFindById = Session.findById
@@ -347,6 +405,7 @@ describe('Routes combined (compiled)', function() {
     } finally { Session.findById = origFindById }
   })
 
+  // Test: users routes vangen fouten van Organizer model en geven 500/400 terug
   it('users routes catch branches return 500/400 when Organizer.* throws', async function() {
     const origFind = Organizer.find
     Organizer.find = async function() { throw new Error('boom') }
@@ -379,6 +438,7 @@ describe('Routes combined (compiled)', function() {
 
   // --- Additional branch tests for sessions.ts ---
 
+  // Test: POST /api/sessions/active/join retourneert 500 als Player.findOne een fout gooit
   it('POST /api/sessions/active/join returns 500 when Player.findOne throws', async function() {
     // create active session
     const s = await Session.create({ organizerId: org2._id, name: 'Active', code: 'ACT', active: true })
@@ -394,6 +454,7 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: DELETE /api/sessions retourneert 500 wanneer Player.deleteMany faalt
   it('DELETE /api/sessions returns 500 when Player.deleteMany throws', async function() {
     // create session
     const s = await Session.create({ organizerId: org3._id, name: 'ToDelete', code: 'DEL', active: true })
@@ -409,6 +470,8 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: GET /api/sessions met organizerId filter
+  // - Controleert filters voor bestaande en niet-bestaande organizerId
   it('GET /api/sessions with organizerId parameter returns filtered sessions', async function() {
     // create sessions for different organizers
     const s1 = await Session.create({ organizerId: org1._id, name: 'Session1', code: 'S1', active: true })
@@ -434,6 +497,8 @@ describe('Routes combined (compiled)', function() {
     expect(r.body.sessions).to.have.length(0)
   })
 
+  // Test: POST /api/sessions/:id/players accepteert ook {players: [...]} payload
+  // - Verwacht succesvolle creatie en verificatie van aangemaakte spelers
   it('POST /api/sessions/:id/players accepts {players: [...]} format', async function() {
     // create session
     const s = await Session.create({ organizerId: org4._id, name: 'ImportTest', code: 'IMP', active: true })
@@ -456,6 +521,7 @@ describe('Routes combined (compiled)', function() {
     expect(players[1].name).to.equal('Player2')
   })
 
+  // Test: POST /api/sessions/:id/players retourneert 500 als Session.findById faalt
   it('POST /api/sessions/:id/players returns 500 when Session.findById throws', async function() {
     const origFindById = Session.findById
     Session.findById = async function() { throw new Error('session lookup failed') }
@@ -470,6 +536,7 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: PUT /api/sessions/:id/players/:playerNumber geeft 500 bij update-fout
   it('PUT /api/sessions/:id/players/:playerNumber returns 500 when Player.findOneAndUpdate throws', async function() {
     // create session and player
     const s = await Session.create({ organizerId: org1._id, name: 'UpdateTest', code: 'UPD', active: true })
@@ -488,6 +555,8 @@ describe('Routes combined (compiled)', function() {
     }
   })
 
+  // Test: GET /api/sessions/:id/online-players met cutoffMs parameter
+  // - Maakt spelers met verschillende lastSeen en controleert filtering op cutoffMs
   it('GET /api/sessions/:id/online-players with cutoffMs parameter', async function() {
     // create session
     const s = await Session.create({ organizerId: org2._id, name: 'OnlineTest', code: 'ONL', active: true })

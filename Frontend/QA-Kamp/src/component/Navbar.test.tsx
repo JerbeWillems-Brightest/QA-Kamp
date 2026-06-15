@@ -12,6 +12,9 @@ vi.mock('../api', () => {
   }
 })
 
+// Hoofdsuite: Navbar component tests
+// Elke test controleert een specifiek logout- of UI-gedrag (organizer vs player flows,
+// storage cleanup, navigatie en foutafhandeling bij uitzonderingen).
 describe('Navbar', () => {
   beforeEach(() => {
     // Reset vitest mocks between tests so mock call counts don't leak
@@ -41,6 +44,8 @@ describe('Navbar', () => {
     expect(screen.queryByLabelText(/uitloggen/i)).toBeNull()
   })
 
+  // Test: wanneer organizer ingelogd (localStorage user aanwezig) wordt de logout knop
+  // zichtbaar en bij klikken wordt de opgeslagen user uit localStorage verwijderd.
   it('shows logout when organizer logged in and clicking it clears stored user', () => {
     // Simulate an authenticated organizer via localStorage (AuthProvider reads this on init)
     localStorage.setItem('user', JSON.stringify({ id: 'u1', email: 'organizer@example.com' }))
@@ -62,6 +67,11 @@ describe('Navbar', () => {
     expect(localStorage.getItem('user')).toBeNull()
   })
 
+  // Test: speler-logout flow
+  // - sessionStorage keys verwijderen
+  // - onlinePlayers in localStorage filteren (plain en padded vormen)
+  // - currentSessionId verwijderen
+  // - storage events dispatchen
   it('player logout clears sessionStorage and updates onlinePlayers in localStorage', () => {
     // Simulate logged-in player via sessionStorage
     sessionStorage.setItem('playerNumber', '5')
@@ -111,6 +121,7 @@ describe('Navbar', () => {
     spy.mockRestore()
   })
 
+  // Test: bij speler-logout met playerSessionId aanwezig moet setPlayerOffline worden aangeroepen
   it('player logout ensures setPlayerOffline is called when playerSessionId present', async () => {
     sessionStorage.setItem('playerNumber', '5')
     sessionStorage.setItem('playerSessionId', 'sess-1')
@@ -133,6 +144,7 @@ describe('Navbar', () => {
     expect(api.setPlayerOffline).toHaveBeenCalledWith('sess-1', '5')
   })
 
+  // Test: als onlinePlayers ontbreekt, mag logout nog steeds sessionStorage en currentSessionId wissen
   it('player logout when onlinePlayers missing still clears sessionStorage and currentSessionId', () => {
     sessionStorage.setItem('playerNumber', '21')
     sessionStorage.setItem('playerSessionId', 'sess-21')
@@ -156,6 +168,7 @@ describe('Navbar', () => {
     expect(localStorage.getItem('currentSessionId')).toBeNull()
   })
 
+  // Test: invalid JSON in onlinePlayers wordt netjes afgehandeld en verwijdert keys
   it('player logout handles invalid JSON in onlinePlayers gracefully', () => {
     sessionStorage.setItem('playerNumber', '33')
     sessionStorage.setItem('playerSessionId', 'sess-33')
@@ -184,6 +197,7 @@ describe('Navbar', () => {
     spy.mockRestore()
   })
 
+  // Test: als window.dispatchEvent een fout gooit tijdens logout, mag de knop nog steeds niet crashen
   it('does not throw if window.dispatchEvent throws during logout', () => {
     localStorage.setItem('user', JSON.stringify({ id: 'uX', email: 'x' }))
     // make dispatchEvent throw to exercise inner try/catch
@@ -209,6 +223,8 @@ describe('Navbar', () => {
     window.dispatchEvent = originalDispatch as (ev: Event) => boolean
   })
 
+  // Test: wanneer playerSessionId ontbreekt gebruiken we localStorage.currentSessionId als fallback
+  // en roepen setPlayerOffline aan met die waarde.
   it('player logout uses localStorage.currentSessionId when playerSessionId missing and calls setPlayerOffline', async () => {
     // No playerSessionId in sessionStorage, but currentSessionId in localStorage
     sessionStorage.setItem('playerNumber', '12')
@@ -252,6 +268,7 @@ describe('Navbar', () => {
     dispatchSpy.mockRestore()
   })
 
+  // Test: hover- en mouseout-gedrag bij logout knop verandert achtergrondkleur en herstelt deze
   it('logout button hover changes background and mouseout restores it', () => {
     localStorage.setItem('user', JSON.stringify({ id: 'u2', email: 'e' }))
     render(
@@ -277,6 +294,7 @@ describe('Navbar', () => {
     expect(afterBg === '#ffffff' || afterBg.includes('255')).toBeTruthy()
   })
 
+  // Test: speler-logout zonder session ids roept setPlayerOffline niet aan maar wist wel storage
   it('player logout when no session ids does not call setPlayerOffline and still clears storage', async () => {
     // playerNumber present but no playerSessionId and no currentSessionId
     sessionStorage.setItem('playerNumber', '99')
@@ -301,6 +319,7 @@ describe('Navbar', () => {
     expect(sessionStorage.getItem('playerNumber')).toBeNull()
   })
 
+  // Test: setPlayerOffline reject wordt netjes afgehandeld en mag niet gooien
   it('handles setPlayerOffline rejection without throwing', async () => {
     // prepare player with session id
     sessionStorage.setItem('playerNumber', '77')
@@ -332,6 +351,7 @@ describe('Navbar', () => {
     }
   })
 
+  // Test: wanneer sessionStorage.removeItem een fout gooit, mag logout nog steeds niet crashen
   it('does not throw when sessionStorage.removeItem throws during logout', () => {
     // make a sessionStorage that throws on removeItem
     const originalSession = (globalThis as unknown as { sessionStorage?: Storage | null }).sessionStorage
@@ -361,6 +381,7 @@ describe('Navbar', () => {
     vi.stubGlobal('sessionStorage', originalSession as unknown as Storage)
   })
 
+  // Test: na player logout navigeren we naar root (/)
   it('player logout navigates to root (/) after logout', () => {
     // start at a different path so we can observe navigation
     window.history.pushState({}, '', '/play')
@@ -384,6 +405,7 @@ describe('Navbar', () => {
     expect(window.location.pathname).toBe('/')
   })
 
+  // Test: bij organizer logout navigeren we naar /organizer-login
   it('organizer logout navigates to /organizer-login', () => {
     // place user in storage to simulate organizer
     localStorage.setItem('user', JSON.stringify({ id: 'org1', email: 'o' }))
@@ -404,6 +426,7 @@ describe('Navbar', () => {
     expect(window.location.pathname).toBe('/organizer-login')
   })
 
+  // Test: als speler en organizer aanwezig zijn, heeft speler prioriteit en wordt player-logout uitgevoerd
   it('player takes precedence over organizer when both present', () => {
     // both user and playerNumber present: player branch should be executed
     localStorage.setItem('user', JSON.stringify({ id: 'org2', email: 'org2@example.com' }))
@@ -431,6 +454,7 @@ describe('Navbar', () => {
     expect(localStorage.getItem('user')).not.toBeNull()
   })
 
+  // Test: wanneer window.dispatchEvent gooit tijdens player logout, mag het proces niet crashen
   it('does not throw when window.dispatchEvent throws during player logout', () => {
     // prepare player
     sessionStorage.setItem('playerNumber', '66')

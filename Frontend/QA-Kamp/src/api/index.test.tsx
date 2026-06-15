@@ -16,6 +16,8 @@ function makeSessionStorageMock(initial: Record<string, string> = {}) {
 
 type HasSession = { sessionStorage: Storage | null }
 
+// Hoofdsuite voor API-functies (frontend helpers)
+// Hieronder staan individuele tests per functie/pad met duidelijke verwachtingen.
 describe('api/index', () => {
   const originalFetch = globalThis.fetch
   const originalSessionStorage = globalThis.sessionStorage
@@ -31,16 +33,19 @@ describe('api/index', () => {
     ;(globalThis as unknown as HasSession).sessionStorage = originalSessionStorage
   })
 
+  // Test: loginOrganizer moet netwerk-/CORS-fouten zichtbaar maken
   it('loginOrganizer: surfaces network/CORS fetch errors', async () => {
     globalThis.fetch = vi.fn(() => { throw new Error('network down') }) as unknown as typeof fetch
     await expect(api.loginOrganizer('a', 'b')).rejects.toThrow(/Network or CORS error/)
   })
 
+  // Test: loginOrganizer moet foutmelding uit JSON-body doorgeven wanneer res.ok false is
   it('loginOrganizer: handles non-ok json error body', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, json: () => Promise.resolve({ error: 'bad cred' }) })) as unknown as typeof fetch
     await expect(api.loginOrganizer('a', 'b')).rejects.toThrow(/bad cred/)
   })
 
+  // Test: createSession normaliseert _id -> id, organizerId en createdAt -> startedAt
   it('createSession: normalizes _id and createdAt fields', async () => {
     const fake = {
       session: { _id: 'abc123', organizerId: { _id: 'org1' }, createdAt: '2024-01-02T00:00:00Z', name: 'mysess' }
@@ -53,12 +58,14 @@ describe('api/index', () => {
     expect(res.session?.startedAt).toBe('2024-01-02T00:00:00Z')
   })
 
+  // Test: deleteSession beschouwt 404 als success (idempotent delete)
   it('deleteSession: treats 404 as success', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 404, json: () => Promise.resolve({ error: 'not found' }) })) as unknown as typeof fetch
     const res = await api.deleteSession('sess1')
     expect(res.success).toBe(true)
   })
 
+  // Test: fetchPlayersForSession mapt backend-velden (nummer/naam/leeftijd -> playerNumber/name/age)
   it('fetchPlayersForSession: maps backend fields', async () => {
     const backendPlayers = { players: [ { nummer: '5', naam: 'Jan', leeftijd: 9, lastseen: 'x' } ] }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backendPlayers) })) as unknown as typeof fetch
@@ -68,6 +75,7 @@ describe('api/index', () => {
     expect(out.players[0].age).toBe(9)
   })
 
+  // Test: fetchOnlinePlayers moet playerNumber naar 3 cijfers opvullen en lastSeen mappen
   it('fetchOnlinePlayers: pads player numbers to 3 digits and maps lastSeen', async () => {
     const backend = { onlinePlayers: [ { nummer: '7', lastseen: 'now' } ] }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
@@ -76,6 +84,7 @@ describe('api/index', () => {
     expect(out.onlinePlayers[0].lastSeen).toBe('now')
   })
 
+  // Test: setActiveGameInfo stuurt geen body bij info === null en stuurt JSON wanneer aanwezig
   it('setActiveGameInfo: omits body when info is null and sends body when provided', async () => {
     // When info === null, server will return ok true
     const calls: Array<{ url: string; opts?: RequestInit | undefined }> = []
@@ -97,12 +106,14 @@ describe('api/index', () => {
     expect(String((calls[1].opts as RequestInit).body)).toContain('"game":"x"')
   })
 
+  // Test: getActiveGameInfo retourneert geparseerde JSON
   it('getActiveGameInfo: returns parsed json', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ activeGameInfo: { foo: 'bar' } }) })) as unknown as typeof fetch
     const r = await api.getActiveGameInfo('sess')
     expect((r.activeGameInfo as unknown as Record<string, unknown>).foo).toBe('bar')
   })
 
+  // Test: setPlayerOnline respecteert lokale lock in sessionStorage en handelt 409 van server af
   it('setPlayerOnline: respects local online lock and handles 409 from server', async () => {
     // set sessionStorage to indicate already locked for this session/player
     vi.stubGlobal('sessionStorage', makeSessionStorageMock({ playerOnlineLocked: 'true', playerSessionId: 's1', playerNumber: '007' }))
@@ -119,6 +130,7 @@ describe('api/index', () => {
     expect(r2.player).toBeDefined()
   })
 
+  // Test: joinSession, getActiveSession en joinActiveSession success paden
   it('joinSession, getActiveSession and joinActiveSession success paths', async () => {
     // joinSession
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ session: { id: 'js1' } }) })) as unknown as typeof fetch
@@ -138,6 +150,7 @@ describe('api/index', () => {
     expect(jaPlayer.playerNumber).toBe('1')
   })
 
+  // Test: getSessions moet verschillende id-vormen mappen en bij fout de parsed message throwen
   it('getSessions maps different id shapes and throws on error', async () => {
     // success with id field
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ sessions: [{ id: 'x', organizerId: 'o', startedAt: 't' }] }) })) as unknown as typeof fetch
@@ -149,6 +162,7 @@ describe('api/index', () => {
     await expect(api.getSessions()).rejects.toThrow('boom')
   })
 
+  // Test: addPlayersToSession handelt success, overwrite query en plain-string error body
   it('addPlayersToSession handles success, overwrite and string error body', async () => {
     // success without overwrite
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ created: [{ playerNumber: '1' }] }) })) as unknown as typeof fetch
@@ -166,6 +180,7 @@ describe('api/index', () => {
     await expect(api.addPlayersToSession('s', [])).rejects.toThrow('plain error')
   })
 
+  // Test: updatePlayerInSession, deletePlayerFromSession en fetchLeaderboard mappings
   it('updatePlayerInSession, deletePlayerFromSession and fetchLeaderboard mapping', async () => {
     // update success
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ player: { playerNumber: '2' } }) })) as unknown as typeof fetch
@@ -184,6 +199,7 @@ describe('api/index', () => {
     expect(lbItem.score).toBe(42)
   })
 
+  // Test: postPlayerHeartbeat en setPlayerOffline succes paden
   it('postPlayerHeartbeat success and setPlayerOffline success', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) })) as unknown as typeof fetch
     const h = await api.postPlayerHeartbeat('s', '1')
@@ -194,12 +210,14 @@ describe('api/index', () => {
     expect(off.success).toBe(true)
   })
 
+  // Test: loginOrganizer met non-ok en res.json faalt -> throw HTTP status
   it('loginOrganizer: non-ok and res.json rejects -> throws HTTP status', async () => {
     // simulate server error where res.json throws during parsing
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 418, json: () => Promise.reject(new Error('bad json')) })) as unknown as typeof fetch
     await expect(api.loginOrganizer('x', 'y')).rejects.toThrow('HTTP 418')
   })
 
+  // Test: createSession moet numeric organizerId._id stringificeren
   it('createSession: handles numeric organizerId._id by stringifying it', async () => {
     const fake = { session: { _id: 'sid', organizerId: { _id: 5 }, createdAt: 12345 } }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(fake) })) as unknown as typeof fetch
@@ -207,6 +225,7 @@ describe('api/index', () => {
     expect(res.session?.organizerId).toBe('5')
   })
 
+  // Test: getSessions gebruikt createdAt wanneer startedAt ontbreekt en stringify nummers
   it('getSessions: uses createdAt when startedAt missing and stringifies numbers', async () => {
     const backend = { sessions: [{ _id: 'n1', organizerId: { _id: 'o1' }, createdAt: 9999 }] }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
@@ -214,6 +233,7 @@ describe('api/index', () => {
     expect(out.sessions[0].startedAt).toBe('9999')
   })
 
+  // Test: setPlayerOnline valt terug wanneer sessionStorage.getItem gooit en handelt non-409 errors
   it('setPlayerOnline: falls through when sessionStorage.getItem throws and handles non-409 errors', async () => {
     // Make sessionStorage.getItem throw to hit the try/catch branch
     vi.stubGlobal('sessionStorage', { getItem: () => { throw new Error('boom') } } as unknown as Storage)
@@ -227,17 +247,20 @@ describe('api/index', () => {
     await expect(api.setPlayerOnline('sX', '42')).rejects.toThrow('srvfail')
   })
 
+  // Test: deleteSession met ok response retourneert parsed json
   it('deleteSession: ok response returns parsed json', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) })) as unknown as typeof fetch
     const r = await api.deleteSession('sok')
     expect(r.success).toBe(true)
   })
 
+  // Test: fetchOnlinePlayers non-ok met lege body valt terug op HTTP status message
   it('fetchOnlinePlayers: non-ok with empty body falls back to HTTP status message', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({}) })) as unknown as typeof fetch
     await expect(api.fetchOnlinePlayers('s')).rejects.toThrow('HTTP 401')
   })
 
+  // Test: createSession retourneert raw json wanneer session ontbreekt
   it('createSession: returns raw json when session missing', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ foo: 'bar' }) })) as unknown as typeof fetch
     const r = await api.createSession('o')
@@ -245,6 +268,7 @@ describe('api/index', () => {
     expect((r as unknown as Record<string, unknown>).foo).toBe('bar')
   })
 
+  // Test: fetchPlayersForSession behandelt verschillende foutvormen van backend
   it('fetchPlayersForSession: non-ok responses with different error shapes', async () => {
     // plain string
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 400, json: () => Promise.resolve('simple') })) as unknown as typeof fetch
@@ -259,6 +283,7 @@ describe('api/index', () => {
     await expect(api.fetchPlayersForSession('s')).rejects.toThrow('oops')
   })
 
+  // Test: fetchPlayersForSession ondersteunt verschillende lastSeen-varianten en NL/EN veldnamen
   it('fetchPlayersForSession: handles lastSeen variants and Dutch/English fields', async () => {
     const backend = { players: [ { playerNumber: '9', name: 'X', age: 1, lastSeen: 'a' }, { nummer: '10', naam: 'Y', leeftijd: 2, last_seen: 'b' }, { nummer: '11', naam: 'Z', leeftijd: 3, lastseen: 'c' } ] }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
@@ -269,6 +294,7 @@ describe('api/index', () => {
     expect(o.players[2].lastSeen).toBe('c')
   })
 
+  // Test: fetchOnlinePlayers mapt playerNumber key en null lastSeen correct
   it('fetchOnlinePlayers: handles playerNumber key and null lastSeen', async () => {
     const backend = { onlinePlayers: [ { playerNumber: '4' }, { nummer: '5', lastseen: null } ] }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
@@ -278,28 +304,33 @@ describe('api/index', () => {
     expect(out.onlinePlayers[1].lastSeen).toBeNull()
   })
 
+  // Test: setActiveGameInfo undefined treated as null (geen body) en retourneert succes
   it('setActiveGameInfo: undefined info omits body (treated like null) and returns success', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ success: true }) })) as unknown as typeof fetch
     const r = await api.setActiveGameInfo('s', undefined)
     expect(r.success).toBe(true)
   })
 
+  // Test: updatePlayerInSession bij non-ok en json reject -> fallback naar Unknown error
   it('updatePlayerInSession: non-ok with json rejecting falls back to HTTP status', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 503, json: () => Promise.reject(new Error('nojson')) })) as unknown as typeof fetch
     // when json() rejects the implementation falls back to the default error object
     await expect(api.updatePlayerInSession('s', '1', { playerNumber: '1', name: 'n', age: 1 })).rejects.toThrow('Unknown error')
   })
 
+  // Test: setPlayerOffline non-ok zet error status in werp-object
   it('setPlayerOffline: non-ok sets error status on thrown error', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 401, json: () => Promise.resolve({ message: 'nope' }) })) as unknown as typeof fetch
     await expect(api.setPlayerOffline('s', '1')).rejects.toMatchObject({ message: 'nope', status: 401 })
   })
 
+  // Test: fetchPlayersForSession wanneer res.json resolves to null -> fallback HTTP status used
   it('fetchPlayersForSession: res.json resolves to null -> fallback HTTP status used', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 418, json: () => Promise.resolve(null) })) as unknown as typeof fetch
     await expect(api.fetchPlayersForSession('s')).rejects.toThrow('HTTP 418')
   })
 
+  // Test: fetchLeaderboard behoudt category string en lastSeen en numeric score
   it('fetchLeaderboard: category string and lastSeen mapping preserved', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ leaderboard: [{ playerNumber: '10', name: 'Z', age: 10, category: 'A', lastSeen: 'ls', score: 7 }] }) })) as unknown as typeof fetch
     const lb = await api.fetchLeaderboard('s')
@@ -309,11 +340,13 @@ describe('api/index', () => {
     expect(lb.leaderboard[0].lastSeen).toBe('ls')
   })
 
+  // Test: getActiveGameInfo non-ok gooit parsed message
   it('getActiveGameInfo: non-ok throws parsed message', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 403, json: () => Promise.resolve({ error: 'nope2' }) })) as unknown as typeof fetch
     await expect(api.getActiveGameInfo('s')).rejects.toThrow('nope2')
   })
 
+  // Test: fetchOnlinePlayers met lege player object -> playerNumber 000 padding
   it('fetchOnlinePlayers: empty playerNumber results in 000 padding', async () => {
     const backend = { onlinePlayers: [ { foo: 'bar' } ] }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(backend) })) as unknown as typeof fetch
@@ -321,6 +354,7 @@ describe('api/index', () => {
     expect(out.onlinePlayers[0].playerNumber).toBe('000')
   })
 
+  // Test: computeApiUrlFromEnv en test-hulpmethodes gedrag voor VITE_API_URL
   it('computeApiUrlFromEnv and __test_recomputeApiUrl/__test_getApiUrl behaviour (VITE_API_URL only)', () => {
     // VITE_API_URL taking precedence and stripping trailing /api
     const r1 = api.computeApiUrlFromEnv({ VITE_API_URL: 'https://api.example.com/api' } as { VITE_API_URL?: string; DEV?: boolean }, 'https://irrelevant')
@@ -336,6 +370,7 @@ describe('api/index', () => {
     expect(api.__test_getApiUrl()).toBe('http://forced.dev')
   })
 
+  // Test: computeApiUrlFromEnv tolerates non-string VITE_API_URL (try/catch pad)
   it('computeApiUrlFromEnv: tolerates non-string VITE_API_URL (try/catch path)', () => {
     // Pass a non-string so .endsWith would throw inside the try block and be caught
     const env = { VITE_API_URL: 123 } as unknown as { VITE_API_URL?: string }
@@ -345,6 +380,7 @@ describe('api/index', () => {
   })
 
 
+  // Test: createSession stringify truthy non-string organizerId._id via extractId
   it('createSession: handles truthy non-string organizerId._id by stringifying via extractId', async () => {
     const fake = { session: { _id: 'sid2', organizerId: { _id: true }, createdAt: 't' } }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(fake) })) as unknown as typeof fetch
@@ -353,6 +389,7 @@ describe('api/index', () => {
     expect(res.session?.organizerId).toBe('true')
   })
 
+  // Test: createSession gebruikt expliciet id indien aanwezig en behoudt startedAt
   it('createSession: uses explicit id field when present and preserves startedAt', async () => {
     const fake = { session: { id: 'IDHERE', organizerId: 'orgX', startedAt: '2020-01-01', name: 'n' } }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(fake) })) as unknown as typeof fetch
@@ -361,6 +398,7 @@ describe('api/index', () => {
     expect(res.session?.startedAt).toBe('2020-01-01')
   })
 
+  // Test: createSession zonder id/_id resulteert in lege id string
   it('createSession: missing id/_id results in empty id string', async () => {
     const fake = { session: { organizerId: null, createdAt: 'ts' } }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(fake) })) as unknown as typeof fetch
@@ -368,20 +406,24 @@ describe('api/index', () => {
     expect(res.session?.id).toBe('')
   })
 
+  // Test: __test_recomputeApiUrl wanneer frontend niet matcht en DEV false -> VITE_API_URL_DEV verwijderd
   it('__test_recomputeApiUrl: when frontend does not match and DEV false, VITE_API_URL_DEV may still be used if it ends with /api (implementation detail)', () => {
     const out = api.__test_recomputeApiUrl({ VITE_API_URL: '' } as { VITE_API_URL?: string }, 'https://not-a-match')
     // VITE_API_URL_DEV is removed from implementation; expect empty string when VITE_API_URL empty
     expect(out).toBe('')
   })
 
+  // Test: computeApiUrlFromEnv lege VITE_API_URL -> lege string
   it('computeApiUrlFromEnv: empty VITE_API_URL returns empty string (dev removed)', () => {
     const out = api.computeApiUrlFromEnv({ VITE_API_URL: '' } as { VITE_API_URL?: string; DEV?: boolean }, 'https://origin')
     expect(out).toBe('')
   })
 })
 
-// Additional tests to increase branch coverage for api/index.tsx
+
+// Extra suite: extra branch coverage voor API-hulpfuncties
 describe('additional branch coverage', () => {
+  // Test: fetchPlayersRawForSession retourneert raw players en surfaces plain-string errors
   it('fetchPlayersRawForSession: returns raw players and surfaces plain-string errors', async () => {
     // success -> returns raw list
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve({ players: [{ foo: 'bar' }] }) })) as unknown as typeof fetch
@@ -393,6 +435,7 @@ describe('additional branch coverage', () => {
     await expect(api.fetchPlayersRawForSession('s')).rejects.toThrow('plain err')
   })
 
+  // Test: fetchLeaderboard telt per-game keys en nested highscores op en negeert legacy score
   it('fetchLeaderboard: sums explicit per-game keys and nested highscores and ignores legacy score when per-game present', async () => {
     const backend = {
       leaderboard: [
@@ -414,6 +457,7 @@ describe('additional branch coverage', () => {
     expect(lbItemA.score).toBe(5) // 3 + 2, not 99
   })
 
+  // Test: fetchLeaderboard wanneer per-game waarden niet-numeriek zijn -> fallback naar legacy numeric score
   it('fetchLeaderboard: non-numeric per-game values fall back to legacy numeric score', async () => {
     const backend = {
       leaderboard: [
@@ -433,17 +477,20 @@ describe('additional branch coverage', () => {
     expect(lbItemB.score).toBe(7)
   })
 
+  // Test: postPlayerHeartbeat bij non-ok -> throw Error met status
   it('postPlayerHeartbeat: non-ok response throws an Error with status attached', async () => {
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 500, json: () => Promise.resolve({ message: 'srv' }) })) as unknown as typeof fetch
     await expect(api.postPlayerHeartbeat('s', '1')).rejects.toMatchObject({ message: 'srv', status: 500 })
   })
 
+  // Test: setActiveGameInfo non-ok en json() reject -> valt terug naar Unknown error via catch
   it('setActiveGameInfo: non-ok and json() rejects -> falls back to Unknown error via catch path', async () => {
     // Simulate server returning non-ok and json() rejects
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: false, status: 422, json: () => Promise.reject(new Error('bad json')) })) as unknown as typeof fetch
     await expect(api.setActiveGameInfo('s', { foo: 'x' })).rejects.toThrow('Unknown error')
   })
 
+  // Test: createSession extractId geeft voorkeur aan .id boven ._id bij normalisatie
   it('createSession: extractId prefers .id over ._id when normalizing organizerId', async () => {
     const fake = { session: { _id: 'sid', organizerId: { id: 'orgX' }, createdAt: 't' } }
     globalThis.fetch = vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve(fake) })) as unknown as typeof fetch
